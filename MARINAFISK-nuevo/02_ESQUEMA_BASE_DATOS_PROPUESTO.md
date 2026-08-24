@@ -31,9 +31,11 @@ formato_etiqueta, creado_en, modificado_en
 ### `proveedores`
 ```
 id, codigo (unique), nombre, es_subasta_op (bool),  -- sustituye a op2:'S'/'N'
-notas, creado_en, modificado_en
+tipo_iva (NACIONAL|INTRACOMUNITARIO), notas, creado_en, modificado_en
 ```
 `es_subasta_op` es el único campo que decide si se aplica el 2% de OP — debe consultarse en vivo en cada cálculo (nunca copiarse/congelarse en la compra), tal como exige la regla crítica del punto 2.
+
+`tipo_iva` decide el tratamiento fiscal de las compras a ese proveedor (ver regla de IVA en `compra_lineas` más abajo). Análogo al `tipo_iva` que ya existe en `clientes`, pero aplicado al lado de compras en vez de ventas.
 
 ### `articulos` (catálogo)
 ```
@@ -62,6 +64,14 @@ creado_en
 **Inmutabilidad**: `compras` y `compra_lineas` no permiten UPDATE ni DELETE a nivel de aplicación tras su creación (permiso de BD revocado o trigger que lo bloquee) — solo INSERT. Cualquier corrección se hace con un registro de ajuste enlazado, nunca sobrescribiendo. Esto sustituye a la garantía manual actual ("Compras = dato sagrado") por una garantía estructural.
 
 `op2_importe` y `iva_importe` se calculan y **congelan en el momento de la compra** (son historial), pero el cálculo en sí (fórmula) debe ser código centralizado y testeado, no reimplementado en varios sitios — el fallo histórico de fórmula congelada vino de que el valor no se recalculaba nunca al vuelo, no de guardar el resultado.
+
+**Regla de IVA en compras (decidida):**
+```
+iva_pct  = proveedor.tipo_iva == 'INTRACOMUNITARIO' ? 0 : 10
+iva_importe = base_real * iva_pct / 100
+total_factura = base_real + iva_importe
+```
+Proveedor intracomunitario (UE) → compra sin IVA, por inversión del sujeto pasivo (el IVA no lo paga el proveedor extranjero, se autorrepercute internamente en la contabilidad, fuera del alcance de este sistema). Proveedor nacional → 10% como siempre. Igual que en compras, `iva_pct` debe leerse en vivo del maestro de `proveedores` en el momento de la compra, nunca congelarse como fórmula fija en el código (misma regla crítica que el 2% de OP).
 
 ### `partidas` (estado de venta de una compra)
 ```
@@ -117,7 +127,7 @@ Con `UNIQUE(tipo, fecha)` por lista, y lógica de aplicación: si `modo=AUTO`, l
 
 ## Puntos abiertos que este esquema no resuelve todavía (dependen de respuestas de Víctor)
 
-1. **IVA en compras a proveedor extranjero** (ver discrepancia detectada: el código actual de `compra_lineas` no distingue proveedor extranjero, aplica 10% siempre). Falta decidir si `compras` necesita un campo `tipo_operacion` (NACIONAL|INTRACOMUNITARIA|IMPORTACION) con su propia regla de IVA, análogo a `tipo_iva` en `clientes`.
+1. ~~IVA en compras a proveedor extranjero~~ — **Resuelto (2026-08-24):** proveedor intracomunitario (UE) → compra sin IVA (inversión del sujeto pasivo). Añadido `tipo_iva` a `proveedores` y regla explícita en `compra_lineas`. Pendiente solo de decidir si además hace falta distinguir proveedores **extracomunitarios** (fuera de la UE, importación) como un tercer caso con su propio tratamiento, ya que por ahora solo se contempla NACIONAL/INTRACOMUNITARIO.
 2. Si existen más casos especiales de OP aparte de "subasta/lonja marcados como tal" (punto 9 del documento Fase 0).
 3. Reglas de mermas/pérdida de peso más allá del cierre de partidas.
 
