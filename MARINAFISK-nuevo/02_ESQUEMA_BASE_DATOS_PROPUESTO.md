@@ -127,7 +127,7 @@ Con `UNIQUE(tipo, fecha)` por lista, y lógica de aplicación: si `modo=AUTO`, l
 
 ## Puntos abiertos que este esquema no resuelve todavía (dependen de respuestas de Víctor)
 
-1. ~~IVA en compras a proveedor extranjero~~ — **Resuelto (2026-08-24):** proveedor intracomunitario (UE) → compra sin IVA (inversión del sujeto pasivo). Añadido `tipo_iva` a `proveedores` y regla explícita en `compra_lineas`. Pendiente solo de decidir si además hace falta distinguir proveedores **extracomunitarios** (fuera de la UE, importación) como un tercer caso con su propio tratamiento, ya que por ahora solo se contempla NACIONAL/INTRACOMUNITARIO.
+1. ~~IVA en compras a proveedor extranjero~~ — **Resuelto (2026-08-24):** proveedor intracomunitario (UE) → compra sin IVA (inversión del sujeto pasivo). Añadido `tipo_iva` a `proveedores` y regla explícita en `compra_lineas`. Confirmado por Víctor: los proveedores solo son **NACIONAL** o **INTRACOMUNITARIO** — no existen proveedores extracomunitarios, así que `tipo_iva` no necesita un tercer valor.
 2. Si existen más casos especiales de OP aparte de "subasta/lonja marcados como tal" (punto 9 del documento Fase 0).
 3. Reglas de mermas/pérdida de peso más allá del cierre de partidas.
 

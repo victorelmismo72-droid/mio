@@ -49,7 +49,7 @@ Recoge cómo funciona HOY el programa HTML (`CARGA_DE_ALBARANES_MARINAFISK`), pa
 ## 4. IVA
 
 - El pescado lleva **un único tipo de IVA (10%)** — no varía según el tipo de producto (fresco/congelado/otros).
-- **Decidido (2026-08-24):** las compras a **proveedores intracomunitarios (UE)** se facturan **sin IVA**, por inversión del sujeto pasivo — es el comportamiento correcto, no un fallo. El sistema nuevo debe marcar explícitamente cada proveedor como `NACIONAL` o `INTRACOMUNITARIO` (campo `tipo_iva` en el maestro de Proveedores, igual que ya existe para Clientes) y aplicar la regla en vivo en cada compra: 10% si nacional, 0% si intracomunitario. Pendiente confirmar si además hace falta un tercer caso para proveedores **extracomunitarios** (fuera de la UE, importación).
+- **Decidido (2026-08-24):** las compras a **proveedores intracomunitarios (UE)** se facturan **sin IVA**, por inversión del sujeto pasivo — es el comportamiento correcto, no un fallo. El sistema nuevo debe marcar explícitamente cada proveedor como `NACIONAL` o `INTRACOMUNITARIO` (campo `tipo_iva` en el maestro de Proveedores, igual que ya existe para Clientes) y aplicar la regla en vivo en cada compra: 10% si nacional, 0% si intracomunitario. Confirmado por Víctor: todos los proveedores son NACIONAL o INTRACOMUNITARIO, no hay proveedores extracomunitarios — no hace falta un tercer caso.
 - Nota histórica: el código actual del programa HTML no tiene esta distinción implementada en el cálculo de líneas de compra (aplica 10% siempre) — el comportamiento de "sin IVA" para esos proveedores se ha estado gestionando de otra forma fuera de esa fórmula. El sistema nuevo lo incorpora como regla explícita del motor de cálculo, no como excepción manual.
 
 ---
@@ -92,7 +92,7 @@ Recoge cómo funciona HOY el programa HTML (`CARGA_DE_ALBARANES_MARINAFISK`), pa
 
 ## 9. Pendiente de confirmar / decidir en el diseño nuevo
 
-- [x] Tratamiento correcto del IVA en compras a proveedores extranjeros (ver punto 4) — resuelto: intracomunitario = sin IVA. Queda abierto si hace falta distinguir también extracomunitario.
+- [x] Tratamiento correcto del IVA en compras a proveedores extranjeros (ver punto 4) — resuelto: intracomunitario = sin IVA; no existen proveedores extracomunitarios, no hace falta tercer caso.
 - [ ] Confirmar con Víctor si hay más proveedores o casos especiales de OP aparte de "subasta/lonja marcados como tal".
 - [ ] Revisar si existen otras reglas de mermas/pérdida de peso además de la ya mencionada en cierre de partidas.
 
