@@ -2,8 +2,9 @@ const express = require('express');
 const { pool } = require('../db');
 const {
   partidasDisponibles, asignarPartidaAutomatica, cerrarPartida, reabrirPartida,
-  cerrarPartidasMasivoPorFecha, rentabilidadPartida, MARGEN_MINIMO_PARTIDA,
+  cerrarPartidasMasivoPorFecha, rentabilidadPartida,
 } = require('../negocio/partidas');
+const { obtenerNumero } = require('../negocio/configuracion');
 
 const router = express.Router();
 
@@ -11,8 +12,11 @@ router.get('/disponibles', async (req, res, next) => {
   try {
     const { articulo } = req.query;
     if (!articulo) return res.status(400).json({ error: 'Falta el parametro articulo' });
-    const disponibles = await partidasDisponibles(pool, articulo);
-    res.json({ margen_minimo: MARGEN_MINIMO_PARTIDA, disponibles });
+    const [disponibles, margenMinimo] = await Promise.all([
+      partidasDisponibles(pool, articulo),
+      obtenerNumero(pool, 'margen_minimo_partida'),
+    ]);
+    res.json({ margen_minimo: margenMinimo, disponibles });
   } catch (err) { next(err); }
 });
 

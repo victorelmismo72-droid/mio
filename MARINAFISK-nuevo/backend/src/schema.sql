@@ -262,6 +262,18 @@ CREATE TABLE partidas_cerradas (
 );
 
 -- ---------------------------------------------------------------------------
+-- Parametros de negocio configurables (ej. margen minimo, % de Recargo de
+-- Equivalencia) - ver src/negocio/configuracion.js. Si una clave no esta
+-- aqui, se usa el valor por defecto del propio codigo.
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE configuracion (
+  clave         TEXT PRIMARY KEY,
+  valor         TEXT NOT NULL,
+  modificado_en TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- ---------------------------------------------------------------------------
 -- Listas de precios (Pescaderías / Mayoristas) — Fase 0 punto 5
 -- ---------------------------------------------------------------------------
 

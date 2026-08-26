@@ -8,10 +8,11 @@
  * Reglas (ver FASE_0, punto 4 y FASE_2, punto 2):
  *  - Cliente Nacional sin Recargo de Equivalencia -> IVA 10% normal.
  *  - Cliente Nacional con Recargo de Equivalencia -> IVA 10% + recargo de
- *    equivalencia. El porcentaje de recargo correspondiente al tipo de IVA
- *    del 10% es, segun la normativa espanola vigente al escribir esto,
- *    1,4% — CONFIRMAR CON VICTOR/ASESORIA antes de usarlo en una factura
- *    real, tal y como pide la Fase 2 (no esta cerrado con seguridad).
+ *    equivalencia. El porcentaje de recargo NO esta fijo en el codigo:
+ *    Victor ha pedido explicitamente que sea "el porcentaje que queramos",
+ *    asi que se lee en vivo de la tabla `configuracion` (clave
+ *    `recargo_equivalencia_pct`, ver src/negocio/configuracion.js) - editable
+ *    sin tocar codigo, con 1,4% como valor de arranque.
  *  - Cliente Intracomunitario -> se trata como entrega intracomunitaria
  *    exenta de IVA (0%), simetrico a como se trata ya una COMPRA a un
  *    proveedor intracomunitario. ESTO ES UN SUPUESTO, no una confirmacion
@@ -20,10 +21,11 @@
  *    factura real sin esa confirmacion.
  */
 
-const IVA_PESCADO_PCT = 10;
-const RECARGO_EQUIVALENCIA_PCT = 1.4; // ver aviso arriba: confirmar vigencia
+const { obtenerNumero } = require('./configuracion');
 
-function calcularIvaVenta(baseImponible, cliente) {
+const IVA_PESCADO_PCT = 10;
+
+async function calcularIvaVenta(pool, baseImponible, cliente) {
   const base = Number(baseImponible) || 0;
 
   if (cliente && cliente.tipo_iva === 'INTRACOMUNITARIO') {
@@ -39,11 +41,12 @@ function calcularIvaVenta(baseImponible, cliente) {
 
   const ivaImporte = base * (IVA_PESCADO_PCT / 100);
   const conRecargo = !!(cliente && cliente.recargo_equivalencia);
-  const recargoImporte = conRecargo ? base * (RECARGO_EQUIVALENCIA_PCT / 100) : 0;
+  const recargoPct = conRecargo ? await obtenerNumero(pool, 'recargo_equivalencia_pct') : 0;
+  const recargoImporte = conRecargo ? base * (recargoPct / 100) : 0;
 
   return {
     iva_pct: IVA_PESCADO_PCT,
-    recargo_pct: conRecargo ? RECARGO_EQUIVALENCIA_PCT : 0,
+    recargo_pct: recargoPct,
     iva_importe: ivaImporte,
     recargo_importe: recargoImporte,
     total: base + ivaImporte + recargoImporte,
@@ -51,4 +54,4 @@ function calcularIvaVenta(baseImponible, cliente) {
   };
 }
 
-module.exports = { calcularIvaVenta, IVA_PESCADO_PCT, RECARGO_EQUIVALENCIA_PCT };
+module.exports = { calcularIvaVenta, IVA_PESCADO_PCT };

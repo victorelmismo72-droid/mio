@@ -21,13 +21,14 @@ app.use('/api/traspasos', require('./routes/traspasos'));
 app.use('/api/repartos', require('./routes/repartos'));
 app.use('/api/listas-precio', require('./routes/listasPrecio'));
 app.use('/api/partidas', require('./routes/partidas'));
+app.use('/api/configuracion', require('./routes/configuracion'));
 app.use('/api/listados', require('./routes/listados'));
 app.use('/api/export', require('./routes/export'));
 
 // Manejador de errores generico: devuelve el mensaje de error de forma legible.
 app.use((err, req, res, next) => {
   console.error(err);
-  res.status(500).json({ error: err.message });
+  res.status(err.status || 500).json({ error: err.message });
 });
 
 const port = process.env.PORT || 3001;

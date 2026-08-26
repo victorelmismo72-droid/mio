@@ -7,6 +7,11 @@
  * mismas partidas que el actual dado el mismo dato de entrada.
  */
 
+const { obtenerNumero } = require('./configuracion');
+
+// Valor de arranque si nunca se ha configurado nada (ver configuracion.js) -
+// el valor real, editable, vive en la tabla `configuracion` bajo la clave
+// `margen_minimo_partida`.
 const MARGEN_MINIMO_PARTIDA = 1.30;
 
 function primeraPalabra(desc) {
@@ -63,7 +68,7 @@ async function partidasDisponibles(pool, articuloCodigo) {
   const setCerradas = new Set(cerradas.map((r) => r.numero_partida));
 
   const { rows: lineas } = await pool.query(`
-    SELECT cl.producto, cl.kilos, cl.precio_kg, c.numero_partida, c.fecha, c.proveedor_nombre
+    SELECT cl.producto, cl.kilos, cl.precio_kg, cl.base_real, c.numero_partida, c.fecha, c.proveedor_nombre
     FROM compra_lineas cl
     JOIN compras c ON c.id = cl.compra_id
     WHERE c.numero_partida IS NOT NULL
@@ -78,11 +83,19 @@ async function partidasDisponibles(pool, articuloCodigo) {
     const kilosVendidos = await kilosVendidosDePartida(pool, mapaArticulos, l.producto, l.numero_partida);
     const kilosDisponibles = kilosComprados - kilosVendidos;
     if (kilosDisponibles > 0.01) {
+      // Coste real por kilo para el margen: base_real (incluye el 2% de OP
+      // cuando aplica) dividido entre los kilos, NO el precio_kg de compra a
+      // secas. El HTML actual usa solo precio_kg aqui, pero Victor ha
+      // confirmado que el 2% de OP es un gasto real y debe contar como
+      // coste tambien a la hora de comparar el margen minimo (ver Fase 0
+      // punto 2 y VERIFICACION_FASE_2.md) - es una correccion deliberada,
+      // no un fallo de paridad con el HTML.
+      const costeReal = kilosComprados > 0 ? Number(l.base_real) / kilosComprados : Number(l.precio_kg) || 0;
       resultado.push({
         numero_partida: l.numero_partida,
         fecha: l.fecha,
         proveedor_nombre: l.proveedor_nombre,
-        coste: Number(l.precio_kg) || 0,
+        coste: costeReal,
         kilos_comprados: kilosComprados,
         kilos_disponibles: kilosDisponibles,
       });
@@ -102,13 +115,16 @@ async function partidasDisponibles(pool, articuloCodigo) {
 // PENDIENTE_MANUAL con la lista de candidatas para que se elija a mano -
 // nunca se auto-resuelve ni se bloquea la linea.
 async function asignarPartidaAutomatica(pool, articuloCodigo, precioVenta) {
-  const disponibles = await partidasDisponibles(pool, articuloCodigo);
+  const [disponibles, margenMinimo] = await Promise.all([
+    partidasDisponibles(pool, articuloCodigo),
+    obtenerNumero(pool, 'margen_minimo_partida'),
+  ]);
   const pv = Number(precioVenta) || 0;
-  const conMargen = disponibles.filter((p) => pv && (pv - p.coste) >= MARGEN_MINIMO_PARTIDA);
+  const conMargen = disponibles.filter((p) => pv && (pv - p.coste) >= margenMinimo);
   if (conMargen.length) {
-    return { estado: 'OK', partida_numero: conMargen[0].numero_partida, candidatos: disponibles };
+    return { estado: 'OK', partida_numero: conMargen[0].numero_partida, candidatos: disponibles, margen_minimo: margenMinimo };
   }
-  return { estado: 'PENDIENTE_MANUAL', partida_numero: null, candidatos: disponibles };
+  return { estado: 'PENDIENTE_MANUAL', partida_numero: null, candidatos: disponibles, margen_minimo: margenMinimo };
 }
 
 async function cerrarPartida(pool, numeroPartida, cerradaPor) {

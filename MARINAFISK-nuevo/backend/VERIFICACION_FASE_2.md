@@ -26,9 +26,11 @@ Mismo `kilos`/`precioKg` de entrada (100 kg × 4 €/kg) en ambos casos: el 2% d
 
 ## 2. IVA y Recargo de Equivalencia en ventas (`src/negocio/calculoVentas.js`)
 
-Lógica lista para el futuro módulo de facturación (no se usa todavía en ningún documento real, el HTML actual no factura). **Dos cosas marcadas explícitamente en el código como pendientes de confirmar, tal y como pedía la Fase 2 — no se han dado por buenas sin más:**
-- El 1,4% de Recargo de Equivalencia (el que corresponde al 10% de IVA) — confirmar que sigue vigente.
-- El tratamiento de cliente Intracomunitario como entrega exenta (0%) es un supuesto razonable, no una confirmación de Víctor/asesoría.
+Lógica lista para el futuro módulo de facturación (no se usa todavía en ningún documento real, el HTML actual no factura).
+
+**Resuelto (26/08/2026):** Víctor ha confirmado que el % de Recargo de Equivalencia no debe estar fijo en el código — debe ser "el porcentaje que queramos". Ahora vive en la tabla `configuracion` (clave `recargo_equivalencia_pct`, arranca en 1,4% pero es editable vía `GET/PUT /api/configuracion`) y se lee en vivo en cada cálculo, igual que el 2% de OP.
+
+Sigue pendiente, no urgente porque la facturación todavía no existe: el tratamiento de cliente Intracomunitario como entrega exenta (0%) es un supuesto razonable, no una confirmación de Víctor/asesoría.
 
 ## 3. Partidas y margen (`src/negocio/partidas.js`)
 
@@ -41,7 +43,9 @@ Reproduce el algoritmo exacto del HTML actual:
 
 Probado end-to-end contra los datos reales migrados: `GET /api/partidas/disponibles?articulo=C250` devuelve las partidas reales correctamente ordenadas por fecha (de más antigua a más nueva).
 
-**Nota de diseño para revisar con Víctor:** el HTML actual calcula el margen de una partida comparando el precio de venta contra `precioKg` (el precio de compra por kilo, sin el 2% de OP), no contra `baseReal/kilos` (que sí lo incluiría). Esta fase reproduce ese mismo criterio para no romper la paridad de comportamiento que pide la Fase 2 — pero conviene confirmar con Víctor si el margen de 1,30 €/kg debería en realidad descontar también el 2% de OP cuando aplica, o si es correcto dejarlo como está hoy.
+**Resuelto (26/08/2026):** Víctor ha confirmado que el 2% de OP es un gasto real, así que debe contar como coste también al comparar el margen mínimo — a diferencia del HTML actual, que compara el precio de venta solo contra `precioKg` (sin el 2% de OP). Corregido: el coste usado para el margen es ahora `baseReal / kilos` (incluye el 2% de OP cuando el proveedor es de subasta). Esto es una corrección deliberada respecto al HTML actual, no un fallo de paridad — probado con la partida real 5900: antes de la corrección el coste usado era 3,80 €/kg (`precioKg`), ahora es 3,876 €/kg (`baseReal/kilos` = 98,838 € / 25,5 kg), que es el coste real correcto.
+
+**El margen mínimo (1,30 €/kg) también es ahora configurable**, no fijo en el código (clave `margen_minimo_partida` en `configuracion`, mismo mecanismo que el recargo de equivalencia) — preparado para cuando en la Fase 3 esto pase a ser un parámetro que solo el Administrador puede cambiar.
 
 **Bug encontrado y corregido durante las pruebas de esta fase (no venía del HTML, era nuevo en este backend):** el orden por fecha de las partidas disponibles comparaba las fechas como texto tal cual las devuelve la librería de PostgreSQL (que las entrega como objeto `Date` de JavaScript), lo que las ordenaba por día de la semana en inglés en vez de cronológicamente. Corregido comparando por su valor temporal real; verificado que ahora las partidas salen de más antigua a más nueva.
 
@@ -55,8 +59,15 @@ Implementados con filtro por fecha (`?desde=&hasta=`) y exportación (`?formato=
 
 ## 5. Qué falta para cerrar la Fase 2 del todo
 
-- Confirmar con Víctor la nota de diseño del punto 3 (precioKg vs baseReal en el margen de partida).
-- Confirmar los dos supuestos fiscales de ventas del punto 2 (recargo 1,4%, intracomunitario exento) — no urgente porque la facturación todavía no existe.
+- Confirmar el supuesto fiscal de ventas que queda pendiente en el punto 2 (cliente intracomunitario exento) — no urgente porque la facturación todavía no existe.
 - Comparación explícita de agilidad frente al Excel `GESTION_CORRECTA` (punto 5 de la Fase 1/2) — no se ha hecho todavía, requiere que Víctor use el flujo real.
 - Exportación a PDF de los listados.
 - Conectar una pantalla real a estos endpoints (hoy solo son API + la pantalla de clasificación fiscal `fiscal.html`) para el uso diario.
+
+## 6. Parámetros de negocio configurables (`src/negocio/configuracion.js`, nuevo)
+
+A raíz de las dos respuestas de Víctor de arriba, se ha añadido una tabla `configuracion` (clave/valor) para parámetros que no deben estar fijos en el código:
+- `margen_minimo_partida` (arranca en 1,30 €/kg)
+- `recargo_equivalencia_pct` (arranca en 1,4%)
+
+Se consultan `GET /api/configuracion` y se cambian con `PUT /api/configuracion/:clave` (body `{"valor": ...}`). Probado: cambiar el recargo a 2% y volver a 1,4% se refleja inmediatamente; una clave inventada da error 400 (no rompe el servidor). De momento sin restricción de usuario — en la Fase 3 esto pasa a ser exclusivo del rol Administrador (ver Fase 3 punto 1).
