@@ -1,0 +1,19 @@
+{
+  "name": "marinafisk-backend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "MARINAFISK - Fase 1: backend minimo (API + acceso a datos) sobre PostgreSQL",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node src/server.js",
+    "migrate:schema": "psql \"$DATABASE_URL\" -f src/schema.sql",
+    "migrate:data": "node scripts/migrar_backup.js",
+    "verify": "node scripts/verificar_migracion.js",
+    "pendientes-fiscales": "node scripts/listar_pendientes_fiscales.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "pg": "^8.12.0",
+    "dotenv": "^16.4.5"
+  }
+}

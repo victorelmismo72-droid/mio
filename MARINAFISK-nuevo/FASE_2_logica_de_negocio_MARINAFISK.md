@@ -81,6 +81,7 @@ El HTML actual cubre los documentos operativos del día a día (albaranes, trasp
 - **Listado de existencias/stock actual** (qué partidas siguen abiertas y cuánto kg queda en cada una).
 - **Listado de márgenes por artículo** (qué artículos dan más o menos margen en un periodo).
 - **Listado de clientes sin actividad reciente** (relacionado con el panel ya existente "Clientes a Contactar Hoy", pero como informe exportable por rango de fechas, no solo el aviso diario).
+- **Regla obligatoria de alcance (confirmada por Víctor, ver Fase 0 punto 9):** cualquier listado de movimiento/venta de producto (por artículo, por cliente, por fecha, márgenes) debe sumar **pedidos + traspasos** — los traspasos a Zaragoza no son venta fiscalmente, pero sí cuentan como movimiento real de producto — y debe **excluir siempre Reparto Super**, porque esa mercancía ya se factura al cliente que encarga el reparto y aparece contabilizada por esa vía; incluirla también aquí duplicaría el dato. Esto es un fallo conocido del HTML actual (no suma traspasos) que el sistema nuevo debe corregir, no reproducir.
 - Todos los listados deben poder **filtrarse por fecha** y **exportarse** (como mínimo a PDF o Excel/CSV, coherente con el requisito de igualar o mejorar el Excel actual, ver punto 5).
 - Antes de dar esta sección por cerrada, revisar con Víctor si hace falta algún listado adicional específico del negocio del pescado que no esté en esta lista — esta es una base mínima, no necesariamente completa.
 
