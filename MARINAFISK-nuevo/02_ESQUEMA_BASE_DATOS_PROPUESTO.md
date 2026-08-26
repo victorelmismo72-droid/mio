@@ -24,9 +24,11 @@ Este documento es un borrador de discusión, no una migración definitiva. Objet
 ### `clientes`
 ```
 id, codigo (unique), nombre, cif, direccion, cp, poblacion, provincia,
-telefono, email, forma_pago, agencia, tipo_iva (NORMAL|INTRACOMUNITARIO|RECARGO_EQUIVALENCIA),
+telefono, email, forma_pago, agencia,
+tipo_iva (NACIONAL|INTRACOMUNITARIO), recargo_equivalencia (bool),
 formato_etiqueta, creado_en, modificado_en
 ```
+`tipo_iva` y `recargo_equivalencia` son campos independientes y combinables (un cliente nacional o intracomunitario puede tener o no Recargo de Equivalencia) — no un único enum con un valor por caso, para no bloquear combinaciones válidas (ver Fase 1, punto 2.1).
 
 ### `proveedores`
 ```
