@@ -248,6 +248,20 @@ CREATE TABLE reparto_lineas (
 );
 
 -- ---------------------------------------------------------------------------
+-- Cierre manual de partidas (Fase 0 punto 3 / Fase 2 punto 3)
+-- Completamente aparte de `compras`: no la toca ni la sincroniza para nada.
+-- Una partida rara vez llega a 0 kilos exactos (mermas, pérdida de peso en
+-- procesado), así que el cierre es una decisión manual de Víctor, no un
+-- cálculo automático.
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE partidas_cerradas (
+  numero_partida INTEGER PRIMARY KEY,
+  cerrada_en     TIMESTAMPTZ NOT NULL DEFAULT now(),
+  cerrada_por    TEXT
+);
+
+-- ---------------------------------------------------------------------------
 -- Listas de precios (Pescaderías / Mayoristas) — Fase 0 punto 5
 -- ---------------------------------------------------------------------------
 

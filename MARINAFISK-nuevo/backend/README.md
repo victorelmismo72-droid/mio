@@ -67,8 +67,13 @@ npm start
 
 El servidor queda escuchando en `http://localhost:3001`. Cada tabla tiene su propia dirección, por ejemplo `http://localhost:3001/api/clientes`. Hay una dirección especial, `http://localhost:3001/api/export`, que saca todos los datos en un JSON con la misma forma que el backup de siempre — útil para comparar en cualquier momento.
 
+## Fase 2 (ya construida): cálculos de negocio
+
+Al crear una compra (`POST /api/compras`), el servidor calcula solo el 2% de OP y el IVA correcto, leyendo el proveedor en ese mismo instante (nunca un valor congelado) — corrige el fallo histórico del IVA que el HTML actual sigue teniendo. También hay endpoints para asignar partidas automáticamente (con el mismo margen mínimo de 1,30 €/kg y el mismo emparejamiento de producto que el HTML actual), cerrar/reabrir partidas, ver la rentabilidad de una partida, y varios listados de gestión (ventas por cliente, compras por proveedor, márgenes, stock actual, etc.) exportables a CSV. Detalle completo de lo probado en `VERIFICACION_FASE_2.md`.
+
 ## Qué falta todavía (fases siguientes)
 
-- **Fase 2**: que el sistema calcule solo el 2% de OP, el IVA correcto, el margen y la asignación de partidas — hoy la base de datos solo guarda los datos, no calcula nada.
+- Confirmar con Víctor un par de detalles de la Fase 2 marcados explícitamente como "pendiente de confirmar" (ver `VERIFICACION_FASE_2.md`, punto 5) — no bloquean nada, pero conviene cerrarlos.
+- Exportar los listados también a PDF (hoy solo CSV/JSON) y los modelos de impresión (fichas de envío, etiquetas, Transfrío).
 - **Fase 3**: usuarios reales con contraseña, para que varias personas trabajen a la vez sin la carpeta compartida de hoy.
-- Conectar una pantalla/interfaz nueva a este backend (hoy solo existe la API; el HTML actual sigue siendo la pantalla que usas en el día a día).
+- Conectar una pantalla/interfaz nueva a este backend para el uso diario (hoy solo existen la API y la pantalla de clasificación fiscal `fiscal.html`; el HTML actual sigue siendo la pantalla que usas en el día a día).

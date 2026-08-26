@@ -20,10 +20,11 @@ app.use('/api/pedidos', require('./routes/pedidos'));
 app.use('/api/traspasos', require('./routes/traspasos'));
 app.use('/api/repartos', require('./routes/repartos'));
 app.use('/api/listas-precio', require('./routes/listasPrecio'));
+app.use('/api/partidas', require('./routes/partidas'));
+app.use('/api/listados', require('./routes/listados'));
 app.use('/api/export', require('./routes/export'));
 
-// Manejador de errores generico. Fase 1 no valida reglas de negocio -
-// solo devuelve el error de la base de datos de forma legible.
+// Manejador de errores generico: devuelve el mensaje de error de forma legible.
 app.use((err, req, res, next) => {
   console.error(err);
   res.status(500).json({ error: err.message });
