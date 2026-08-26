@@ -1,8 +1,14 @@
 require('dotenv').config();
+const path = require('path');
 const express = require('express');
 
 const app = express();
 app.use(express.json({ limit: '10mb' }));
+
+// Pantalla sencilla para que Victor marque a mano la clasificacion fiscal
+// de proveedores/clientes (Nacional/Intracomunitario, Recargo de Equivalencia)
+// sin tener que usar la API directamente. Ver public/fiscal.html.
+app.use(express.static(path.join(__dirname, '..', 'public')));
 
 app.get('/api/health', (req, res) => res.json({ ok: true }));
 

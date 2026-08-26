@@ -28,7 +28,17 @@ Hay dos cosas que el backup antiguo no distinguía y que necesitan que las revis
 1. **Qué proveedores son intracomunitarios** (de otro país de la UE) — de momento se han marcado todos como "Nacional" por defecto.
 2. **Los 4 clientes con Recargo de Equivalencia** — se han migrado como Nacionales (parecía lo más razonable porque el recargo de equivalencia es un mecanismo español), pero conviene que lo confirmes.
 
-Para ver la lista exacta de qué revisar (con nombres y códigos reales), ejecuta:
+### Pantalla para marcarlo tú mismo
+
+Con el servidor arrancado (`npm start`), abre en el navegador:
+
+```
+http://localhost:3001/fiscal.html
+```
+
+Verás dos listas (Proveedores y Clientes) con un buscador arriba de cada una. Cada fila tiene su desplegable Nacional/Intracomunitario (y, en clientes, la casilla de Recargo de Equivalencia). En cuanto tocas algo se guarda solo — no hace falta ningún botón "Guardar" ni tocar código. Un fondo verde momentáneo confirma que se guardó bien.
+
+Si prefieres solo consultar la lista sin pantalla (por ejemplo, para copiarla a otro sitio), sigue disponible:
 ```
 npm run pendientes-fiscales
 ```
