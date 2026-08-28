@@ -1,6 +1,8 @@
 require('dotenv').config();
 const path = require('path');
 const express = require('express');
+const { pool } = require('./db');
+const { requireAuth } = require('./auth');
 
 const app = express();
 app.use(express.json({ limit: '10mb' }));
@@ -11,6 +13,12 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
 app.get('/api/health', (req, res) => res.json({ ok: true }));
+
+// Login no requiere estar ya logueado (obviamente). Todo lo demas bajo
+// /api si requiere sesion (Fase 3): un token valido de Authorization:
+// Bearer <token>, obtenido en POST /api/auth/login.
+app.use('/api/auth', require('./routes/auth'));
+app.use('/api', requireAuth(pool));
 
 app.use('/api/clientes', require('./routes/clientes'));
 app.use('/api/articulos', require('./routes/articulos'));
@@ -24,6 +32,8 @@ app.use('/api/partidas', require('./routes/partidas'));
 app.use('/api/configuracion', require('./routes/configuracion'));
 app.use('/api/listados', require('./routes/listados'));
 app.use('/api/export', require('./routes/export'));
+app.use('/api/usuarios', require('./routes/usuarios'));
+app.use('/api/cierre-anual', require('./routes/cierreAnual'));
 
 // Manejador de errores generico: devuelve el mensaje de error de forma legible.
 app.use((err, req, res, next) => {

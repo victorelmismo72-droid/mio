@@ -4,8 +4,9 @@ module.exports = crudDocumento({
   tabla: 'pedidos',
   tablaLineas: 'pedido_lineas',
   fkLinea: 'pedido_id',
+  secuenciaNumero: 'seq_pedido_numero',
   columnasCabecera: [
-    'numero', 'fecha', 'cliente_codigo', 'cliente_nombre_snapshot',
+    'numero', 'anio', 'fecha', 'cliente_codigo', 'cliente_nombre_snapshot',
     'cliente_cif_snapshot', 'cliente_dir_snapshot', 'cliente_pob_snapshot',
     'cliente_tel_snapshot', 'agencia', 'forma_pago', 'base', 'iva', 'total',
     'puesto_origen',

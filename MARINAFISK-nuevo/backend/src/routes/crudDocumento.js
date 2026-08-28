@@ -1,10 +1,22 @@
 const express = require('express');
 const { pool, registrarAuditoria } = require('../db');
 
+// `fecha` siempre es texto local 'AAAA-MM-DD' - nunca convertir con
+// Date/UTC para sacar el ano (Fase 0 punto 7).
+function anioDeFecha(fecha) {
+  return fecha ? parseInt(String(fecha).slice(0, 4), 10) : null;
+}
+
 // Fabrica de CRUD para documentos con cabecera + lineas (pedidos, traspasos,
 // repartos). A diferencia de compras, estos SI se pueden actualizar/borrar
-// (no son "dato sagrado"). Sin logica de negocio todavia - eso es Fase 2.
-function crudDocumento({ tabla, tablaLineas, columnasCabecera, columnasLinea, fkLinea }) {
+// (no son "dato sagrado").
+//
+// `secuenciaNumero` (opcional): si se indica, el numero de documento se
+// genera con esa secuencia de PostgreSQL cuando no viene ya en el body -
+// nunca se confia en un contador llevado por el cliente. Esto es lo que
+// garantiza que dos usuarios trabajando a la vez nunca obtengan el mismo
+// numero de albaran/traspaso/reparto (Fase 0 punto 6 / Fase 3 punto 2).
+function crudDocumento({ tabla, tablaLineas, columnasCabecera, columnasLinea, fkLinea, secuenciaNumero }) {
   const router = express.Router();
   const colsCab = columnasCabecera.join(', ');
 
@@ -29,10 +41,25 @@ function crudDocumento({ tabla, tablaLineas, columnasCabecera, columnasLinea, fk
   router.post('/', async (req, res, next) => {
     const client = await pool.connect();
     try {
-      const { lineas = [], puesto_origen } = req.body;
-      const valoresCab = columnasCabecera.map((c) => req.body[c] ?? null);
-      const placeholders = columnasCabecera.map((_, i) => `$${i + 1}`).join(', ');
+      const { lineas = [] } = req.body;
+
       await client.query('BEGIN');
+
+      let numero = req.body.numero;
+      if (secuenciaNumero && (numero === undefined || numero === null)) {
+        const { rows: seqRows } = await client.query(`SELECT nextval('${secuenciaNumero}') AS n`);
+        numero = seqRows[0].n;
+      }
+      // puesto_origen siempre es el usuario autenticado, nunca lo que
+      // mande el cliente (Fase 3 punto 1: "cada registro debe guardar de
+      // forma fiable que usuario lo creo").
+      const valoresCab = columnasCabecera.map((c) => {
+        if (c === 'numero') return numero;
+        if (c === 'anio') return anioDeFecha(req.body.fecha);
+        if (c === 'puesto_origen') return req.usuario.usuario;
+        return req.body[c] ?? null;
+      });
+      const placeholders = columnasCabecera.map((_, i) => `$${i + 1}`).join(', ');
       const { rows } = await client.query(
         `INSERT INTO ${tabla} (${colsCab}) VALUES (${placeholders}) RETURNING *`,
         valoresCab
@@ -50,7 +77,7 @@ function crudDocumento({ tabla, tablaLineas, columnasCabecera, columnasLinea, fk
         lineasInsertadas.push(lr[0]);
       }
 
-      await registrarAuditoria(client, { tabla, accion: 'INSERT', registroId: cabecera.id, puestoOrigen: puesto_origen, detalle: { num_lineas: lineasInsertadas.length } });
+      await registrarAuditoria(client, { tabla, accion: 'INSERT', registroId: cabecera.id, puestoOrigen: req.usuario.usuario, detalle: { num_lineas: lineasInsertadas.length } });
       await client.query('COMMIT');
       res.status(201).json({ ...cabecera, lineas: lineasInsertadas });
     } catch (err) { await client.query('ROLLBACK'); next(err); } finally { client.release(); }
@@ -60,14 +87,18 @@ function crudDocumento({ tabla, tablaLineas, columnasCabecera, columnasLinea, fk
     const client = await pool.connect();
     try {
       const sets = columnasCabecera.map((c, i) => `${c} = $${i + 1}`).join(', ');
-      const valores = columnasCabecera.map((c) => req.body[c] ?? null);
+      const valores = columnasCabecera.map((c) => {
+        if (c === 'anio') return anioDeFecha(req.body.fecha);
+        if (c === 'puesto_origen') return req.usuario.usuario;
+        return req.body[c] ?? null;
+      });
       await client.query('BEGIN');
       const { rows } = await client.query(
         `UPDATE ${tabla} SET ${sets}, modificado_en = now() WHERE id = $${columnasCabecera.length + 1} RETURNING *`,
         [...valores, req.params.id]
       );
       if (!rows.length) { await client.query('ROLLBACK'); return res.status(404).json({ error: 'No encontrado' }); }
-      await registrarAuditoria(client, { tabla, accion: 'UPDATE', registroId: req.params.id, puestoOrigen: req.body.puesto_origen });
+      await registrarAuditoria(client, { tabla, accion: 'UPDATE', registroId: req.params.id, puestoOrigen: req.usuario.usuario });
       await client.query('COMMIT');
       res.json(rows[0]);
     } catch (err) { await client.query('ROLLBACK'); next(err); } finally { client.release(); }
@@ -80,7 +111,7 @@ function crudDocumento({ tabla, tablaLineas, columnasCabecera, columnasLinea, fk
       await client.query(`DELETE FROM ${tablaLineas} WHERE ${fkLinea} = $1`, [req.params.id]);
       const { rowCount } = await client.query(`DELETE FROM ${tabla} WHERE id = $1`, [req.params.id]);
       if (!rowCount) { await client.query('ROLLBACK'); return res.status(404).json({ error: 'No encontrado' }); }
-      await registrarAuditoria(client, { tabla, accion: 'DELETE', registroId: req.params.id, puestoOrigen: req.query.puesto_origen });
+      await registrarAuditoria(client, { tabla, accion: 'DELETE', registroId: req.params.id, puestoOrigen: req.usuario.usuario });
       await client.query('COMMIT');
       res.status(204).end();
     } catch (err) { await client.query('ROLLBACK'); next(err); } finally { client.release(); }

@@ -147,7 +147,13 @@ CREATE TRIGGER trg_compra_lineas_inmutable
 
 CREATE TABLE pedidos (
   id                      SERIAL PRIMARY KEY,
-  numero                  INTEGER UNIQUE NOT NULL,
+  -- `numero` es unico dentro de cada ano (anio, numero), no globalmente:
+  -- el cierre de ano (Fase 3 punto 1bis) reinicia la numeracion cada ano
+  -- natural, y dos pedidos de anos distintos pueden compartir numero sin
+  -- chocar. `anio` se calcula siempre a partir de `fecha` en texto local
+  -- (nunca con conversion UTC, ver Fase 0 punto 7).
+  numero                  INTEGER NOT NULL,
+  anio                    INTEGER NOT NULL,
   fecha                   DATE NOT NULL,
   cliente_codigo          TEXT REFERENCES clientes(codigo),
   -- Instantánea de los datos del cliente en el momento del pedido (el HTML
@@ -164,7 +170,8 @@ CREATE TABLE pedidos (
   total                   NUMERIC,
   puesto_origen           TEXT,
   creado_en               TIMESTAMPTZ NOT NULL DEFAULT now(),
-  modificado_en           TIMESTAMPTZ NOT NULL DEFAULT now()
+  modificado_en           TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (anio, numero)
 );
 
 CREATE TABLE pedido_lineas (
@@ -191,14 +198,16 @@ CREATE TABLE pedido_lineas (
 
 CREATE TABLE traspasos (
   id             SERIAL PRIMARY KEY,
-  numero         INTEGER UNIQUE NOT NULL,
+  numero         INTEGER NOT NULL,
+  anio           INTEGER NOT NULL,
   fecha          DATE NOT NULL,
   base           NUMERIC,
   total          NUMERIC,
   total_kg       NUMERIC,
   puesto_origen  TEXT,
   creado_en      TIMESTAMPTZ NOT NULL DEFAULT now(),
-  modificado_en  TIMESTAMPTZ NOT NULL DEFAULT now()
+  modificado_en  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (anio, numero)
 );
 
 CREATE TABLE traspaso_lineas (
@@ -220,7 +229,8 @@ CREATE TABLE traspaso_lineas (
 
 CREATE TABLE repartos (
   id                     SERIAL PRIMARY KEY,
-  numero                 INTEGER UNIQUE NOT NULL,
+  numero                 INTEGER NOT NULL,
+  anio                   INTEGER NOT NULL,
   fecha                  DATE NOT NULL,
   destinatario_nombre    TEXT,
   destinatario_ciudad    TEXT,
@@ -229,7 +239,8 @@ CREATE TABLE repartos (
   total_kg               NUMERIC,
   puesto_origen          TEXT,
   creado_en              TIMESTAMPTZ NOT NULL DEFAULT now(),
-  modificado_en          TIMESTAMPTZ NOT NULL DEFAULT now()
+  modificado_en          TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (anio, numero)
 );
 
 CREATE TABLE reparto_lineas (
@@ -325,3 +336,44 @@ CREATE INDEX idx_compras_numero_partida ON compras(numero_partida);
 CREATE INDEX idx_pedido_lineas_partida ON pedido_lineas(partida_numero);
 CREATE INDEX idx_traspasos_fecha ON traspasos(fecha);
 CREATE INDEX idx_repartos_fecha ON repartos(fecha);
+
+-- ---------------------------------------------------------------------------
+-- Fase 3: usuarios reales, sesiones y cierre de año
+--
+-- Modelo de permisos (Fase 3 punto 1): todos los usuarios pueden hacer lo
+-- mismo en el dia a dia operativo (ESTANDAR). Solo dos cosas quedan
+-- reservadas al rol ADMINISTRADOR: modificar parametros/usuarios del
+-- programa, y el cierre de ano. No hay jerarquia operativa entre usuarios.
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE usuarios (
+  id             SERIAL PRIMARY KEY,
+  usuario        TEXT UNIQUE NOT NULL,
+  nombre         TEXT NOT NULL,
+  password_hash  TEXT NOT NULL,
+  rol            TEXT NOT NULL DEFAULT 'ESTANDAR' CHECK (rol IN ('ESTANDAR','ADMINISTRADOR')),
+  activo         BOOLEAN NOT NULL DEFAULT TRUE,
+  creado_en      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  modificado_en  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Sesiones de login: token opaco, no JWT - mas simple de razonar y de
+-- revocar (basta con borrar la fila) para un equipo pequeno.
+CREATE TABLE sesiones (
+  token       TEXT PRIMARY KEY,
+  usuario_id  INTEGER NOT NULL REFERENCES usuarios(id),
+  creado_en   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  expira_en   TIMESTAMPTZ NOT NULL
+);
+CREATE INDEX idx_sesiones_usuario ON sesiones(usuario_id);
+
+-- Cierre de ano (Fase 3 punto 1bis): reinicia la numeracion hacia adelante
+-- sin tocar el historico. Cada ejecucion queda registrada aqui - quien,
+-- cuando, y que contadores tenia cada secuencia antes y despues.
+CREATE TABLE cierres_anuales (
+  id                  SERIAL PRIMARY KEY,
+  ejecutado_por        INTEGER NOT NULL REFERENCES usuarios(id),
+  ejecutado_en         TIMESTAMPTZ NOT NULL DEFAULT now(),
+  contadores_antes     JSONB NOT NULL,
+  contadores_despues   JSONB NOT NULL
+);

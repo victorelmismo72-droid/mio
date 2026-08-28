@@ -54,6 +54,12 @@ function boolOrFalse(v) {
   return v === true || v === 'S' || v === 'true';
 }
 
+// `fecha` ya viene como texto local 'AAAA-MM-DD' (nunca convertir con
+// Date/UTC para sacar el ano, ver Fase 0 punto 7).
+function anioDeFecha(fecha) {
+  return parseInt(String(fecha).slice(0, 4), 10);
+}
+
 async function migrarClientes(client) {
   const mapaIdPorCodigo = new Map();
   for (const c of backup.clientes || []) {
@@ -147,13 +153,13 @@ async function migrarPedidos(client) {
     const ts = h._modTimestamp || null;
     if (h.num && h.num > maxNumero) maxNumero = h.num;
     const { rows } = await client.query(
-      `INSERT INTO pedidos (numero, fecha, cliente_codigo, cliente_nombre_snapshot, cliente_cif_snapshot,
+      `INSERT INTO pedidos (numero, anio, fecha, cliente_codigo, cliente_nombre_snapshot, cliente_cif_snapshot,
                              cliente_dir_snapshot, cliente_pob_snapshot, cliente_tel_snapshot, agencia,
                              forma_pago, base, iva, total, puesto_origen, creado_en, modificado_en)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,
-               COALESCE($15::timestamptz, now()), COALESCE($15::timestamptz, now()))
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,
+               COALESCE($16::timestamptz, now()), COALESCE($16::timestamptz, now()))
        RETURNING id`,
-      [h.num, h.fecha, h.cliente || null, h.clienteNombre || null, h.clienteCif || null,
+      [h.num, anioDeFecha(h.fecha), h.fecha, h.cliente || null, h.clienteNombre || null, h.clienteCif || null,
         h.clienteDir || null, h.clientePob || null, h.clienteTel || null, h.agencia || null,
         h.formaPago || null, numOrNull(h.base), numOrNull(h.iva), numOrNull(h.total), h._uid || null, ts]
     );
@@ -179,10 +185,10 @@ async function migrarTraspasos(client) {
     const ts = t._modTimestamp || null;
     if (t.num && t.num > maxNumero) maxNumero = t.num;
     const { rows } = await client.query(
-      `INSERT INTO traspasos (numero, fecha, base, total, total_kg, puesto_origen, creado_en, modificado_en)
-       VALUES ($1,$2,$3,$4,$5,$6, COALESCE($7::timestamptz, now()), COALESCE($7::timestamptz, now()))
+      `INSERT INTO traspasos (numero, anio, fecha, base, total, total_kg, puesto_origen, creado_en, modificado_en)
+       VALUES ($1,$2,$3,$4,$5,$6,$7, COALESCE($8::timestamptz, now()), COALESCE($8::timestamptz, now()))
        RETURNING id`,
-      [t.num, t.fecha, numOrNull(t.base), numOrNull(t.total), numOrNull(t.totalKg), t._uid || null, ts]
+      [t.num, anioDeFecha(t.fecha), t.fecha, numOrNull(t.base), numOrNull(t.total), numOrNull(t.totalKg), t._uid || null, ts]
     );
     const traspasoId = rows[0].id;
     for (const l of t.lineas || []) {
@@ -204,11 +210,11 @@ async function migrarRepartos(client) {
     const ts = r._modTimestamp || null;
     if (r.num && r.num > maxNumero) maxNumero = r.num;
     const { rows } = await client.query(
-      `INSERT INTO repartos (numero, fecha, destinatario_nombre, destinatario_ciudad, conductor,
+      `INSERT INTO repartos (numero, anio, fecha, destinatario_nombre, destinatario_ciudad, conductor,
                               total_cajas, total_kg, puesto_origen, creado_en, modificado_en)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8, COALESCE($9::timestamptz, now()), COALESCE($9::timestamptz, now()))
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9, COALESCE($10::timestamptz, now()), COALESCE($10::timestamptz, now()))
        RETURNING id`,
-      [r.num, r.fecha, r.destinatarioNombre || null, r.destinatarioCiudad || null, r.conductor || null,
+      [r.num, anioDeFecha(r.fecha), r.fecha, r.destinatarioNombre || null, r.destinatarioCiudad || null, r.conductor || null,
         numOrNull(r.totalCajas), numOrNull(r.totalKg), r._uid || null, ts]
     );
     const repartoId = rows[0].id;

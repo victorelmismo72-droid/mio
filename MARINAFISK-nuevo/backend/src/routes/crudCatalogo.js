@@ -39,7 +39,7 @@ function crudCatalogo({ tabla, columnas, camposFecha }) {
         `INSERT INTO ${tabla} ${clausulaValores} RETURNING id, ${cols}, creado_en, modificado_en`,
         valores
       );
-      await registrarAuditoria(client, { tabla, accion: 'INSERT', registroId: rows[0].id, puestoOrigen: req.body.puesto_origen, detalle: req.body });
+      await registrarAuditoria(client, { tabla, accion: 'INSERT', registroId: rows[0].id, puestoOrigen: req.usuario.usuario, detalle: req.body });
       await client.query('COMMIT');
       res.status(201).json(rows[0]);
     } catch (err) { await client.query('ROLLBACK'); next(err); } finally { client.release(); }
@@ -56,7 +56,7 @@ function crudCatalogo({ tabla, columnas, camposFecha }) {
         [...valores, req.params.id]
       );
       if (!rows.length) { await client.query('ROLLBACK'); return res.status(404).json({ error: 'No encontrado' }); }
-      await registrarAuditoria(client, { tabla, accion: 'UPDATE', registroId: req.params.id, puestoOrigen: req.body.puesto_origen, detalle: req.body });
+      await registrarAuditoria(client, { tabla, accion: 'UPDATE', registroId: req.params.id, puestoOrigen: req.usuario.usuario, detalle: req.body });
       await client.query('COMMIT');
       res.json(rows[0]);
     } catch (err) { await client.query('ROLLBACK'); next(err); } finally { client.release(); }
@@ -68,7 +68,7 @@ function crudCatalogo({ tabla, columnas, camposFecha }) {
       await client.query('BEGIN');
       const { rowCount } = await client.query(`DELETE FROM ${tabla} WHERE id = $1`, [req.params.id]);
       if (!rowCount) { await client.query('ROLLBACK'); return res.status(404).json({ error: 'No encontrado' }); }
-      await registrarAuditoria(client, { tabla, accion: 'DELETE', registroId: req.params.id, puestoOrigen: req.query.puesto_origen });
+      await registrarAuditoria(client, { tabla, accion: 'DELETE', registroId: req.params.id, puestoOrigen: req.usuario.usuario });
       await client.query('COMMIT');
       res.status(204).end();
     } catch (err) { await client.query('ROLLBACK'); next(err); } finally { client.release(); }

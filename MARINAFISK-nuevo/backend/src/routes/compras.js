@@ -42,9 +42,11 @@ router.post('/', async (req, res, next) => {
   const client = await pool.connect();
   try {
     const {
-      numero_partida, fecha, alb_proveedor, proveedor_codigo,
-      puesto_origen, lineas = [],
+      numero_partida, fecha, alb_proveedor, proveedor_codigo, lineas = [],
     } = req.body;
+    // puesto_origen es siempre el usuario autenticado (Fase 3 punto 1),
+    // nunca lo que mande el cliente.
+    const puesto_origen = req.usuario.usuario;
 
     await client.query('BEGIN');
 

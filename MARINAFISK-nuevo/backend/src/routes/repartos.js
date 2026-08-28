@@ -4,8 +4,9 @@ module.exports = crudDocumento({
   tabla: 'repartos',
   tablaLineas: 'reparto_lineas',
   fkLinea: 'reparto_id',
+  secuenciaNumero: 'seq_reparto_numero',
   columnasCabecera: [
-    'numero', 'fecha', 'destinatario_nombre', 'destinatario_ciudad',
+    'numero', 'anio', 'fecha', 'destinatario_nombre', 'destinatario_ciudad',
     'conductor', 'total_cajas', 'total_kg', 'puesto_origen',
   ],
   columnasLinea: [
