@@ -54,13 +54,27 @@ router.post('/', async (req, res, next) => {
     if (!provRows.length) { await client.query('ROLLBACK'); return res.status(400).json({ error: `Proveedor ${proveedor_codigo} no encontrado` }); }
     const proveedor = provRows[0];
 
-    // Si no se indica numero_partida, lo genera la propia base de datos
-    // (secuencia sin colisiones, ver Fase 1/Fase 3 punto 2) en vez de
-    // fiarse de un contador llevado por el cliente.
+    // La partida se comparte entre TODAS las compras del MISMO proveedor en
+    // la MISMA fecha, sin importar cuantos otros proveedores se hayan
+    // cargado por en medio, ni el numero de albaran del proveedor (eso se
+    // guarda igual, pero no forma parte de lo que decide la partida) - asi
+    // es como ya lo hace el HTML actual (funcion partidaParaCompra). Si no
+    // hay ninguna todavia para esa combinacion, se genera una nueva con la
+    // secuencia (sin colisiones, ver Fase 1/Fase 3 punto 2).
     let numeroPartidaFinal = numero_partida;
     if (numeroPartidaFinal == null) {
-      const { rows: seqRows } = await client.query(`SELECT nextval('seq_partida_numero') AS n`);
-      numeroPartidaFinal = seqRows[0].n;
+      const { rows: existente } = await client.query(
+        `SELECT numero_partida FROM compras
+         WHERE fecha = $1 AND proveedor_codigo = $2 AND numero_partida IS NOT NULL
+         ORDER BY id LIMIT 1`,
+        [fecha, proveedor_codigo]
+      );
+      if (existente.length) {
+        numeroPartidaFinal = existente[0].numero_partida;
+      } else {
+        const { rows: seqRows } = await client.query(`SELECT nextval('seq_partida_numero') AS n`);
+        numeroPartidaFinal = seqRows[0].n;
+      }
     }
 
     const lineasCalculadas = lineas.map((l) => ({ ...l, ...calcularLineaCompra(l, proveedor) }));

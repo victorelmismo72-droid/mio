@@ -34,7 +34,11 @@ Sigue pendiente, no urgente porque la facturación todavía no existe: el tratam
 
 ## 3. Partidas y margen (`src/negocio/partidas.js`)
 
-Reproduce el algoritmo exacto del HTML actual:
+**Corrección importante (encontrada por Víctor probando la Fase 4, 29/08/2026):** la asignación del número de partida al registrar una compra (`POST /api/compras`, en `src/routes/compras.js`) no reproducía una regla que el HTML actual sí tiene (función `partidaParaCompra`): la partida se comparte entre **todas** las compras del **mismo proveedor** en la **misma fecha**, aunque entre medias se hayan cargado compras de otros proveedores, y sin que importe el número de albarán del proveedor (ese dato se guarda igual, pero no decide la partida). Corregido: antes de generar una partida nueva, se comprueba si ya existe una compra con la misma `fecha` + `proveedor_codigo`; si la hay, se reutiliza su número de partida.
+
+Probado explícitamente con datos reales: compra a COPESA (día X) → partida A; compra a otro proveedor (mismo día X) → partida B (nueva); segunda compra a COPESA (mismo día X, albarán del proveedor distinto) → reutiliza la partida A; compra a COPESA al día siguiente → partida C (nueva). Coincide exactamente con el comportamiento del HTML actual.
+
+Reproduce además el resto del algoritmo exacto del HTML actual:
 - **Emparejamiento de familia de producto**: mismo código, o código corto (≥4 caracteres) que es el principio del código largo **y además** coincide la primera palabra de la descripción del catálogo — evita el falso positivo conocido (C144 vs C1444, ver Fase 0 punto 3).
 - **Kilos disponibles por partida**: comprados − vendidos (pedidos) − traspasados (traspasos cuentan como salida de kilos igual que una venta, aunque no sean fiscalmente una venta).
 - **Margen mínimo 1,30 €/kg**: si ninguna partida disponible llega al margen frente al precio de venta, se marca `PENDIENTE_MANUAL` con la lista de candidatas — nunca se auto-resuelve ni se bloquea la línea.
