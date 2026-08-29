@@ -21,9 +21,17 @@ Construido sobre las Fases 1-3 ya verificadas. Pantallas nuevas en `public/` (HT
 
 Probado contra un reparto real de prueba (3 cajas → 3 etiquetas), verificado el HTML generado campo a campo (lote `290826`, caducidad `05/09/26` = 29/08 + 7 días, RSI y sello correctos) y visualmente con una captura de pantalla del resultado. Limpiado el dato de prueba y verificado `npm run verify`: 0 discrepancias.
 
+**Etiquetas de Pedidos — los 6 formatos por cliente** (29/08/2026): extendido `src/negocio/etiquetas.js` con los 4 formatos restantes (Francés/Pomona, Italiano, Más y Más, David Sala) y un registro `FORMATOS`/`obtenerFormatoParaCliente(cliente)` que elige el formato según `clientes.formato_etiqueta`, igual que el HTML actual. Botón "🏷️ Etiquetas" en `pedidos.html`.
+
+Probado contra pedidos **reales** de los 4 clientes que de verdad tienen cada formato especial migrado (POMONA francés, Más y Más, David Sala, Altida italiano):
+- Traducciones exactas (ZONE/SOUS-ZONE, DESTINATAIRE, RÉFRIGÉRÉ, PLUSIEURS BATEAUX, VOIR CAISSE en francés; SOTTOZONA/DESTINATARIO/LOTTO en italiano) y nombre de producto en el idioma del artículo (`nombre_frances`/`nombre_italiano`, ya migrados).
+- **Caducidad de Pomona confirmada a 12 días** (no 7): pedido del 02/06 → caduca 14/06, exactamente +12 días — la única regla de negocio "rara" de todo el bloque, y la más fácil de teclear mal, sale correcta contra un cliente real.
+- David Sala con su propio expedidor/RSI (no el de la lonja de Coruña) y su propio sello de texto.
+- Más y Más con el sello de texto propio (12.3894/Z) sobre el resto de la plantilla Marina Fisk estándar.
+
 Ver `VERIFICACION_TRANSVERSAL.md` para el detalle punto por punto frente al documento de auditoría de Víctor.
 
-**No construidas todavía**: etiquetas multi-idioma (Francés/Italiano) y de otros formatos de cliente (Más y Más, David Sala), Transfrío, ficha de envío/hoja de ruta de Reparto Super, WhatsApp/Email — y, de menor prioridad confirmada por Víctor: listas de precio, renumerar pedido, completar el alta de artículos en Catálogos con científico/zona FAO/etc.
+**No construidas todavía**: Transfrío, ficha de envío/hoja de ruta de Reparto Super, WhatsApp/Email — y, de menor prioridad confirmada por Víctor: listas de precio, renumerar pedido, completar el alta de artículos en Catálogos con científico/zona FAO/etc.
 
 ## 2. Un principio de diseño importante para la agilidad (Fase 4 punto 2)
 

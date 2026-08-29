@@ -1,6 +1,7 @@
 const { pool, registrarAuditoria } = require('../db');
 const crudDocumento = require('./crudDocumento');
 const { calcularIvaVenta } = require('../negocio/calculoVentas');
+const { generarPaginaEtiquetasPedido } = require('../negocio/etiquetas');
 
 // El IVA/Recargo de Equivalencia de un pedido se calcula siempre aqui, en
 // el servidor, leyendo el cliente en el mismo instante de grabar (formula
@@ -50,6 +51,38 @@ router.put('/lineas/:id/partida', async (req, res, next) => {
       puestoOrigen: req.usuario.usuario, detalle: { partida_numero },
     });
     res.json(rows[0]);
+  } catch (err) { next(err); }
+});
+
+// Etiquetas de un pedido/albaran ya grabado: una etiqueta por caja, en el
+// formato del cliente (marina_fisk por defecto, o el que tenga asignado -
+// frances/italiano/masymas/david_sala/scanfisk), ver src/negocio/etiquetas.js.
+// Igual que en compras/traspasos/repartos, se calcula siempre en el servidor.
+router.get('/:id/etiquetas', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query('SELECT * FROM pedidos WHERE id = $1', [req.params.id]);
+    if (!rows.length) return res.status(404).json({ error: 'No encontrado' });
+    const pedido = rows[0];
+    const { rows: lineas } = await pool.query(
+      `SELECT * FROM pedido_lineas WHERE pedido_id = $1 ORDER BY id`,
+      [req.params.id]
+    );
+    if (!lineas.length) return res.status(400).json({ error: 'Este pedido no tiene líneas.' });
+
+    const { rows: clienteRows } = await pool.query('SELECT * FROM clientes WHERE codigo = $1', [pedido.cliente_codigo]);
+    const cliente = clienteRows[0] || null;
+
+    const codigos = [...new Set(lineas.map((l) => l.articulo_codigo).filter(Boolean))];
+    const { rows: articulos } = codigos.length
+      ? await pool.query('SELECT * FROM articulos WHERE codigo = ANY($1)', [codigos])
+      : { rows: [] };
+    const articulosPorCodigo = Object.fromEntries(articulos.map((a) => [a.codigo, a]));
+
+    const html = await generarPaginaEtiquetasPedido({ pedido, lineas, cliente, articulosPorCodigo });
+    if (!html) return res.status(400).json({ error: 'Este pedido no tiene líneas con cantidad de etiquetas.' });
+
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(html);
   } catch (err) { next(err); }
 });
 

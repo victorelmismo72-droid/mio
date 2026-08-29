@@ -27,6 +27,20 @@ const CONSTANTES_ETIQUETA = {
 const DIAS_CADUCIDAD_DEFECTO = 7;
 const DIAS_CADUCIDAD_FRANCIA = 12; // cliente frances (Pomona) - confirmado por Victor
 
+// El HTML actual usa un texto de RSI ligeramente distinto segun el camino
+// (etiqueta de un pedido vs. etiqueta de un reparto) - se preserva la
+// diferencia tal cual, no es un error, son dos textos ya usados en
+// documentos reales distintos.
+const RSI_PEDIDO = 'R.S.I. 12.08586/C';
+
+// "Pescados David Sala Blanes" es su propia empresa (no Marina Fisk) - su
+// etiqueta lleva su propio expedidor/RSI en vez de los de la lonja de Coruña.
+const EXPEDIDOR_DAVID_SALA = {
+  nombre: 'PESCADOS DAVID SALA BLANES',
+  direccion: 'SERRALLARGA, 19 — 17300 BLANES (GIRONA)',
+  rsi: 'N. REG. S: ES 12.023418/GI',
+};
+
 // ---- Estilo (igual que el HTML actual, ver ESTILO en MarinaFiskEtiquetas) ----
 const ESTILO = {
   anchoEtiqueta: '50mm',
@@ -161,6 +175,117 @@ function construirRejillaEtiqueta(d, qrSvg) {
   </div>`;
 }
 
+// Traduce valores de campo conocidos (modo de conservacion, forma de obtencion...) que son texto
+// libre por articulo - si no reconoce el valor exacto, lo deja tal cual (nunca se pierde
+// informacion, simplemente no se traduce ese texto concreto). Igual que traducirValorFrances()
+// del HTML actual.
+const DICCIONARIO_FRANCES = {
+  REFRIGERADO: 'RÉFRIGÉRÉ', CONGELADO: 'CONGELÉ', CAPTURADO: 'CAPTURÉ',
+  ACUICULTURA: 'AQUACULTURE', 'PESCA EXTRACTIVA': 'PÊCHE', PESCADO: 'PÊCHÉ',
+  'C/C': 'A/T', 'S/C': 'S/T', 'VARIOS BARCOS': 'PLUSIEURS BATEAUX', 'VER CAJA': 'VOIR CAISSE',
+};
+const DICCIONARIO_ITALIANO = {
+  REFRIGERADO: 'REFRIGERATO', CONGELADO: 'CONGELATO', CAPTURADO: 'CATTURATO',
+  ACUICULTURA: 'ACQUACOLTURA', 'PESCA EXTRACTIVA': 'PESCA', PESCADO: 'PESCATO',
+  'C/C': 'C/T', 'S/C': 'S/T', 'VARIOS BARCOS': 'VARIE BARCHE', 'VER CAJA': 'VEDI SCATOLA',
+};
+function traducirValor(valor, diccionario) {
+  const v = String(valor || '').trim();
+  return diccionario[v.toUpperCase()] || v;
+}
+const traducirValorFrances = (v) => traducirValor(v, DICCIONARIO_FRANCES);
+const traducirValorItaliano = (v) => traducirValor(v, DICCIONARIO_ITALIANO);
+
+// Etiqueta Marina Fisk en FRANCES - mismos datos y trazabilidad, solo cambian las palabras fijas
+// de la plantilla y el nombre del producto (usa el nombre frances del articulo si ya esta puesto;
+// si no, cae en el nombre en espanol para no dejar la etiqueta en blanco).
+function construirRejillaEtiquetaFrances(d, qrSvg) {
+  const nombreProducto = d.productoFrances || d.producto;
+  return `<div class="rejilla">
+    <div class="fila fila-superior">
+      <div class="celda"><span class="campo-valor"><span class="campo-label">ZONE:</span> ${d.zona}</span><span class="campo-valor"><span class="campo-label">SOUS-ZONE:</span> ${d.subzona}</span></div>
+      <div class="celda celda-chica"><span class="campo-label">CATÉGORIE</span><span class="campo-valor">${d.categoria}</span></div>
+      <div class="celda celda-chica"><span class="campo-label">CALIBRE</span><span class="campo-valor campo-grande">${d.calibre}</span></div>
+      <div class="celda"><span class="campo-valor"><span class="campo-label">DATE:</span> ${d.fecha}</span><span class="campo-valor"><span class="campo-label">LOT:</span> ${d.lote}</span><span class="campo-valor"><span class="campo-label">DLC:</span> ${d.caducidad}</span></div>
+      <div class="celda celda-chica"><span class="campo-label">POIDS NET</span><div class="peso-caja">${traducirValorFrances(d.pesoEtiqueta)}</div></div>
+    </div>
+    <div class="fila fila-producto">
+      <div class="celda celda-producto"><div class="producto-nombre">${nombreProducto}</div><div class="producto-cientifico">${d.cientifico}</div></div>
+      <div class="celda"><span class="campo-label">Engin de pêche</span><span class="campo-valor">${d.artePesca}</span></div>
+      <div class="celda"><span class="campo-label">Mode de conservation</span><span class="campo-valor">${traducirValorFrances(d.modoConservacion)}</span></div>
+    </div>
+    <div class="fila fila-traza">
+      <div class="celda celda-qr">${qrSvg || ''}</div>
+      <div class="celda celda-chica"><span class="campo-valor"><span class="campo-label">OBT.:</span> ${traducirValorFrances(d.formaObtencion)}</span><span class="campo-valor"><span class="campo-label">PRÉS.:</span> ${traducirValorFrances(d.modoPresentacion)}</span></div>
+      <div class="celda" style="flex:0.8;"><span class="campo-label">NAVIRE</span><span class="campo-valor">${traducirValorFrances(d.barco)}</span></div>
+      <div class="celda" style="flex:1.6;"><span class="campo-valor"><span class="campo-label">EXPÉDITEUR:</span> ${d.expedidor}</span><span class="campo-valor">${d.rsi}</span></div>
+    </div>
+    <div class="fila fila-destinatario">
+      <div class="celda"><span class="campo-label">DESTINATAIRE</span><span class="destinatario-nombre">${d.destinatario}</span></div>
+      <div class="celda"><span class="campo-label">ADRESSE</span><span class="destinatario-dato">${d.direccion}</span></div>
+      <div class="celda celda-chica"><span class="campo-label">PROVINCE</span><span class="destinatario-dato">${d.provincia}</span></div>
+    </div>
+  </div>`;
+}
+
+function construirEtiquetaHtmlMarinaFiskFrances(d, qrSvg) {
+  return `<div class="etiqueta"><div class="contenido-rotado">
+      <div class="franja-empresa">
+        <div class="sello"><img src="${SELLO_MARINA_FISK_B64}" alt="Sello sanitario"></div>
+        <div class="empresa-nombre">MARINA FISK SA</div>
+        <div class="empresa-dato">CIF A50789742</div>
+        <div class="empresa-dato">Telf 981 28 22 98 - Fax 981 23 70 50</div>
+        <div class="empresa-dato">Lonja de Linares Rivas 34-35, 15006 A Coruña</div>
+        <div class="logo-fisk"><img src="${LOGO_MARINA_FISK_B64}" alt="Marina Fisk"></div>
+      </div>
+      ${construirRejillaEtiquetaFrances(d, qrSvg)}
+    </div></div>`;
+}
+
+// Etiqueta Marina Fisk en ITALIANO - mismo criterio que la francesa.
+function construirRejillaEtiquetaItaliano(d, qrSvg) {
+  const nombreProducto = d.productoItaliano || d.producto;
+  return `<div class="rejilla">
+    <div class="fila fila-superior">
+      <div class="celda"><span class="campo-valor"><span class="campo-label">ZONA:</span> ${d.zona}</span><span class="campo-valor"><span class="campo-label">SOTTOZONA:</span> ${d.subzona}</span></div>
+      <div class="celda celda-chica"><span class="campo-label">CATEGORIA</span><span class="campo-valor">${d.categoria}</span></div>
+      <div class="celda celda-chica"><span class="campo-label">CALIBRO</span><span class="campo-valor campo-grande">${d.calibre}</span></div>
+      <div class="celda"><span class="campo-valor"><span class="campo-label">DATA:</span> ${d.fecha}</span><span class="campo-valor"><span class="campo-label">LOTTO:</span> ${d.lote}</span><span class="campo-valor"><span class="campo-label">SCAD.:</span> ${d.caducidad}</span></div>
+      <div class="celda celda-chica"><span class="campo-label">PESO NETTO</span><div class="peso-caja">${traducirValorItaliano(d.pesoEtiqueta)}</div></div>
+    </div>
+    <div class="fila fila-producto">
+      <div class="celda celda-producto"><div class="producto-nombre">${nombreProducto}</div><div class="producto-cientifico">${d.cientifico}</div></div>
+      <div class="celda"><span class="campo-label">Attrezzo da pesca</span><span class="campo-valor">${d.artePesca}</span></div>
+      <div class="celda"><span class="campo-label">Modalità di conservazione</span><span class="campo-valor">${traducirValorItaliano(d.modoConservacion)}</span></div>
+    </div>
+    <div class="fila fila-traza">
+      <div class="celda celda-qr">${qrSvg || ''}</div>
+      <div class="celda celda-chica"><span class="campo-valor"><span class="campo-label">OTT.:</span> ${traducirValorItaliano(d.formaObtencion)}</span><span class="campo-valor"><span class="campo-label">PRES.:</span> ${traducirValorItaliano(d.modoPresentacion)}</span></div>
+      <div class="celda" style="flex:0.8;"><span class="campo-label">NAVE</span><span class="campo-valor">${traducirValorItaliano(d.barco)}</span></div>
+      <div class="celda" style="flex:1.6;"><span class="campo-valor"><span class="campo-label">SPEDITORE:</span> ${d.expedidor}</span><span class="campo-valor">${d.rsi}</span></div>
+    </div>
+    <div class="fila fila-destinatario">
+      <div class="celda"><span class="campo-label">DESTINATARIO</span><span class="destinatario-nombre">${d.destinatario}</span></div>
+      <div class="celda"><span class="campo-label">INDIRIZZO</span><span class="destinatario-dato">${d.direccion}</span></div>
+      <div class="celda celda-chica"><span class="campo-label">PROVINCIA</span><span class="destinatario-dato">${d.provincia}</span></div>
+    </div>
+  </div>`;
+}
+
+function construirEtiquetaHtmlMarinaFiskItaliano(d, qrSvg) {
+  return `<div class="etiqueta"><div class="contenido-rotado">
+      <div class="franja-empresa">
+        <div class="sello"><img src="${SELLO_MARINA_FISK_B64}" alt="Sello sanitario"></div>
+        <div class="empresa-nombre">MARINA FISK SA</div>
+        <div class="empresa-dato">CIF A50789742</div>
+        <div class="empresa-dato">Telf 981 28 22 98 - Fax 981 23 70 50</div>
+        <div class="empresa-dato">Lonja de Linares Rivas 34-35, 15006 A Coruña</div>
+        <div class="logo-fisk"><img src="${LOGO_MARINA_FISK_B64}" alt="Marina Fisk"></div>
+      </div>
+      ${construirRejillaEtiquetaItaliano(d, qrSvg)}
+    </div></div>`;
+}
+
 function construirEtiquetaHtml(d, qrSvg) {
   return `<div class="etiqueta"><div class="contenido-rotado">
       <div class="franja-empresa">
@@ -177,6 +302,38 @@ function construirEtiquetaHtml(d, qrSvg) {
 
 // Etiqueta de Scanfisk Seafood SL - misma rejilla, solo cambia la franja de empresa (sin logo
 // propio, comparte el sello sanitario real con Marina Fisk - mismo numero de registro).
+// Etiqueta para el cliente "Más y Más" (Hijos de Luis Rodríguez / Mercasturias) - igual que la
+// Marina Fisk estandar (mismo logo/nombre/CIF/direccion), pero con SU PROPIO registro sanitario
+// (12.3894/Z), distinto al habitual de Marina Fisk - se dibuja como texto (no hay imagen real de
+// este sello concreto).
+function construirEtiquetaHtmlMasYMas(d, qrSvg) {
+  return `<div class="etiqueta"><div class="contenido-rotado">
+      <div class="franja-empresa">
+        <div class="sello sello-texto">ES<br>12.3894/Z<br>CE</div>
+        <div class="empresa-nombre">MARINA FISK SA</div>
+        <div class="empresa-dato">CIF A50789742</div>
+        <div class="empresa-dato">Telf 981 28 22 98 - Fax 981 23 70 50</div>
+        <div class="empresa-dato">Lonja de Linares Rivas 34-35, 15006 A Coruña</div>
+        <div class="logo-fisk"><img src="${LOGO_MARINA_FISK_B64}" alt="Marina Fisk"></div>
+      </div>
+      ${construirRejillaEtiqueta(d, qrSvg)}
+    </div></div>`;
+}
+
+// Etiqueta para "Pescados David Sala Blanes" - encabezado completamente distinto (su propia
+// empresa, no Marina Fisk): sin logo, con su nombre/telefono/direccion/registro sanitario propios.
+function construirEtiquetaHtmlDavidSala(d, qrSvg) {
+  return `<div class="etiqueta"><div class="contenido-rotado">
+      <div class="franja-empresa">
+        <div class="sello sello-texto">ES<br>12.023418/GI<br>CE</div>
+        <div class="empresa-nombre" style="font-size:6.5px;">PESCADOS DAVID<br>SALA BLANES</div>
+        <div class="empresa-dato">Tlf: +34 872 981 526</div>
+        <div class="empresa-dato">Serrallarga, 19 — 17300 Blanes (Girona)</div>
+      </div>
+      ${construirRejillaEtiqueta(d, qrSvg)}
+    </div></div>`;
+}
+
 function construirEtiquetaHtmlScanfisk(d, qrSvg) {
   return `<div class="etiqueta"><div class="contenido-rotado">
       <div class="franja-empresa">
@@ -268,6 +425,103 @@ async function generarPaginaEtiquetasReparto({ lineas, destinatarioNombre, desti
   return `<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Etiquetas</title><style>${construirCssEtiquetas()}</style></head><body>${filasHtml.join('')}</body></html>`;
 }
 
+// ---- Registro de formatos por cliente (mismo id que clientes.formato_etiqueta, ver
+// FORMATOS/obtenerFormatoParaCliente del HTML actual) ----
+const FORMATOS = {
+  marina_fisk: { nombre: 'Marina Fisk (estándar)', construir: construirEtiquetaHtml },
+  marina_fisk_fr: { nombre: 'Marina Fisk (Francés — Pomona)', construir: construirEtiquetaHtmlMarinaFiskFrances },
+  marina_fisk_it: { nombre: 'Marina Fisk (Italiano)', construir: construirEtiquetaHtmlMarinaFiskItaliano },
+  marina_fisk_masymas: { nombre: 'Marina Fisk (Más y Más)', construir: construirEtiquetaHtmlMasYMas },
+  david_sala: { nombre: 'Pescados David Sala Blanes', construir: construirEtiquetaHtmlDavidSala },
+  scanfisk: { nombre: 'Scanfisk Seafood (reparto supermercados)', construir: construirEtiquetaHtmlScanfisk },
+};
+
+function obtenerFormatoParaCliente(cliente) {
+  const id = (cliente && cliente.formato_etiqueta) || 'marina_fisk';
+  return FORMATOS[id] || FORMATOS.marina_fisk;
+}
+
+// ---- Datos de una etiqueta a partir de una linea de Pedido/Albaran ----
+// Igual que datosEtiquetaLinea() del HTML actual: a diferencia de un reparto, aqui el
+// barco/zona/arte de pesca salen SIEMPRE del catalogo del articulo (no se registran por
+// pedido), y el destinatario es el cliente del pedido (usando la instantanea guardada en el
+// propio pedido si el maestro de clientes no tiene el dato).
+function datosEtiquetaLinea(ped, linea, articulo, cliente) {
+  const art = articulo || {};
+  const cli = cliente || {};
+  const formatoId = cli.formato_etiqueta || 'marina_fisk';
+  const esDavidSala = formatoId === 'david_sala';
+  const lote = generarLoteDesdeFecha(ped.fecha);
+  const fechaCad = calcularFechaCaducidad(ped.fecha, formatoId, null);
+  const fechaCorta = fmtFechaCortaDesdeISO(ped.fecha);
+  return {
+    producto: art.descripcion || linea.articulo_codigo || '(artículo sin descripción)',
+    productoFrances: art.nombre_frances || art.descripcion || linea.articulo_codigo || '(artículo sin descripción)',
+    productoItaliano: art.nombre_italiano || art.descripcion || linea.articulo_codigo || '(artículo sin descripción)',
+    cientifico: art.cientifico || '',
+    zona: art.zona_fao || '',
+    subzona: art.subzona || '',
+    artePesca: art.arte_pesca || '',
+    barco: art.barco || 'VARIOS BARCOS',
+    pesoEtiqueta: art.peso_etiqueta || 'VER CAJA',
+    fecha: fechaCorta,
+    lote,
+    caducidad: fmtFechaCorta(fechaCad),
+    cantidad: linea.cantidad || '',
+    destinatario: ped.cliente_nombre_snapshot || ped.cliente_codigo,
+    direccion: cli.direccion || ped.cliente_dir_snapshot || '',
+    provincia: cli.provincia || ped.cliente_pob_snapshot || '',
+    categoria: CONSTANTES_ETIQUETA.categoria,
+    calibre: art.calibre || CONSTANTES_ETIQUETA.calibre,
+    formaObtencion: art.forma_obtencion || CONSTANTES_ETIQUETA.formaObtencion,
+    modoPresentacion: art.modo_presentacion || CONSTANTES_ETIQUETA.modoPresentacion,
+    modoConservacion: CONSTANTES_ETIQUETA.modoConservacion,
+    expedidor: esDavidSala ? EXPEDIDOR_DAVID_SALA.nombre : CONSTANTES_ETIQUETA.expedidor,
+    direccionExpedidor: esDavidSala ? EXPEDIDOR_DAVID_SALA.direccion : CONSTANTES_ETIQUETA.direccionExpedidor,
+    rsi: esDavidSala ? EXPEDIDOR_DAVID_SALA.rsi : RSI_PEDIDO,
+  };
+}
+
+// Cuantas etiquetas corresponden a cada linea - igual que copiasPorLinea() del HTML actual:
+// normalmente una etiqueta por caja (cantidad), pero si hay un valor de descuento puesto se usa
+// ese numero en su lugar (asi es como ya lo hacia el HTML actual - un "override" manual del
+// numero de etiquetas para esa linea concreta).
+function copiasPorLinea(linea) {
+  const cantidad = Math.round(Number(linea.cantidad) || 0);
+  const descuento = Number(linea.descuento) || 0;
+  return descuento > 0 ? Math.round(descuento) : cantidad;
+}
+
+// Expande las lineas de un pedido en una etiqueta por caja, en el formato del cliente
+// (marina_fisk por defecto, o el que tenga asignado - frances/italiano/masymas/david_sala), y
+// devuelve la pagina HTML completa lista para imprimir.
+async function generarPaginaEtiquetasPedido({ pedido, lineas, cliente, articulosPorCodigo }) {
+  const formato = obtenerFormatoParaCliente(cliente);
+  const datos = [];
+  for (const l of lineas) {
+    const art = articulosPorCodigo[l.articulo_codigo] || {};
+    const d = datosEtiquetaLinea(pedido, l, art, cliente);
+    const copias = copiasPorLinea(l);
+    for (let c = 0; c < copias; c += 1) datos.push(d);
+  }
+  if (!datos.length) return null;
+
+  const filasHtml = [];
+  for (let i = 0; i < datos.length; i += 2) {
+    // eslint-disable-next-line no-await-in-loop
+    const qr1 = await generarQrEtiqueta(datos[i]);
+    let etiqueta2 = '<div class="hueco"></div>';
+    if (datos[i + 1]) {
+      // eslint-disable-next-line no-await-in-loop
+      const qr2 = await generarQrEtiqueta(datos[i + 1]);
+      etiqueta2 = formato.construir(datos[i + 1], qr2);
+    }
+    filasHtml.push(`<div class="hoja">${formato.construir(datos[i], qr1)}${etiqueta2}</div>`);
+  }
+
+  return `<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Etiquetas</title><style>${construirCssEtiquetas()}</style></head><body>${filasHtml.join('')}</body></html>`;
+}
+
 module.exports = {
   CONSTANTES_ETIQUETA,
   DIAS_CADUCIDAD_DEFECTO,
@@ -283,4 +537,9 @@ module.exports = {
   construirEtiquetaHtmlScanfisk,
   construirCssEtiquetas,
   generarPaginaEtiquetasReparto,
+  FORMATOS,
+  obtenerFormatoParaCliente,
+  datosEtiquetaLinea,
+  copiasPorLinea,
+  generarPaginaEtiquetasPedido,
 };

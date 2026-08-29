@@ -446,15 +446,39 @@ function pintarHistorico() {
     <tr><td>${p.numero}</td><td>${fmtFecha(p.fecha)}</td><td>${p.cliente_nombre_snapshot || p.cliente_codigo}</td><td class="num">${fmtEUR(p.base)}</td>
     <td>
       <button type="button" class="btn secundario" data-editar-pedido="${p.id}" style="padding:0.2rem 0.6rem;">✏️ Editar</button>
+      <button type="button" class="btn secundario" data-etiquetas-pedido="${p.id}" style="padding:0.2rem 0.6rem;">🏷️ Etiquetas</button>
       <button type="button" class="btn secundario" data-anular-pedido="${p.id}" data-numero-pedido="${p.numero}" style="padding:0.2rem 0.6rem;">🗑️ Anular</button>
     </td></tr>
   `).join('');
   document.querySelectorAll('[data-editar-pedido]').forEach((btn) => {
     btn.addEventListener('click', () => cargarPedidoParaEditar(btn.dataset.editarPedido));
   });
+  document.querySelectorAll('[data-etiquetas-pedido]').forEach((btn) => {
+    btn.addEventListener('click', () => imprimirEtiquetasPedido(btn.dataset.etiquetasPedido));
+  });
   document.querySelectorAll('[data-anular-pedido]').forEach((btn) => {
     btn.addEventListener('click', () => anularPedido(btn.dataset.anularPedido, btn.dataset.numeroPedido));
   });
+}
+
+// Igual que en repartos.html: se pide la pagina ya autenticada (nunca con el
+// token en la URL) y se escribe en una ventana nueva, lista para Ctrl+P.
+async function imprimirEtiquetasPedido(id) {
+  try {
+    const res = await apiFetch(`/pedidos/${id}/etiquetas`);
+    if (!res.ok) {
+      const datos = await res.json().catch(() => ({}));
+      mostrarMensaje(datos.error || 'No se pudieron generar las etiquetas.', 'error');
+      return;
+    }
+    const html = await res.text();
+    const ventana = window.open('', '_blank');
+    if (!ventana) { mostrarMensaje('El navegador ha bloqueado la ventana emergente. Permítela e inténtalo de nuevo.', 'error'); return; }
+    ventana.document.open();
+    ventana.document.write(html);
+    ventana.document.close();
+    ventana.onload = () => ventana.print();
+  } catch (e) { mostrarMensaje(e.message, 'error'); }
 }
 ['h-num', 'h-cli', 'h-desde', 'h-hasta'].forEach((id) => {
   document.getElementById(id).addEventListener('input', pintarHistorico);
