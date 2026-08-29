@@ -161,22 +161,31 @@ async function cerrarPartidasMasivoPorFecha(pool, fecha, cerradaPor) {
 // de la Fase 2 punto 5bis, que si suman traspasos.
 async function rentabilidadPartida(pool, numeroPartida) {
   const { rows: lineasCompra } = await pool.query(
-    `SELECT cl.producto, cl.kilos, cl.base_real
+    `SELECT cl.producto, cl.descripcion, cl.kilos, cl.base_real
      FROM compra_lineas cl JOIN compras c ON c.id = cl.compra_id
      WHERE c.numero_partida = $1`,
     [numeroPartida]
   );
+
+  // El codigo de producto solo no dice nada a simple vista - se etiqueta
+  // "CODIGO — Descripcion" en vez de solo el codigo.
+  const etiquetasArticulo = {};
+  const etiqueta = (codigo, descripcion) => {
+    if (!etiquetasArticulo[codigo] && descripcion) etiquetasArticulo[codigo] = `${codigo} — ${descripcion}`;
+    return etiquetasArticulo[codigo] || codigo;
+  };
 
   const costePorArticulo = {};
   let costeTotal = 0;
   for (const l of lineasCompra) {
     const v = Number(l.base_real) || 0;
     costeTotal += v;
-    costePorArticulo[l.producto] = (costePorArticulo[l.producto] || 0) + v;
+    const clave = etiqueta(l.producto, l.descripcion);
+    costePorArticulo[clave] = (costePorArticulo[clave] || 0) + v;
   }
 
   const { rows: lineasVenta } = await pool.query(
-    'SELECT articulo_codigo, total FROM pedido_lineas WHERE partida_numero = $1',
+    'SELECT articulo_codigo, descripcion, total FROM pedido_lineas WHERE partida_numero = $1',
     [numeroPartida]
   );
   const vendidoPorArticulo = {};
@@ -184,7 +193,8 @@ async function rentabilidadPartida(pool, numeroPartida) {
   for (const l of lineasVenta) {
     const v = Number(l.total) || 0;
     totalVendido += v;
-    vendidoPorArticulo[l.articulo_codigo] = (vendidoPorArticulo[l.articulo_codigo] || 0) + v;
+    const clave = etiqueta(l.articulo_codigo, l.descripcion);
+    vendidoPorArticulo[clave] = (vendidoPorArticulo[clave] || 0) + v;
   }
 
   const { rows: cerradaRows } = await pool.query(

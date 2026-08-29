@@ -103,7 +103,7 @@ function pintarResultado(filas) {
   // CIF...) es en realidad un identificador y se muestra tal cual, sin
   // tocar. Es mas seguro tener una lista de qué SÍ es cantidad que intentar
   // adivinar qué NO lo es.
-  const PALABRAS_CANTIDAD = ['kilos', 'kg', 'total', 'importe', 'coste', 'base', 'iva', 'margen', 'num_', 'cajas', 'peso'];
+  const PALABRAS_CANTIDAD = ['kilos', 'kg', 'total', 'importe', 'coste', 'base', 'iva', 'margen', 'num_', 'cajas', 'peso', 'rentabilidad', 'vendido', 'facturado', 'disponibles', 'comprados'];
   const esCantidad = (c) => PALABRAS_CANTIDAD.some((p) => c.includes(p));
   const esNumerico = (c, v) => esCantidad(c) && v !== null && v !== '' && !isNaN(Number(v)) && typeof v !== 'boolean';
   cont.innerHTML = `<div class="tabla-envoltorio"><table>
@@ -111,7 +111,8 @@ function pintarResultado(filas) {
     <tbody>${filas.map((f) => `<tr>${columnas.map((c) => {
       const v = f[c];
       if (c === 'fecha' || c.endsWith('_en')) return `<td>${fmtFecha(v)}</td>`;
-      if (esNumerico(c, v)) return `<td class="num">${Number(v).toLocaleString('es-ES', { maximumFractionDigits: 2 })}</td>`;
+      if (typeof v === 'boolean') return `<td>${v ? '✅ Sí' : '— No'}</td>`;
+      if (esNumerico(c, v)) return `<td class="num">${Number(v).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>`;
       return `<td>${v ?? ''}</td>`;
     }).join('')}</tr>`).join('')}</tbody>
   </table></div>`;

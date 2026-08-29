@@ -115,7 +115,7 @@ router.get('/margenes-por-articulo', async (req, res, next) => {
     // asignacion en si ya se hizo con la logica de familia difusa antes de
     // llegar aqui). Solo cuenta lineas que ya tienen partida asignada.
     const { rows } = await pool.query(
-      `SELECT pl.articulo_codigo,
+      `SELECT pl.articulo_codigo, max(coalesce(a.descripcion, pl.descripcion)) AS articulo_descripcion,
               sum(pl.peso) AS kilos_vendidos,
               sum(pl.total) AS importe_vendido,
               sum(cl.base_real / NULLIF(cl.kilos, 0) * pl.peso) AS coste_asignado,
@@ -124,6 +124,7 @@ router.get('/margenes-por-articulo', async (req, res, next) => {
        JOIN pedidos p ON p.id = pl.pedido_id
        JOIN compras c ON c.numero_partida = pl.partida_numero
        JOIN compra_lineas cl ON cl.compra_id = c.id AND cl.producto = pl.articulo_codigo
+       LEFT JOIN articulos a ON a.codigo = pl.articulo_codigo
        WHERE p.fecha BETWEEN $1 AND $2 AND pl.partida_numero IS NOT NULL
        GROUP BY pl.articulo_codigo
        ORDER BY margen_total DESC`,
@@ -157,17 +158,20 @@ router.get('/movimiento-producto', async (req, res, next) => {
   try {
     const [desde, hasta] = rangoFechas(req);
     const { rows } = await pool.query(
-      `SELECT fecha, articulo_codigo, sum(peso) AS kilos, sum(importe) AS importe FROM (
-         SELECT p.fecha, pl.articulo_codigo AS articulo_codigo, pl.peso AS peso, pl.total AS importe
+      `SELECT m.fecha, m.articulo_codigo, max(coalesce(a.descripcion, m.descripcion)) AS articulo_descripcion,
+              sum(m.peso) AS kilos, sum(m.importe) AS importe
+       FROM (
+         SELECT p.fecha, pl.articulo_codigo AS articulo_codigo, pl.descripcion AS descripcion, pl.peso AS peso, pl.total AS importe
          FROM pedidos p JOIN pedido_lineas pl ON pl.pedido_id = p.id
          WHERE p.fecha BETWEEN $1 AND $2
          UNION ALL
-         SELECT t.fecha, tl.articulo_codigo AS articulo_codigo, tl.peso AS peso, 0 AS importe
+         SELECT t.fecha, tl.articulo_codigo AS articulo_codigo, tl.descripcion AS descripcion, tl.peso AS peso, 0 AS importe
          FROM traspasos t JOIN traspaso_lineas tl ON tl.traspaso_id = t.id
          WHERE t.fecha BETWEEN $1 AND $2
-       ) movimiento
-       GROUP BY fecha, articulo_codigo
-       ORDER BY fecha, articulo_codigo`,
+       ) m
+       LEFT JOIN articulos a ON a.codigo = m.articulo_codigo
+       GROUP BY m.fecha, m.articulo_codigo
+       ORDER BY m.fecha, m.articulo_codigo`,
       [desde, hasta]
     );
     responderListado(req, res, rows);
