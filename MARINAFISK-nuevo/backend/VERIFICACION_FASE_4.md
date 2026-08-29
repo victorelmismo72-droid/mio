@@ -65,7 +65,18 @@ Víctor adjuntó un informe con 4 fallos confirmados en el HTML actual, para ase
 3. **El listado de pedidos no aplicaba el Recargo de Equivalencia** (10% fijo para todos) — ver Fase 2 punto 2: conectado el cálculo real de IVA/Recargo a la creación/edición de pedidos.
 4. **Faltaba una fila de totales al exportar varios pedidos.** No existía ningún listado "plano" de pedidos (todos los existentes son resúmenes agregados) — se ha añadido uno nuevo, **"Pedidos (detalle para contabilidad)"**, con una fila por pedido (número, fecha, cliente, kilos, base, IVA ya calculado según el cliente, total) y una fila final `TOTAL` con la suma de los cuatro importes, tanto en pantalla como en el CSV exportado. Probado contra los pedidos reales del 25/08/2026: fechas correctas, IVA variable según cliente (0% para el intracomunitario, ~10% para el resto), fila TOTAL con la suma correcta.
 
-## 8. Qué falta para cerrar la Fase 4 del todo
+## 8. Historial de pedidos: buscar y anular (29/08/2026)
+
+Víctor pidió pensar qué más comprobar ("todo tiene que funcionar como en HTML"). Comparando con el HTML actual (funciones `filtrarHis`, `anularPedido`, `renumerarPedido`) se encontraron dos huecos reales de uso diario:
+
+- **Buscar un pedido antiguo.** `pedidos.html` solo enseñaba los últimos 15 — un pedido de hace semanas era invisible salvo que se supiera consultar la API a mano. Corregido: nuevo filtro por número, cliente y rango de fechas (igual que el HTML actual), que busca en **todo** el historial, no solo en los últimos. Sin ningún filtro se siguen enseñando los más recientes (ahora 30) para no pintar de golpe los 1000+ pedidos.
+- **Anular un pedido.** No existía ningún botón para borrar un pedido mal grabado — el `DELETE` ya existía en la API (Fase 2) pero nadie podía llegar a él desde la pantalla. Añadido el botón 🗑️ Anular con la misma confirmación explícita ("no se puede deshacer") que el HTML actual.
+
+Probado contra datos reales: búsqueda por número encuentra pedidos fuera de los últimos 30, búsqueda por cliente (58 coincidencias para "scanfisk"), creación + anulación de un pedido de prueba confirmada y verificada en la base de datos (borrado real, no solo visual) — `npm run verify`: 0 discrepancias tras la prueba.
+
+**Todavía sin construir, vistas en el HTML actual pero de menor uso diario**: renumerar un pedido a mano (`renumerarPedido`), envío de albarán por WhatsApp/Email, impresión de etiquetas — se dejan para cuando se aborde el bloque de impresión/PDF (ver punto 1).
+
+## 9. Qué falta para cerrar la Fase 4 del todo
 
 - **Víctor debe usar personalmente cada pantalla con datos reales** y confirmar que el resultado es idéntico al del programa actual — este es el requisito de cierre más importante de esta fase (punto 4 de la Fase 4) y no lo puede hacer nadie más.
 - Comparación explícita de agilidad frente al HTML/Excel actuales, pantalla por pantalla (más allá de la corrección de foco del punto 2, que era un defecto claro).

@@ -56,7 +56,17 @@
   </div>
   <div class="tabla-envoltorio" id="vista-previa"></div>
 
-  <h2>Últimos pedidos</h2>
+  <h2>Historial de pedidos</h2>
+  <p class="ayuda">Busca por cualquier campo — igual que en el programa actual, no hace falta que el pedido esté entre los últimos.</p>
+  <div class="tarjeta">
+    <div class="fila-form">
+      <div><label for="h-num">Nº</label><input type="text" id="h-num" placeholder="Nº de pedido..."></div>
+      <div><label for="h-cli">Cliente</label><input type="text" id="h-cli" placeholder="Código o nombre..."></div>
+      <div><label for="h-desde">Desde</label><input type="date" id="h-desde"></div>
+      <div><label for="h-hasta">Hasta</label><input type="date" id="h-hasta"></div>
+      <div style="display:flex;align-items:flex-end;"><button type="button" class="btn secundario" id="btn-limpiar-filtro">Limpiar</button></div>
+    </div>
+  </div>
   <div class="tabla-envoltorio">
     <table id="tabla-historico">
       <thead><tr><th>Nº</th><th>Fecha</th><th>Cliente</th><th class="num">Total</th><th></th></tr></thead>
@@ -399,17 +409,74 @@ async function intentarGuardarPedido() {
   } catch (e) { mostrarMensaje(e.message, 'error'); }
 }
 
+// Historial completo, igual que "filtrarHis()" del HTML actual: buscar por
+// numero, cliente, rango de fechas - no solo ver los ultimos. Se trae la
+// lista entera una vez (1057 pedidos no da problema de agilidad) y se
+// filtra en el propio navegador, para que cada tecla de busqueda no tenga
+// que ir al servidor.
+let todosPedidos = [];
+
 async function cargarHistorico() {
   const res = await apiFetch('/pedidos');
-  const pedidos = await res.json();
-  const ultimos = pedidos.slice(-15).reverse();
-  document.querySelector('#tabla-historico tbody').innerHTML = ultimos.map((p) => `
+  todosPedidos = await res.json();
+  pintarHistorico();
+}
+
+function pintarHistorico() {
+  const num = document.getElementById('h-num').value.trim();
+  const cli = document.getElementById('h-cli').value.trim().toLowerCase();
+  const desde = document.getElementById('h-desde').value;
+  const hasta = document.getElementById('h-hasta').value;
+  const hayFiltro = num || cli || desde || hasta;
+
+  let filas = todosPedidos;
+  if (num) filas = filas.filter((p) => String(p.numero).includes(num));
+  if (cli) filas = filas.filter((p) => (p.cliente_codigo || '').toLowerCase().includes(cli) || (p.cliente_nombre_snapshot || '').toLowerCase().includes(cli));
+  if (desde) filas = filas.filter((p) => p.fecha >= desde);
+  if (hasta) filas = filas.filter((p) => p.fecha <= hasta);
+  filas = filas.slice().sort((a, b) => b.numero - a.numero);
+  // Sin ningun filtro, para no pintar los 1000+ pedidos de golpe se enseñan
+  // solo los ultimos 30 - en cuanto se busca algo, se enseñan todas las
+  // coincidencias (puede ser un pedido muy antiguo).
+  if (!hayFiltro) filas = filas.slice(0, 30);
+
+  const tbody = document.querySelector('#tabla-historico tbody');
+  if (!filas.length) { tbody.innerHTML = '<tr><td colspan="5" class="ayuda">Sin pedidos para ese filtro.</td></tr>'; return; }
+  tbody.innerHTML = filas.map((p) => `
     <tr><td>${p.numero}</td><td>${fmtFecha(p.fecha)}</td><td>${p.cliente_nombre_snapshot || p.cliente_codigo}</td><td class="num">${fmtEUR(p.base)}</td>
-    <td><button type="button" class="btn secundario" data-editar-pedido="${p.id}" style="padding:0.2rem 0.6rem;">✏️ Editar</button></td></tr>
+    <td>
+      <button type="button" class="btn secundario" data-editar-pedido="${p.id}" style="padding:0.2rem 0.6rem;">✏️ Editar</button>
+      <button type="button" class="btn secundario" data-anular-pedido="${p.id}" data-numero-pedido="${p.numero}" style="padding:0.2rem 0.6rem;">🗑️ Anular</button>
+    </td></tr>
   `).join('');
   document.querySelectorAll('[data-editar-pedido]').forEach((btn) => {
     btn.addEventListener('click', () => cargarPedidoParaEditar(btn.dataset.editarPedido));
   });
+  document.querySelectorAll('[data-anular-pedido]').forEach((btn) => {
+    btn.addEventListener('click', () => anularPedido(btn.dataset.anularPedido, btn.dataset.numeroPedido));
+  });
+}
+['h-num', 'h-cli', 'h-desde', 'h-hasta'].forEach((id) => {
+  document.getElementById(id).addEventListener('input', pintarHistorico);
+});
+document.getElementById('btn-limpiar-filtro').addEventListener('click', () => {
+  ['h-num', 'h-cli', 'h-desde', 'h-hasta'].forEach((id) => { document.getElementById(id).value = ''; });
+  pintarHistorico();
+});
+
+// Anular un pedido - igual que "anularPedido()" del HTML actual: pide
+// confirmacion explicita (no se puede deshacer) y lo borra del todo. Si es
+// el pedido que se estaba editando en el formulario, se vuelve a modo
+// "pedido nuevo" para no dejar el formulario apuntando a algo ya borrado.
+async function anularPedido(id, numero) {
+  if (!confirm(`¿Anular el pedido nº ${numero}? Esta acción no se puede deshacer.`)) return;
+  try {
+    const res = await apiFetch(`/pedidos/${id}`, { method: 'DELETE' });
+    if (!res.ok) { const datos = await res.json().catch(() => ({})); mostrarMensaje(datos.error || 'No se pudo anular.', 'error'); return; }
+    mostrarMensaje(`Pedido nº ${numero} anulado.`, 'ok');
+    if (String(pedidoEnEdicionId) === String(id)) cancelarEdicionPedido();
+    cargarHistorico();
+  } catch (e) { mostrarMensaje(e.message, 'error'); }
 }
 
 if (usuario) {
