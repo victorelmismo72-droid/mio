@@ -97,11 +97,15 @@ function pintarResultado(filas) {
   const cont = document.getElementById('resultado');
   if (!filas.length) { cont.innerHTML = '<p class="ayuda">Sin resultados para ese filtro.</p>'; return; }
   const columnas = Object.keys(filas[0]);
-  // "codigo" y "numero..." son identificadores, no cantidades - no se les
-  // pone separador de miles ni se tratan como columna numerica alineada a
-  // la derecha (un codigo de proveedor "50232" no es "50.232").
-  const esIdentificador = (c) => c.includes('codigo') || c.startsWith('numero');
-  const esNumerico = (c, v) => !esIdentificador(c) && v !== null && v !== '' && !isNaN(Number(v)) && typeof v !== 'boolean';
+  // Solo se formatean como cantidad (con separador de miles, alineado a la
+  // derecha) las columnas que de verdad son una medida - todo lo demas que
+  // "parece numero" (codigo de proveedor, telefono, numero de documento,
+  // CIF...) es en realidad un identificador y se muestra tal cual, sin
+  // tocar. Es mas seguro tener una lista de qué SÍ es cantidad que intentar
+  // adivinar qué NO lo es.
+  const PALABRAS_CANTIDAD = ['kilos', 'kg', 'total', 'importe', 'coste', 'base', 'iva', 'margen', 'num_', 'cajas', 'peso'];
+  const esCantidad = (c) => PALABRAS_CANTIDAD.some((p) => c.includes(p));
+  const esNumerico = (c, v) => esCantidad(c) && v !== null && v !== '' && !isNaN(Number(v)) && typeof v !== 'boolean';
   cont.innerHTML = `<div class="tabla-envoltorio"><table>
     <thead><tr>${columnas.map((c) => `<th>${c.replace(/_/g, ' ')}</th>`).join('')}</tr></thead>
     <tbody>${filas.map((f) => `<tr>${columnas.map((c) => {
