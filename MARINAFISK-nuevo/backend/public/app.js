@@ -54,6 +54,7 @@ const PAGINAS_NAV = [
   { href: 'pedidos.html', etiqueta: 'Pedidos' },
   { href: 'partidas.html', etiqueta: 'Partidas' },
   { href: 'listados.html', etiqueta: 'Listados' },
+  { href: 'catalogos.html', etiqueta: 'Catálogos' },
   { href: 'fiscal.html', etiqueta: 'Clasificación fiscal' },
 ];
 

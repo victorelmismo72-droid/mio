@@ -13,6 +13,7 @@ Construido sobre las Fases 1-3 ya verificadas. Pantallas nuevas en `public/` (HT
 | `partidas.html` | Asignar partidas de un día entero (con pantalla de excepciones), cerrar/reabrir partidas (una a una o por fecha), consultar rentabilidad de una partida. |
 | `listados.html` | Los 7 listados de la Fase 2 (punto 5bis), con filtro de fecha y exportación a CSV real (descarga el archivo, no solo lo enseña). |
 | `usuarios.html` | Solo Administrador: alta de usuarios, activar/desactivar, y el cierre de año (vista previa + confirmación). |
+| `catalogos.html` | Alta y edición de clientes, proveedores y artículos (tres pestañas). Añadida a raíz de que Víctor detectó que no existía ninguna forma de dar de alta un cliente/proveedor/artículo nuevo — sin esto no se podía ni facturar a un cliente nuevo ni comprar a un proveedor nuevo. |
 
 **No construidas todavía en esta pasada** (quedan para una siguiente): Transfrío, Reparto Super con etiquetas Scanfisk, etiquetas multi-idioma con reglas de caducidad, listas de precios. Necesitan estudiar a fondo el código de impresión/PDF del HTML actual, que no se ha abordado aún.
 
