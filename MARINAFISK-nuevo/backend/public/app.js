@@ -52,6 +52,7 @@ const PAGINAS_NAV = [
   { href: 'index.html', etiqueta: 'Inicio' },
   { href: 'compras.html', etiqueta: 'Compras' },
   { href: 'pedidos.html', etiqueta: 'Pedidos' },
+  { href: 'traspasos.html', etiqueta: 'Traspasos' },
   { href: 'partidas.html', etiqueta: 'Partidas' },
   { href: 'listados.html', etiqueta: 'Listados' },
   { href: 'catalogos.html', etiqueta: 'Catálogos' },

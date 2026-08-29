@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>MARINAFISK — Traspasos</title>
+<link rel="stylesheet" href="app.css">
+<style>
+  #tabla-lineas-trp input { min-width: 5.5rem; }
+  .fila-totales td { font-weight: 700; background: #f4f6f5; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Traspaso entre almacenes</h1>
+  <p class="ayuda">⚠️ Solo para envíos internos entre almacenes (Coruña → Zaragoza). No es una venta — para repartos a supermercados usa <a href="repartos.html">Reparto Super</a>.</p>
+  <div id="mensaje"></div>
+
+  <div class="tarjeta">
+    <div class="fila-form">
+      <div><label for="t-fecha">Fecha</label><input type="date" id="t-fecha"></div>
+      <div><strong>Origen:</strong> Lonja A Coruña</div>
+      <div><strong>Destino:</strong> Almacén Zaragoza</div>
+    </div>
+
+    <h2>Líneas</h2>
+    <datalist id="lista-articulos"></datalist>
+    <div class="tabla-envoltorio">
+      <table id="tabla-lineas-trp">
+        <thead><tr><th>Producto</th><th>Descripción</th><th class="num">Cajas</th><th class="num">Peso (kg)</th><th class="num">Precio/kg</th><th>Nº Partida</th><th class="num">Total</th><th></th></tr></thead>
+        <tbody></tbody>
+        <tfoot><tr class="fila-totales"><td colspan="2"></td><td class="num" id="tot-cajas">0</td><td class="num" id="tot-peso">0</td><td colspan="2"></td><td class="num" id="tot-total">0,00 €</td><td></td></tr></tfoot>
+      </table>
+    </div>
+    <button type="button" class="btn secundario" id="btn-anadir-linea" style="margin-top:0.7rem;">+ Añadir línea</button>
+
+    <div style="margin-top:1.4rem;">
+      <button type="button" class="btn" id="btn-guardar">Guardar traspaso</button>
+      <button type="button" class="btn secundario" id="btn-cancelar-edicion" style="display:none;">Cancelar edición</button>
+    </div>
+  </div>
+
+  <h2>Historial de traspasos</h2>
+  <p class="ayuda">Busca por número o rango de fechas.</p>
+  <div class="tarjeta">
+    <div class="fila-form">
+      <div><label for="h-num">Nº</label><input type="text" id="h-num" placeholder="Nº de traspaso..."></div>
+      <div><label for="h-desde">Desde</label><input type="date" id="h-desde"></div>
+      <div><label for="h-hasta">Hasta</label><input type="date" id="h-hasta"></div>
+      <div style="display:flex;align-items:flex-end;"><button type="button" class="btn secundario" id="btn-limpiar-filtro">Limpiar</button></div>
+    </div>
+  </div>
+  <div class="tabla-envoltorio">
+    <table id="tabla-historico">
+      <thead><tr><th>Nº</th><th>Fecha</th><th class="num">Kg</th><th class="num">Total</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</main>
+
+<script src="app.js"></script>
+<script>
+const usuario = protegerPagina();
+let articulos = [];
+let lineas = [];
+let traspasoEnEdicionId = null;
+let traspasoEnEdicionNumero = null;
+let todosTraspasos = [];
+
+function lineaVacia() {
+  return { articulo_codigo: '', descripcion: '', cajas: '', peso: '', precio: '', partida_numero: '' };
+}
+
+async function cargarArticulos() {
+  const res = await apiFetch('/articulos');
+  articulos = await res.json();
+  document.getElementById('lista-articulos').innerHTML = articulos.map((a) => `<option value="${a.codigo} — ${a.descripcion || ''}">`).join('');
+}
+
+function codigoDeTexto(texto) {
+  return String(texto || '').split(' — ')[0].trim();
+}
+
+function autorrellenarDescripcion(l, tr) {
+  const codigo = codigoDeTexto(l.articulo_codigo);
+  const art = articulos.find((a) => a.codigo === codigo);
+  if (art && !l.descripcion) {
+    l.descripcion = art.descripcion || '';
+    const inputDesc = tr.querySelector('[data-campo="descripcion"]');
+    if (inputDesc) inputDesc.value = l.descripcion;
+  }
+}
+
+function calcularTotal(l) {
+  return (Number(l.peso) || 0) * (Number(l.precio) || 0);
+}
+
+function actualizarCalculadosFila(tr, l) {
+  tr.querySelector('[data-calc=total]').innerHTML = `<strong>${fmtEUR(calcularTotal(l))}</strong>`;
+}
+
+function actualizarTotales() {
+  let totCajas = 0, totPeso = 0, totTotal = 0;
+  lineas.forEach((l) => { totCajas += Number(l.cajas) || 0; totPeso += Number(l.peso) || 0; totTotal += calcularTotal(l); });
+  document.getElementById('tot-cajas').textContent = totCajas;
+  document.getElementById('tot-peso').textContent = fmtKg(totPeso);
+  document.getElementById('tot-total').textContent = fmtEUR(totTotal);
+}
+
+// Igual que compras.html/pedidos.html (Fase 4 punto 2): nunca se
+// reconstruyen los <input> mientras se escribe - solo se actualizan las
+// celdas calculadas de la fila y los totales.
+function pintarLineas() {
+  const tbody = document.querySelector('#tabla-lineas-trp tbody');
+  tbody.innerHTML = '';
+
+  lineas.forEach((l, i) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><input type="text" data-campo="articulo_codigo" list="lista-articulos" value="${l.articulo_codigo}" style="width:6rem;"></td>
+      <td><input type="text" data-campo="descripcion" value="${l.descripcion}" style="width:11rem;"></td>
+      <td class="num"><input type="number" data-campo="cajas" value="${l.cajas}" style="width:4.5rem;text-align:right;"></td>
+      <td class="num"><input type="number" step="0.01" data-campo="peso" value="${l.peso}" style="width:5.5rem;text-align:right;"></td>
+      <td class="num"><input type="number" step="0.01" data-campo="precio" value="${l.precio}" style="width:5.5rem;text-align:right;"></td>
+      <td><input type="text" data-campo="partida_numero" value="${l.partida_numero ?? ''}" placeholder="Nº partida" style="width:6rem;"></td>
+      <td class="num calculado" data-calc="total"><strong>${fmtEUR(calcularTotal(l))}</strong></td>
+      <td><button type="button" class="btn secundario" data-quitar="${i}" style="padding:0.2rem 0.5rem;">✕</button></td>
+    `;
+    tr.querySelectorAll('input').forEach((input) => {
+      input.addEventListener('input', () => {
+        l[input.dataset.campo] = input.value;
+        if (input.dataset.campo === 'articulo_codigo') autorrellenarDescripcion(l, tr);
+        actualizarCalculadosFila(tr, l);
+        actualizarTotales();
+      });
+    });
+    tr.querySelector('[data-quitar]').addEventListener('click', () => { lineas.splice(i, 1); pintarLineas(); });
+    tbody.appendChild(tr);
+  });
+
+  actualizarTotales();
+}
+
+document.getElementById('btn-anadir-linea').addEventListener('click', () => { lineas.push(lineaVacia()); pintarLineas(); });
+
+function mostrarMensaje(texto, tipo) {
+  document.getElementById('mensaje').innerHTML = `<div class="mensaje ${tipo}">${texto}</div>`;
+}
+
+function activarModoEdicion(id, numero) {
+  traspasoEnEdicionId = id;
+  traspasoEnEdicionNumero = numero;
+  document.getElementById('btn-guardar').textContent = `Guardar cambios (editando traspaso Nº ${numero})`;
+  document.getElementById('btn-cancelar-edicion').style.display = '';
+}
+
+function cancelarEdicionTraspaso() {
+  traspasoEnEdicionId = null;
+  traspasoEnEdicionNumero = null;
+  document.getElementById('btn-guardar').textContent = 'Guardar traspaso';
+  document.getElementById('btn-cancelar-edicion').style.display = 'none';
+  document.getElementById('t-fecha').value = fechaLocalISO();
+  lineas = [lineaVacia()];
+  pintarLineas();
+}
+document.getElementById('btn-cancelar-edicion').addEventListener('click', cancelarEdicionTraspaso);
+
+async function cargarTraspasoParaEditar(id) {
+  const res = await apiFetch(`/traspasos/${id}`);
+  if (!res.ok) { mostrarMensaje('No se pudo cargar el traspaso.', 'error'); return; }
+  const t = await res.json();
+  document.getElementById('t-fecha').value = t.fecha ? t.fecha.slice(0, 10) : fechaLocalISO();
+  lineas = (t.lineas || []).map((l) => ({
+    articulo_codigo: l.articulo_codigo || '', descripcion: l.descripcion || '',
+    cajas: l.cajas ?? '', peso: l.peso ?? '', precio: l.precio ?? '', partida_numero: l.partida_numero ?? '',
+  }));
+  if (!lineas.length) lineas = [lineaVacia()];
+  pintarLineas();
+  activarModoEdicion(t.id, t.numero);
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+  mostrarMensaje(`Traspaso ${t.numero} cargado para editar. Modifica y pulsa "Guardar cambios".`, 'info');
+}
+
+let guardandoTraspaso = false;
+document.getElementById('btn-guardar').addEventListener('click', async () => {
+  if (guardandoTraspaso) return;
+  guardandoTraspaso = true;
+  document.getElementById('btn-guardar').disabled = true;
+  try {
+    await intentarGuardarTraspaso();
+  } finally {
+    guardandoTraspaso = false;
+    document.getElementById('btn-guardar').disabled = false;
+  }
+});
+
+async function intentarGuardarTraspaso() {
+  const validas = lineas
+    .filter((l) => l.articulo_codigo && Number(l.peso) > 0)
+    .map((l) => ({ ...l, articulo_codigo: codigoDeTexto(l.articulo_codigo) }));
+  if (!validas.length) { mostrarMensaje('Añade al menos una línea con producto y kilos.', 'error'); return; }
+
+  const esEdicion = traspasoEnEdicionId != null;
+  const base = validas.reduce((s, l) => s + calcularTotal(l), 0);
+  const cuerpo = {
+    fecha: document.getElementById('t-fecha').value || fechaLocalISO(),
+    base, total: base,
+    total_kg: validas.reduce((s, l) => s + (Number(l.peso) || 0), 0),
+    lineas: validas.map((l) => ({ ...l, total: calcularTotal(l) })),
+  };
+  if (esEdicion) cuerpo.numero = traspasoEnEdicionNumero;
+
+  try {
+    const res = await apiFetch(esEdicion ? `/traspasos/${traspasoEnEdicionId}` : '/traspasos', {
+      method: esEdicion ? 'PUT' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(cuerpo),
+    });
+    const datos = await res.json();
+    if (!res.ok) { mostrarMensaje(datos.error || 'No se pudo guardar.', 'error'); return; }
+    mostrarMensaje(`Traspaso ${esEdicion ? 'actualizado' : 'guardado'} — nº ${datos.numero}, total ${fmtEUR(datos.total)}.`, 'ok');
+    cancelarEdicionTraspaso();
+    cargarHistorico();
+  } catch (e) { mostrarMensaje(e.message, 'error'); }
+}
+
+async function anularTraspaso(id, numero) {
+  if (!confirm(`¿Anular el traspaso nº ${numero}? Esta acción no se puede deshacer.`)) return;
+  try {
+    const res = await apiFetch(`/traspasos/${id}`, { method: 'DELETE' });
+    if (!res.ok) { const datos = await res.json().catch(() => ({})); mostrarMensaje(datos.error || 'No se pudo anular.', 'error'); return; }
+    mostrarMensaje(`Traspaso nº ${numero} anulado.`, 'ok');
+    if (String(traspasoEnEdicionId) === String(id)) cancelarEdicionTraspaso();
+    cargarHistorico();
+  } catch (e) { mostrarMensaje(e.message, 'error'); }
+}
+
+async function cargarHistorico() {
+  const res = await apiFetch('/traspasos');
+  todosTraspasos = await res.json();
+  pintarHistorico();
+}
+
+function pintarHistorico() {
+  const num = document.getElementById('h-num').value.trim();
+  const desde = document.getElementById('h-desde').value;
+  const hasta = document.getElementById('h-hasta').value;
+  const hayFiltro = num || desde || hasta;
+
+  let filas = todosTraspasos;
+  if (num) filas = filas.filter((t) => String(t.numero).includes(num));
+  if (desde) filas = filas.filter((t) => t.fecha >= desde);
+  if (hasta) filas = filas.filter((t) => t.fecha <= hasta);
+  filas = filas.slice().sort((a, b) => b.numero - a.numero);
+  if (!hayFiltro) filas = filas.slice(0, 30);
+
+  const tbody = document.querySelector('#tabla-historico tbody');
+  if (!filas.length) { tbody.innerHTML = '<tr><td colspan="5" class="ayuda">Sin traspasos para ese filtro.</td></tr>'; return; }
+  tbody.innerHTML = filas.map((t) => `
+    <tr><td>${t.numero}</td><td>${fmtFecha(t.fecha)}</td><td class="num">${fmtKg(t.total_kg)}</td><td class="num">${fmtEUR(t.total)}</td>
+    <td>
+      <button type="button" class="btn secundario" data-editar="${t.id}" style="padding:0.2rem 0.6rem;">✏️ Editar</button>
+      <button type="button" class="btn secundario" data-anular="${t.id}" data-numero="${t.numero}" style="padding:0.2rem 0.6rem;">🗑️ Anular</button>
+    </td></tr>
+  `).join('');
+  document.querySelectorAll('[data-editar]').forEach((btn) => {
+    btn.addEventListener('click', () => cargarTraspasoParaEditar(btn.dataset.editar));
+  });
+  document.querySelectorAll('[data-anular]').forEach((btn) => {
+    btn.addEventListener('click', () => anularTraspaso(btn.dataset.anular, btn.dataset.numero));
+  });
+}
+['h-num', 'h-desde', 'h-hasta'].forEach((id) => {
+  document.getElementById(id).addEventListener('input', pintarHistorico);
+});
+document.getElementById('btn-limpiar-filtro').addEventListener('click', () => {
+  ['h-num', 'h-desde', 'h-hasta'].forEach((id) => { document.getElementById(id).value = ''; });
+  pintarHistorico();
+});
+
+if (usuario) {
+  renderBarraNavegacion(usuario, 'traspasos.html');
+  document.getElementById('t-fecha').value = fechaLocalISO();
+  lineas = [lineaVacia()];
+  pintarLineas();
+  cargarArticulos();
+  cargarHistorico();
+}
+</script>
+</body>
+</html>

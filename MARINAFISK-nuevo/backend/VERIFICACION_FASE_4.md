@@ -14,8 +14,9 @@ Construido sobre las Fases 1-3 ya verificadas. Pantallas nuevas en `public/` (HT
 | `listados.html` | Los 7 listados de la Fase 2 (punto 5bis), con filtro de fecha y exportación a CSV real (descarga el archivo, no solo lo enseña). |
 | `usuarios.html` | Solo Administrador: alta de usuarios, activar/desactivar, y el cierre de año (vista previa + confirmación). |
 | `catalogos.html` | Alta y edición de clientes, proveedores y artículos (tres pestañas). Añadida a raíz de que Víctor detectó que no existía ninguna forma de dar de alta un cliente/proveedor/artículo nuevo — sin esto no se podía ni facturar a un cliente nuevo ni comprar a un proveedor nuevo. |
+| `traspasos.html` (29/08/2026) | Traspaso interno Coruña → Zaragoza: fecha, líneas (producto/cajas/peso/precio/**nº de partida a mano** — a diferencia de Pedidos, aquí la partida NO se asigna automáticamente, igual que en el HTML actual), total = peso×precio sin IVA (no es una venta). Crear, editar, anular y buscar en todo el historial (mismo patrón que Pedidos). |
 
-**No construidas todavía en esta pasada** (quedan para una siguiente): Transfrío, Reparto Super con etiquetas Scanfisk, etiquetas multi-idioma con reglas de caducidad, listas de precios. Necesitan estudiar a fondo el código de impresión/PDF del HTML actual, que no se ha abordado aún.
+**No construidas todavía** (siguiente en la lista, por petición explícita de Víctor: Reparto Super y las etiquetas van antes que el resto): Reparto Super con etiquetas Scanfisk, Transfrío, etiquetas multi-idioma con reglas de caducidad, listas de precios.
 
 ## 2. Un principio de diseño importante para la agilidad (Fase 4 punto 2)
 
