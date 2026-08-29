@@ -20,6 +20,40 @@ function rangoFechas(req) {
   return [desde, hasta];
 }
 
+// Listado plano de pedidos para contabilidad (informe de bugs de Víctor,
+// 29/08/2026, puntos 3 y 4 - a evitar en el programa nuevo): cada fila es un
+// pedido con su IVA/Recargo de Equivalencia YA CALCULADO SEGUN EL CLIENTE
+// (nunca un 10% fijo para todos - se lee tal cual quedo grabado en
+// `pedidos.iva`/`pedidos.total`, calculado en el momento de grabar por
+// calcularCabeceraPedido, ver src/routes/pedidos.js), y la ultima fila es un
+// TOTAL general (kilos, base, iva y total de todos los pedidos del rango).
+router.get('/pedidos-detalle', async (req, res, next) => {
+  try {
+    const [desde, hasta] = rangoFechas(req);
+    const { rows } = await pool.query(
+      `SELECT p.numero, p.fecha, p.cliente_codigo,
+              p.cliente_nombre_snapshot AS cliente_nombre,
+              coalesce((SELECT sum(pl.peso) FROM pedido_lineas pl WHERE pl.pedido_id = p.id), 0) AS kilos,
+              p.base, p.iva, p.total
+       FROM pedidos p
+       WHERE p.fecha BETWEEN $1 AND $2
+       ORDER BY p.fecha, p.numero`,
+      [desde, hasta]
+    );
+    if (rows.length) {
+      const totales = rows.reduce((acc, r) => ({
+        kilos: acc.kilos + Number(r.kilos), base: acc.base + Number(r.base || 0),
+        iva: acc.iva + Number(r.iva || 0), total: acc.total + Number(r.total || 0),
+      }), { kilos: 0, base: 0, iva: 0, total: 0 });
+      rows.push({
+        numero: 'TOTAL', fecha: '', cliente_codigo: '', cliente_nombre: '',
+        kilos: totales.kilos, base: totales.base, iva: totales.iva, total: totales.total,
+      });
+    }
+    responderListado(req, res, rows);
+  } catch (err) { next(err); }
+});
+
 router.get('/ventas-por-cliente', async (req, res, next) => {
   try {
     const [desde, hasta] = rangoFechas(req);

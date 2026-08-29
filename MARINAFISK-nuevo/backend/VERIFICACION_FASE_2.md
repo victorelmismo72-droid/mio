@@ -26,7 +26,9 @@ Mismo `kilos`/`precioKg` de entrada (100 kg × 4 €/kg) en ambos casos: el 2% d
 
 ## 2. IVA y Recargo de Equivalencia en ventas (`src/negocio/calculoVentas.js`)
 
-Lógica lista para el futuro módulo de facturación (no se usa todavía en ningún documento real, el HTML actual no factura).
+**Resuelto (29/08/2026):** esta lógica ya se usa en un documento real. Víctor envió un informe de bugs confirmados en el HTML actual (a evitar en el nuevo), y uno de ellos era que el listado de pedidos exportado calculaba el IVA siempre al 10% fijo, sin mirar si el cliente tenía Recargo de Equivalencia. Al revisar esto se encontró que, aunque `calcularIvaVenta` ya existía desde esta misma fase, **nunca se había conectado a la creación/edición de pedidos** — `pedidos.iva` y `pedidos.total` se quedaban siempre en blanco. Corregido: `src/routes/pedidos.js` (función `calcularCabeceraPedido`) llama a `calcularIvaVenta` en el servidor, leyendo el cliente en el mismo instante de grabar (formula viva, igual que el 2% de OP en compras) tanto al crear como al editar un pedido, y guarda un único importe combinado en `iva` (IVA + Recargo), igual que hacía el HTML actual (`calcularIvaPedido`). Ver Fase 4 para el detalle de las pruebas.
+
+Lógica lista para el futuro módulo de facturación completo (facturas con NIF/serie propios, que el HTML actual tampoco tiene).
 
 **Resuelto (26/08/2026):** Víctor ha confirmado que el % de Recargo de Equivalencia no debe estar fijo en el código — debe ser "el porcentaje que queramos". Ahora vive en la tabla `configuracion` (clave `recargo_equivalencia_pct`, arranca en 1,4% pero es editable vía `GET/PUT /api/configuracion`) y se lee en vivo en cada cálculo, igual que el 2% de OP.
 

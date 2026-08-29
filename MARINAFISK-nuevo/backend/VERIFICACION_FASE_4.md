@@ -42,7 +42,30 @@ Probado contra datos reales: 53 clientes con recordatorio pendiente hoy, cálcul
 
 Todas las pruebas de esta fase se hicieron contra los datos reales migrados en Fase 1 (no hay datos de mentira en esta base). Cualquier compra/pedido de prueba creado durante las pruebas se ha borrado explícitamente después, y las asignaciones automáticas de partida hechas sobre pedidos reales (al probar "asignar partidas de un día" contra una fecha real) se han revertido. Verificado con `npm run verify` tras cada tanda de pruebas: **0 discrepancias** contra el backup original en todo momento.
 
-## 6. Qué falta para cerrar la Fase 4 del todo
+## 6. Editar un pedido ya grabado (29/08/2026)
+
+Al comprobar "todo lo que no esté comprobado" se detectó que, aunque `pedidos`/`pedido_lineas` sí se pueden actualizar (a diferencia de `compras`, que son dato sagrado), **no existía ninguna pantalla para editar un pedido ya guardado**, y además el `PUT /api/pedidos/:id` genérico (`crudDocumento.js`) solo actualizaba la cabecera — nunca las líneas, aunque nadie lo hubiera notado todavía porque no había pantalla que lo intentara.
+
+Se comprobó primero cómo lo hace el HTML actual (`cargarPedido`/`grabarPedido`): "editar" no es un parche parcial — es recargar el pedido entero en el formulario y, al grabar, **borrar el registro entero y volver a grabarlo con el mismo número** (nunca se pide uno nuevo de la secuencia). Se ha reproducido exactamente esa misma lógica:
+
+- `crudDocumento.js`: el `PUT` ahora también borra las líneas antiguas y graba las nuevas dentro de la misma transacción (antes solo tocaba la cabecera). Esto beneficia igual a traspasos y repartos, que comparten la misma fábrica.
+- `pedidos.html`: cada fila de "Últimos pedidos" tiene un botón ✏️ Editar que carga cliente, fecha y líneas (incluida la partida ya asignada) en el formulario; el botón cambia a "Guardar cambios (editando pedido Nº X)" y un botón "Cancelar edición" permite volver a modo "pedido nuevo" sin guardar nada.
+- Al cargar una línea para editar se vuelve a consultar la disponibilidad de partidas en vivo (respetando si la partida fue elegida a mano) — igual que si se acabara de escribir el artículo.
+
+**Bug encontrado de rebote al construir esta prueba**: al cargar un pedido real para editar apareció un campo (`cantidad`, "Cajas/bultos") que sí existe en la base de datos y en el HTML actual, pero que la pantalla `pedidos.html` nunca mostraba ni guardaba — de haberse editado y grabado tal cual, ese dato se habría **perdido silenciosamente** en cualquier pedido antiguo que lo tuviera. Corregido: añadida la columna "Cajas" a la tabla de líneas (con su total), a la vista previa interna y de cliente, y al guardado.
+
+Probado end-to-end contra un pedido real (nº 13692, cliente 50000): cargado con sus valores originales (incluidas las 2 cajas), editado el peso, guardado, comprobado el cambio, y vuelto a dejar exactamente como estaba (mismo peso, cajas, precio, base/IVA/total idénticos al backup original) — verificado con `npm run verify`: 0 discrepancias.
+
+## 7. Informe de bugs de Víctor sobre el HTML actual (29/08/2026) — comprobado uno a uno
+
+Víctor adjuntó un informe con 4 fallos confirmados en el HTML actual, para asegurarse de que el programa nuevo no los repite:
+
+1. **Doble guardado crea dos registros con el mismo número** (doble clic/doble tap). En este backend el número ya se pedía a una secuencia real de PostgreSQL (nunca un contador de JS), así que dos guardados nunca podían chocar en el *mismo* número — pero sí podían crear **dos pedidos distintos** con números distintos, que es igual de malo. Corregido en `compras.html` y `pedidos.html`: en cuanto se pulsa "Guardar" se bloquea el botón de inmediato (antes de nada más) y no se libera hasta que el guardado termine, con éxito o error; cualquier clic mientras tanto se ignora. Probado con dos clics disparados a la vez: solo se creó un pedido.
+2. **Fechas desplazadas un día en listados** — ver Fase 1 punto 7: era un fallo real y grave (no solo en el HTML), corregido a nivel del driver de PostgreSQL para toda la aplicación.
+3. **El listado de pedidos no aplicaba el Recargo de Equivalencia** (10% fijo para todos) — ver Fase 2 punto 2: conectado el cálculo real de IVA/Recargo a la creación/edición de pedidos.
+4. **Faltaba una fila de totales al exportar varios pedidos.** No existía ningún listado "plano" de pedidos (todos los existentes son resúmenes agregados) — se ha añadido uno nuevo, **"Pedidos (detalle para contabilidad)"**, con una fila por pedido (número, fecha, cliente, kilos, base, IVA ya calculado según el cliente, total) y una fila final `TOTAL` con la suma de los cuatro importes, tanto en pantalla como en el CSV exportado. Probado contra los pedidos reales del 25/08/2026: fechas correctas, IVA variable según cliente (0% para el intracomunitario, ~10% para el resto), fila TOTAL con la suma correcta.
+
+## 8. Qué falta para cerrar la Fase 4 del todo
 
 - **Víctor debe usar personalmente cada pantalla con datos reales** y confirmar que el resultado es idéntico al del programa actual — este es el requisito de cierre más importante de esta fase (punto 4 de la Fase 4) y no lo puede hacer nadie más.
 - Comparación explícita de agilidad frente al HTML/Excel actuales, pantalla por pantalla (más allá de la corrección de foco del punto 2, que era un defecto claro).

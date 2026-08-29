@@ -195,7 +195,26 @@ function mostrarMensaje(texto, tipo) {
   document.getElementById('mensaje').innerHTML = `<div class="mensaje ${tipo}">${texto}</div>`;
 }
 
+// Fallo real conocido del HTML actual (informe de Víctor, 29/08/2026): un
+// doble clic/doble tap en "Guardar" puede disparar dos guardados casi
+// simultaneos antes de que termine el primero. Se bloquea el boton nada mas
+// pulsar - ANTES de nada mas - y no se libera hasta que el guardado (con
+// exito o error) haya terminado del todo; cualquier clic mientras
+// `guardandoCompra` es true se ignora sin mas.
+let guardandoCompra = false;
 document.getElementById('btn-guardar').addEventListener('click', async () => {
+  if (guardandoCompra) return;
+  guardandoCompra = true;
+  document.getElementById('btn-guardar').disabled = true;
+  try {
+    await intentarGuardarCompra();
+  } finally {
+    guardandoCompra = false;
+    document.getElementById('btn-guardar').disabled = false;
+  }
+});
+
+async function intentarGuardarCompra() {
   const p = proveedorSeleccionado();
   if (!p) { mostrarMensaje('Elige un proveedor válido de la lista.', 'error'); return; }
   // El campo Producto puede llevar "codigo — descripcion" pegado por el
@@ -225,7 +244,7 @@ document.getElementById('btn-guardar').addEventListener('click', async () => {
     pintarLineas();
     cargarHistorico();
   } catch (e) { mostrarMensaje(e.message, 'error'); }
-});
+}
 
 async function cargarHistorico() {
   const res = await apiFetch('/compras');

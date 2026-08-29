@@ -37,15 +37,16 @@
     <datalist id="lista-articulos"></datalist>
     <div class="tabla-envoltorio">
       <table id="tabla-lineas-ped">
-        <thead><tr><th>Artículo</th><th>Descripción</th><th class="num">Peso (kg)</th><th class="num">Precio/kg</th><th class="num">Dcto %</th><th class="num">Total</th><th>Partida</th><th></th></tr></thead>
+        <thead><tr><th>Artículo</th><th>Descripción</th><th class="num">Cajas</th><th class="num">Peso (kg)</th><th class="num">Precio/kg</th><th class="num">Dcto %</th><th class="num">Total</th><th>Partida</th><th></th></tr></thead>
         <tbody></tbody>
-        <tfoot><tr class="fila-totales"><td colspan="2"></td><td class="num" id="tot-peso">0</td><td colspan="2"></td><td class="num" id="tot-total">0,00 €</td><td colspan="2"></td></tr></tfoot>
+        <tfoot><tr class="fila-totales"><td colspan="2"></td><td class="num" id="tot-cajas">0</td><td class="num" id="tot-peso">0</td><td colspan="2"></td><td class="num" id="tot-total">0,00 €</td><td colspan="2"></td></tr></tfoot>
       </table>
     </div>
     <button type="button" class="btn secundario" id="btn-anadir-linea" style="margin-top:0.7rem;">+ Añadir línea</button>
 
     <div style="margin-top:1.4rem;">
       <button type="button" class="btn" id="btn-guardar">Guardar pedido</button>
+      <button type="button" class="btn secundario" id="btn-cancelar-edicion" style="display:none;">Cancelar edición</button>
     </div>
   </div>
 
@@ -58,7 +59,7 @@
   <h2>Últimos pedidos</h2>
   <div class="tabla-envoltorio">
     <table id="tabla-historico">
-      <thead><tr><th>Nº</th><th>Fecha</th><th>Cliente</th><th class="num">Total</th></tr></thead>
+      <thead><tr><th>Nº</th><th>Fecha</th><th>Cliente</th><th class="num">Total</th><th></th></tr></thead>
       <tbody></tbody>
     </table>
   </div>
@@ -70,9 +71,15 @@ const usuario = protegerPagina();
 let clientes = [];
 let articulos = [];
 let lineas = [];
+// Igual que el HTML actual (funcion cargarPedido/grabarPedido): "editar" no
+// es un PATCH parcial, es recargar el pedido entero en el formulario y, al
+// grabar, sustituir cabecera + lineas manteniendo el mismo numero (nunca se
+// pide uno nuevo de la secuencia). null = modo "pedido nuevo".
+let pedidoEnEdicionId = null;
+let pedidoEnEdicionNumero = null;
 
 function lineaVacia() {
-  return { articulo_codigo: '', descripcion: '', peso: '', precio: '', descuento: 0, partida_numero: null, partida_manual: false, _candidatos: [], _estado: null };
+  return { articulo_codigo: '', descripcion: '', cantidad: '', peso: '', precio: '', descuento: 0, partida_numero: null, partida_manual: false, _candidatos: [], _estado: null };
 }
 
 async function cargarClientes() {
@@ -187,8 +194,9 @@ async function actualizarFilaPedido(tr, l, i) {
 }
 
 function actualizarTotalesPed() {
-  let totPeso = 0, totTotal = 0;
-  lineas.forEach((l) => { totPeso += Number(l.peso) || 0; totTotal += calcularTotal(l); });
+  let totCajas = 0, totPeso = 0, totTotal = 0;
+  lineas.forEach((l) => { totCajas += Number(l.cantidad) || 0; totPeso += Number(l.peso) || 0; totTotal += calcularTotal(l); });
+  document.getElementById('tot-cajas').textContent = totCajas;
   document.getElementById('tot-peso').textContent = fmtKg(totPeso);
   document.getElementById('tot-total').textContent = fmtEUR(totTotal);
 }
@@ -204,6 +212,7 @@ function pintarLineas() {
     tr.innerHTML = `
       <td><input type="text" data-campo="articulo_codigo" list="lista-articulos" value="${l.articulo_codigo}" style="width:6rem;"></td>
       <td><input type="text" data-campo="descripcion" value="${l.descripcion}" style="width:11rem;"></td>
+      <td class="num"><input type="number" data-campo="cantidad" value="${l.cantidad}" style="width:4rem;text-align:right;" min="0"></td>
       <td class="num"><input type="number" step="0.01" data-campo="peso" value="${l.peso}" style="width:5.5rem;text-align:right;"></td>
       <td class="num"><input type="number" step="0.01" data-campo="precio" value="${l.precio}" style="width:5.5rem;text-align:right;"></td>
       <td class="num"><input type="number" step="0.1" data-campo="descuento" value="${l.descuento}" style="width:4rem;text-align:right;"></td>
@@ -225,6 +234,8 @@ function pintarLineas() {
         if (['articulo_codigo', 'peso', 'precio', 'descuento'].includes(input.dataset.campo)) {
           await actualizarFilaPedido(tr, l, i);
           pintarVistaPrevia();
+        } else if (input.dataset.campo === 'cantidad') {
+          actualizarTotalesPed();
         }
       });
     });
@@ -254,12 +265,12 @@ function pintarVistaPrevia() {
 
   if (vistaActual === 'cliente') {
     // Vista cliente: NUNCA precio de coste ni numero de partida (Fase 0 punto 3).
-    cont.innerHTML = `<table><thead><tr><th>Artículo</th><th class="num">Peso (kg)</th></tr></thead><tbody>
-      ${validas.map((l) => `<tr><td>${l.descripcion || l.articulo_codigo}</td><td class="num">${fmtKg(l.peso)}</td></tr>`).join('')}
+    cont.innerHTML = `<table><thead><tr><th>Artículo</th><th class="num">Cajas</th><th class="num">Peso (kg)</th></tr></thead><tbody>
+      ${validas.map((l) => `<tr><td>${l.descripcion || l.articulo_codigo}</td><td class="num">${l.cantidad || ''}</td><td class="num">${fmtKg(l.peso)}</td></tr>`).join('')}
     </tbody></table>`;
   } else {
-    cont.innerHTML = `<table><thead><tr><th>Artículo</th><th class="num">Peso (kg)</th><th class="num">Precio</th><th class="num">Total</th><th>Partida</th></tr></thead><tbody>
-      ${validas.map((l) => `<tr><td>${l.descripcion || l.articulo_codigo}</td><td class="num">${fmtKg(l.peso)}</td><td class="num">${fmtEUR(l.precio)}</td><td class="num">${fmtEUR(calcularTotal(l))}</td><td>${l.partida_numero || '(sin asignar)'}</td></tr>`).join('')}
+    cont.innerHTML = `<table><thead><tr><th>Artículo</th><th class="num">Cajas</th><th class="num">Peso (kg)</th><th class="num">Precio</th><th class="num">Total</th><th>Partida</th></tr></thead><tbody>
+      ${validas.map((l) => `<tr><td>${l.descripcion || l.articulo_codigo}</td><td class="num">${l.cantidad || ''}</td><td class="num">${fmtKg(l.peso)}</td><td class="num">${fmtEUR(l.precio)}</td><td class="num">${fmtEUR(calcularTotal(l))}</td><td>${l.partida_numero || '(sin asignar)'}</td></tr>`).join('')}
     </tbody></table>`;
   }
 }
@@ -268,7 +279,86 @@ function mostrarMensaje(texto, tipo) {
   document.getElementById('mensaje').innerHTML = `<div class="mensaje ${tipo}">${texto}</div>`;
 }
 
+function activarModoEdicion(id, numero) {
+  pedidoEnEdicionId = id;
+  pedidoEnEdicionNumero = numero;
+  document.getElementById('btn-guardar').textContent = `Guardar cambios (editando pedido Nº ${numero})`;
+  document.getElementById('btn-cancelar-edicion').style.display = '';
+}
+
+function cancelarEdicionPedido() {
+  pedidoEnEdicionId = null;
+  pedidoEnEdicionNumero = null;
+  document.getElementById('btn-guardar').textContent = 'Guardar pedido';
+  document.getElementById('btn-cancelar-edicion').style.display = 'none';
+  document.getElementById('p-cliente').value = '';
+  document.getElementById('p-cliente-info').textContent = '';
+  document.getElementById('p-fecha').value = fechaLocalISO();
+  lineas = [lineaVacia()];
+  pintarLineas();
+  pintarVistaPrevia();
+}
+document.getElementById('btn-cancelar-edicion').addEventListener('click', cancelarEdicionPedido);
+
+// Carga un pedido ya grabado en el formulario para modificarlo - misma idea
+// que "cargarPedido(num)" del HTML actual: rellena cliente/fecha/lineas y
+// deja el pedido listo para volver a GRABAR.
+async function cargarPedidoParaEditar(id) {
+  const res = await apiFetch(`/pedidos/${id}`);
+  if (!res.ok) { mostrarMensaje('No se pudo cargar el pedido.', 'error'); return; }
+  const ped = await res.json();
+
+  const c = clientes.find((x) => x.codigo === ped.cliente_codigo);
+  document.getElementById('p-cliente').value = `${ped.cliente_codigo}${c ? ' — ' + c.nombre : ''}`;
+  document.getElementById('p-cliente-info').textContent = c
+    ? `${c.nombre} — ${c.tipo_iva === 'INTRACOMUNITARIO' ? 'Intracomunitario' : 'Nacional'}${c.recargo_equivalencia ? ' con Recargo de Equivalencia' : ''}`
+    : '';
+  document.getElementById('p-fecha').value = ped.fecha ? ped.fecha.slice(0, 10) : fechaLocalISO();
+
+  lineas = (ped.lineas || []).map((l) => ({
+    articulo_codigo: l.articulo_codigo || '',
+    descripcion: l.descripcion || '',
+    cantidad: l.cantidad ?? '',
+    peso: l.peso ?? '',
+    precio: l.precio ?? '',
+    descuento: l.descuento ?? 0,
+    partida_numero: l.partida_numero,
+    partida_manual: l.partida_manual,
+    _candidatos: [], _estado: null,
+  }));
+  if (!lineas.length) lineas = [lineaVacia()];
+  // Se reconsulta partidas disponibles para cada linea (respetando
+  // partida_manual, igual que al escribir a mano) antes de pintar, para no
+  // enseñar el desplegable vacio un instante.
+  for (const l of lineas) { await evaluarPartida(l); } // eslint-disable-line no-await-in-loop
+
+  pintarLineas();
+  pintarVistaPrevia();
+  activarModoEdicion(ped.id, ped.numero);
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+  mostrarMensaje(`Pedido ${ped.numero} cargado para editar. Modifica y pulsa "Guardar cambios".`, 'info');
+}
+
+// Fallo real conocido del HTML actual (informe de Víctor, 29/08/2026): un
+// doble clic/doble tap en "Guardar" (o un rebote táctil) puede disparar dos
+// guardados casi simultáneos antes de que termine el primero. Aquí se
+// bloquea el botón nada más pulsar - ANTES de nada más - y no se libera
+// hasta que el guardado (con éxito o error) haya terminado del todo.
+// Cualquier clic mientras `guardandoPedido` es true se ignora sin más.
+let guardandoPedido = false;
 document.getElementById('btn-guardar').addEventListener('click', async () => {
+  if (guardandoPedido) return;
+  guardandoPedido = true;
+  document.getElementById('btn-guardar').disabled = true;
+  try {
+    await intentarGuardarPedido();
+  } finally {
+    guardandoPedido = false;
+    document.getElementById('btn-guardar').disabled = false;
+  }
+});
+
+async function intentarGuardarPedido() {
   const c = clienteSeleccionado();
   if (!c) { mostrarMensaje('Elige un cliente válido de la lista.', 'error'); return; }
   // El Artículo puede llevar "codigo — descripcion" pegado por el datalist -
@@ -278,39 +368,48 @@ document.getElementById('btn-guardar').addEventListener('click', async () => {
     .map((l) => ({ ...l, articulo_codigo: codigoDeTexto(l.articulo_codigo) }));
   if (!validas.length) { mostrarMensaje('Añade al menos una línea con artículo y peso.', 'error'); return; }
 
+  const esEdicion = pedidoEnEdicionId != null;
+  const cuerpo = {
+    cliente_codigo: c.codigo,
+    cliente_nombre_snapshot: c.nombre,
+    cliente_cif_snapshot: c.cif,
+    cliente_dir_snapshot: c.direccion,
+    cliente_pob_snapshot: c.poblacion,
+    cliente_tel_snapshot: c.telefono,
+    fecha: document.getElementById('p-fecha').value || fechaLocalISO(),
+    base: validas.reduce((s, l) => s + calcularTotal(l), 0),
+    lineas: validas.map((l) => ({ ...l, total: calcularTotal(l) })),
+  };
+  // Al editar se mantiene el mismo numero de pedido (igual que el HTML
+  // actual) - si no se manda, el backend lo tomaria como vacio y rompería
+  // la cabecera.
+  if (esEdicion) cuerpo.numero = pedidoEnEdicionNumero;
+
   try {
-    const res = await apiFetch('/pedidos', {
-      method: 'POST',
+    const res = await apiFetch(esEdicion ? `/pedidos/${pedidoEnEdicionId}` : '/pedidos', {
+      method: esEdicion ? 'PUT' : 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        cliente_codigo: c.codigo,
-        cliente_nombre_snapshot: c.nombre,
-        cliente_cif_snapshot: c.cif,
-        cliente_dir_snapshot: c.direccion,
-        cliente_pob_snapshot: c.poblacion,
-        cliente_tel_snapshot: c.telefono,
-        fecha: document.getElementById('p-fecha').value || fechaLocalISO(),
-        base: validas.reduce((s, l) => s + calcularTotal(l), 0),
-        lineas: validas.map((l) => ({ ...l, total: calcularTotal(l) })),
-      }),
+      body: JSON.stringify(cuerpo),
     });
     const datos = await res.json();
     if (!res.ok) { mostrarMensaje(datos.error || 'No se pudo guardar.', 'error'); return; }
-    mostrarMensaje(`Pedido guardado — nº ${datos.numero}, total ${fmtEUR(datos.base)}.`, 'ok');
-    lineas = [lineaVacia()];
-    pintarLineas();
-    pintarVistaPrevia();
+    mostrarMensaje(`Pedido ${esEdicion ? 'actualizado' : 'guardado'} — nº ${datos.numero}, total ${fmtEUR(datos.base)}.`, 'ok');
+    cancelarEdicionPedido();
     cargarHistorico();
   } catch (e) { mostrarMensaje(e.message, 'error'); }
-});
+}
 
 async function cargarHistorico() {
   const res = await apiFetch('/pedidos');
   const pedidos = await res.json();
   const ultimos = pedidos.slice(-15).reverse();
   document.querySelector('#tabla-historico tbody').innerHTML = ultimos.map((p) => `
-    <tr><td>${p.numero}</td><td>${fmtFecha(p.fecha)}</td><td>${p.cliente_nombre_snapshot || p.cliente_codigo}</td><td class="num">${fmtEUR(p.base)}</td></tr>
+    <tr><td>${p.numero}</td><td>${fmtFecha(p.fecha)}</td><td>${p.cliente_nombre_snapshot || p.cliente_codigo}</td><td class="num">${fmtEUR(p.base)}</td>
+    <td><button type="button" class="btn secundario" data-editar-pedido="${p.id}" style="padding:0.2rem 0.6rem;">✏️ Editar</button></td></tr>
   `).join('');
+  document.querySelectorAll('[data-editar-pedido]').forEach((btn) => {
+    btn.addEventListener('click', () => cargarPedidoParaEditar(btn.dataset.editarPedido));
+  });
 }
 
 if (usuario) {

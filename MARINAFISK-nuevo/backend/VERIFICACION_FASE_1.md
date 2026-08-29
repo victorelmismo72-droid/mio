@@ -53,6 +53,14 @@ No se encontraron números de albarán/traspaso/reparto duplicados en los datos 
 - **Listas de precio** (Pescaderías/Mayoristas): las tablas existen (`listas_precio`, `lista_precio_lineas`) pero el backup no contiene datos históricos de ellas — en el programa actual son borradores diarios que no se guardaban en el backup. Se rellenarán con datos nuevos según se vaya usando el sistema.
 - El HTML/programa actual **no se ha tocado** — sigue funcionando exactamente igual, en paralelo, mientras se construye este sistema nuevo.
 
+## 7. Fallo crítico de zona horaria en fechas, encontrado y corregido (29/08/2026)
+
+Víctor envió un informe de bugs confirmados en el HTML actual, para asegurar que el programa nuevo no los repitiera. Uno de ellos (fechas desplazadas un día en listados exportados, causado por dejar que una librería externa —SheetJS— convirtiera la fecha "a su manera") llevó a revisar cómo trata las fechas este backend, y se encontró un fallo real y grave, **latente en este contenedor de pruebas** (donde la zona horaria es UTC, así que aquí no se notaba) pero que habría reventado en cuanto el programa se instalara en la VPN de la empresa (zona horaria España, UTC+1/+2):
+
+**Causa:** el driver de PostgreSQL para Node (`pg`) convierte por defecto una columna `DATE` en un objeto `Date` de JavaScript a medianoche *local*. Al pasar esa fecha por `JSON.stringify` (lo que hace `res.json()` en cada respuesta de la API), JavaScript la reinterpreta con `toISOString()`, que la pasa a UTC — y en cualquier zona horaria con desfase positivo respecto a UTC (como España), la fecha sale desplazada **un día hacia atrás**. Comprobado explícitamente forzando la zona horaria del proceso a `Europe/Madrid`: un pedido con `fecha = 2026-08-25` llegaba a la API como `"2026-08-24T22:00:00.000Z"` — exactamente el mismo síntoma que describía Víctor del HTML actual.
+
+**Corrección:** se desactiva esa conversión a nivel del driver, una sola vez, en `src/db.js` (`types.setTypeParser(types.builtins.DATE, valor => valor)`), para que una columna `DATE` llegue siempre como texto `'AAAA-MM-DD'` tal cual, sin pasar nunca por un objeto `Date` con zona horaria de por medio. Esto aplica a **toda** la aplicación (compras, pedidos, traspasos, repartos, listados) de una sola vez, en vez de tener que acordarse pantalla por pantalla — así ninguna pantalla nueva puede reintroducir el mismo fallo sin darse cuenta. Vuelto a comprobar con `TZ=Europe/Madrid` tras el cambio: la misma fecha llega correctamente como `"2026-08-25"`.
+
 ## Cómo reproducir esta verificación
 
 ```bash

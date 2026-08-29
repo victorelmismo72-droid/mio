@@ -93,9 +93,9 @@ Con el servidor arrancado, abre `http://localhost:3001/login.html` — desde ah�
 
 - **Inicio** (`index.html`): panel "Clientes a Contactar Hoy", con recordatorios ordenados por el margen real que suele dejar cada cliente.
 - **Compras** (`compras.html`): registrar una compra viendo en vivo el 2% de OP y el IVA según el proveedor, antes de guardar.
-- **Pedidos** (`pedidos.html`): crear un albarán con asignación de partida en línea (✅ automática o ⚠️ para elegir a mano), y una vista previa que alterna entre la versión interna (con precio y partida) y la de cliente (sin ninguno de los dos).
+- **Pedidos** (`pedidos.html`): crear o editar un albarán (botón ✏️ Editar en "Últimos pedidos"), con asignación de partida en línea (✅ automática o ⚠️ para elegir a mano), y una vista previa que alterna entre la versión interna (con precio y partida) y la de cliente (sin ninguno de los dos).
 - **Partidas** (`partidas.html`): asignar partidas de un día entero, cerrar/reabrir partidas, consultar rentabilidad.
-- **Listados** (`listados.html`): los 7 listados de gestión, con fecha y exportación a CSV real.
+- **Listados** (`listados.html`): 8 listados de gestión (incluido un detalle de pedidos con IVA/Recargo por cliente y fila de totales, pensado para contabilidad), con fecha y exportación a CSV real.
 - **Usuarios** (`usuarios.html`, solo Administrador): alta de usuarios y cierre de año.
 
 Detalle completo de lo probado (incluido un fallo real de agilidad que se encontró y corrigió antes de que llegara a verse) en `VERIFICACION_FASE_4.md`.

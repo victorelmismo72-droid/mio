@@ -15,6 +15,7 @@
       <div>
         <label for="l-tipo">Listado</label>
         <select id="l-tipo">
+          <option value="pedidos-detalle">Pedidos (detalle para contabilidad)</option>
           <option value="ventas-por-cliente">Ventas por cliente</option>
           <option value="compras-por-proveedor">Compras por proveedor</option>
           <option value="rentabilidad-partidas">Rentabilidad por partida</option>
@@ -108,13 +109,19 @@ function pintarResultado(filas) {
   const esNumerico = (c, v) => esCantidad(c) && v !== null && v !== '' && !isNaN(Number(v)) && typeof v !== 'boolean';
   cont.innerHTML = `<div class="tabla-envoltorio"><table>
     <thead><tr>${columnas.map((c) => `<th>${c.replace(/_/g, ' ')}</th>`).join('')}</tr></thead>
-    <tbody>${filas.map((f) => `<tr>${columnas.map((c) => {
-      const v = f[c];
-      if (c === 'fecha' || c.endsWith('_en')) return `<td>${fmtFecha(v)}</td>`;
-      if (typeof v === 'boolean') return `<td>${v ? '✅ Sí' : '— No'}</td>`;
-      if (esNumerico(c, v)) return `<td class="num">${Number(v).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>`;
-      return `<td>${v ?? ''}</td>`;
-    }).join('')}</tr>`).join('')}</tbody>
+    <tbody>${filas.map((f) => {
+      // La fila TOTAL (solo la lleva el listado "Pedidos detalle") se
+      // resalta igual que las filas de totales de Compras/Pedidos.
+      const esTotal = f.numero === 'TOTAL';
+      return `<tr${esTotal ? ' class="fila-totales"' : ''}>${columnas.map((c) => {
+        const v = f[c];
+        if (esTotal && (v === '' || v === null)) return '<td></td>';
+        if (c === 'fecha' || c.endsWith('_en')) return `<td>${fmtFecha(v)}</td>`;
+        if (typeof v === 'boolean') return `<td>${v ? '✅ Sí' : '— No'}</td>`;
+        if (esNumerico(c, v)) return `<td class="num">${Number(v).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>`;
+        return `<td>${v ?? ''}</td>`;
+      }).join('')}</tr>`;
+    }).join('')}</tbody>
   </table></div>`;
 }
 
