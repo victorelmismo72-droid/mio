@@ -325,15 +325,41 @@ function pintarHistorico() {
     <td class="num">${r.total_cajas ?? ''}</td><td class="num">${fmtKg(r.total_kg)}</td>
     <td>
       <button type="button" class="btn secundario" data-editar="${r.id}" style="padding:0.2rem 0.6rem;">✏️ Editar</button>
+      <button type="button" class="btn secundario" data-etiquetas="${r.id}" style="padding:0.2rem 0.6rem;">🏷️ Etiquetas</button>
       <button type="button" class="btn secundario" data-anular="${r.id}" data-numero="${r.numero}" style="padding:0.2rem 0.6rem;">🗑️ Anular</button>
     </td></tr>
   `).join('');
   document.querySelectorAll('[data-editar]').forEach((btn) => {
     btn.addEventListener('click', () => cargarRepartoParaEditar(btn.dataset.editar));
   });
+  document.querySelectorAll('[data-etiquetas]').forEach((btn) => {
+    btn.addEventListener('click', () => imprimirEtiquetas(btn.dataset.etiquetas));
+  });
   document.querySelectorAll('[data-anular]').forEach((btn) => {
     btn.addEventListener('click', () => anularReparto(btn.dataset.anular, btn.dataset.numero));
   });
+}
+
+// Abrir en una pestaña nueva con el token en la URL no es seguro (igual que ya
+// se decidió para exportar CSV en listados.html) - en vez de eso se pide la
+// página ya autenticada y se escribe directamente en una ventana nueva, lista
+// para imprimir con Ctrl+P (o el diálogo de imprimir que abre solo).
+async function imprimirEtiquetas(id) {
+  try {
+    const res = await apiFetch(`/repartos/${id}/etiquetas`);
+    if (!res.ok) {
+      const datos = await res.json().catch(() => ({}));
+      mostrarMensaje(datos.error || 'No se pudieron generar las etiquetas.', 'error');
+      return;
+    }
+    const html = await res.text();
+    const ventana = window.open('', '_blank');
+    if (!ventana) { mostrarMensaje('El navegador ha bloqueado la ventana emergente. Permítela e inténtalo de nuevo.', 'error'); return; }
+    ventana.document.open();
+    ventana.document.write(html);
+    ventana.document.close();
+    ventana.onload = () => ventana.print();
+  } catch (e) { mostrarMensaje(e.message, 'error'); }
 }
 ['h-num', 'h-dest', 'h-desde', 'h-hasta'].forEach((id) => {
   document.getElementById(id).addEventListener('input', pintarHistorico);
