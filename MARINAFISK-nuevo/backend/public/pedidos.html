@@ -47,6 +47,8 @@
     <div style="margin-top:1.4rem;">
       <button type="button" class="btn" id="btn-guardar">Guardar pedido</button>
       <button type="button" class="btn secundario" id="btn-cancelar-edicion" style="display:none;">Cancelar edición</button>
+      <button type="button" class="btn secundario" id="btn-transfrio">🚚 Hoja Transfrío</button>
+      <label style="font-size:0.85rem;margin-left:0.4rem;"><input type="checkbox" id="transfrio-regla"> con regla de calibración</label>
     </div>
   </div>
 
@@ -75,6 +77,7 @@
   </div>
 </main>
 
+<script src="vendor/jspdf.umd.min.js"></script>
 <script src="app.js"></script>
 <script>
 const usuario = protegerPagina();
@@ -502,6 +505,77 @@ async function anularPedido(id, numero) {
     cargarHistorico();
   } catch (e) { mostrarMensaje(e.message, 'error'); }
 }
+
+// ===== HOJA TRANSFRÍO =====
+// Para imprimir ENCIMA del papel ya impreso del transportista Transfrío -
+// rellena cliente, destino, fecha y totales en las posiciones exactas del
+// papel real. Igual que generarPdfTransfrio()/TRANSFRIO_COORDS_DEFECTO del
+// HTML actual - las coordenadas están en variables con nombre porque Víctor
+// tendrá que calibrarlas él mismo sobre el papel físico en cuanto pueda
+// probarlo (no se puede acertar a la primera desde una foto).
+const TRANSFRIO_COORDS_DEFECTO = {
+  pagina: { ancho: 210, alto: 297 }, // A4 vertical
+  cliente: { x: 80, y: 19 },
+  destino: { x: 80, y: 24 },
+  lugarCarga: { x: 30, y: 141 },
+  fechaDia: { x: 80, y: 141 },
+  fechaMes: { x: 100, y: 141 },
+  fechaAno: { x: 140, y: 141 },
+  kg: { x: 180, y: 91 },
+  bultos: { x: 180, y: 97 },
+  fontSize: 11,
+};
+
+function generarPdfTransfrio(pedTmp, modoRegla) {
+  const c = TRANSFRIO_COORDS_DEFECTO;
+  const doc = new window.jspdf.jsPDF({ unit: 'mm', format: [c.pagina.ancho, c.pagina.alto], orientation: 'portrait' });
+
+  if (modoRegla) {
+    // Rejilla cada 10mm con numeros, para poder decir "mueve el cliente 5mm
+    // a la derecha" mirando la hoja impresa contra el papel real.
+    doc.setDrawColor(200, 200, 255); doc.setLineWidth(0.1);
+    doc.setFontSize(5); doc.setTextColor(150, 150, 220);
+    for (let x = 0; x <= c.pagina.ancho; x += 10) { doc.line(x, 0, x, c.pagina.alto); doc.text(String(x), x + 0.5, 4); }
+    for (let y = 0; y <= c.pagina.alto; y += 10) { doc.line(0, y, c.pagina.ancho, y); doc.text(String(y), 1, y - 0.5); }
+    doc.setTextColor(0, 0, 0);
+  }
+
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(c.fontSize);
+
+  const destinoTexto = pedTmp.clientePob || pedTmp.clienteProv || '';
+  const totalBultos = pedTmp.lineas.reduce((s, l) => s + (Number(l.cantidad) || 0), 0);
+  const totalKg = pedTmp.lineas.reduce((s, l) => s + (Number(l.peso) || 0), 0);
+
+  doc.text(pedTmp.clienteNombre || '', c.cliente.x, c.cliente.y);
+  doc.text(destinoTexto, c.destino.x, c.destino.y);
+
+  const [anio, mes, dia] = (pedTmp.fecha || fechaLocalISO()).split('-').map(Number);
+  const fechaObj = new Date(anio, mes - 1, dia);
+  doc.text('CORUÑA', c.lugarCarga.x, c.lugarCarga.y);
+  doc.text(String(fechaObj.getDate()), c.fechaDia.x, c.fechaDia.y);
+  doc.text(fechaObj.toLocaleDateString('es-ES', { month: 'long' }), c.fechaMes.x, c.fechaMes.y);
+  doc.text(String(fechaObj.getFullYear()), c.fechaAno.x, c.fechaAno.y);
+
+  doc.text(String(totalBultos), c.bultos.x, c.bultos.y);
+  doc.text(totalKg.toFixed(2), c.kg.x, c.kg.y);
+
+  return doc;
+}
+
+document.getElementById('btn-transfrio').addEventListener('click', () => {
+  const c = clienteSeleccionado();
+  if (!c) { mostrarMensaje('Elige un cliente válido de la lista.', 'error'); return; }
+  const pedTmp = {
+    fecha: document.getElementById('p-fecha').value || fechaLocalISO(),
+    clienteNombre: c.nombre,
+    clientePob: c.poblacion,
+    clienteProv: c.provincia,
+    lineas: lineas.filter((l) => l.articulo_codigo && Number(l.peso) > 0),
+  };
+  const modoRegla = document.getElementById('transfrio-regla').checked;
+  const doc = generarPdfTransfrio(pedTmp, modoRegla);
+  window.open(doc.output('bloburl'), '_blank');
+});
 
 if (usuario) {
   renderBarraNavegacion(usuario, 'pedidos.html');

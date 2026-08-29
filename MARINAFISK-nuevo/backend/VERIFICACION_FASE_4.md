@@ -35,7 +35,11 @@ Ver `VERIFICACION_TRANSVERSAL.md` para el detalle punto por punto frente al docu
 
 Probado contra un reparto real (nº 80, ECOMORA): contenido y totales correctos, verificado visualmente con captura de pantalla.
 
-**No construidas todavía**: Transfrío, WhatsApp/Email — y, de menor prioridad confirmada por Víctor: listas de precio, renumerar pedido, completar el alta de artículos en Catálogos con científico/zona FAO/etc.
+**Hoja Transfrío** (29/08/2026): botón "🚚 Hoja Transfrío" en `pedidos.html`, para imprimir ENCIMA del papel ya impreso del transportista Transfrío. A diferencia de las etiquetas/fichas (HTML+CSS), aquí se reproduce el mecanismo exacto del HTML actual: `jsPDF` en el navegador con posiciones en milímetros (mismas coordenadas por defecto — `TRANSFRIO_COORDS_DEFECTO` —, con un modo "regla de calibración" para cuando Víctor pueda ajustarlas contra el papel físico). jsPDF se sirve desde `public/vendor/` (paquete npm, copiado localmente — no depende de un CDN externo para algo que se usa a diario). Funciona sin necesidad de guardar el pedido primero (usa los datos ya escritos en el formulario, igual que `construirPedidoTmpDesdeFormulario()`).
+
+Probado generando un PDF real a partir de un pedido de prueba en el formulario: extraído el texto del PDF resultante y confirmado carácter a carácter — "CORUÑA 29 agosto 2026" (lugar, día, mes en español, año), nombre del cliente, bultos y kg, todo en su sitio. La posición exacta sobre el papel físico real solo la puede confirmar Víctor cuando tenga impresora a mano (ver `VERIFICACION_TRANSVERSAL.md`).
+
+**No construidas todavía**: WhatsApp/Email — y, de menor prioridad confirmada por Víctor: listas de precio, renumerar pedido, completar el alta de artículos en Catálogos con científico/zona FAO/etc.
 
 ## 2. Un principio de diseño importante para la agilidad (Fase 4 punto 2)
 
