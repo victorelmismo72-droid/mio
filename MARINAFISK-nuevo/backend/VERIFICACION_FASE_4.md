@@ -15,8 +15,9 @@ Construido sobre las Fases 1-3 ya verificadas. Pantallas nuevas en `public/` (HT
 | `usuarios.html` | Solo Administrador: alta de usuarios, activar/desactivar, y el cierre de año (vista previa + confirmación). |
 | `catalogos.html` | Alta y edición de clientes, proveedores y artículos (tres pestañas). Añadida a raíz de que Víctor detectó que no existía ninguna forma de dar de alta un cliente/proveedor/artículo nuevo — sin esto no se podía ni facturar a un cliente nuevo ni comprar a un proveedor nuevo. |
 | `traspasos.html` (29/08/2026) | Traspaso interno Coruña → Zaragoza: fecha, líneas (producto/cajas/peso/precio/**nº de partida a mano** — a diferencia de Pedidos, aquí la partida NO se asigna automáticamente, igual que en el HTML actual), total = peso×precio sin IVA (no es una venta). Crear, editar, anular y buscar en todo el historial (mismo patrón que Pedidos). |
+| `repartos.html` (29/08/2026) | Registrar Reparto Super: fecha, destinatario (lista de supermercados + "OTRO" con texto libre, partido en nombre de cadena + ciudad igual que `dividirDestinatario()` del HTML actual), conductor, líneas (artículo/lote/barco/subzona/arte de pesca/cajas/kg aprox./peso de etiqueta). Al elegir un artículo se autorrellenan barco/subzona/arte de pesca desde el catálogo si la línea los tenía vacíos — y **estos datos ya estaban en la base real, migrados en la Fase 1** (153-154 de 154 artículos los tienen). Crear, editar, anular, buscar en todo el historial. Sin impresión de etiquetas todavía (siguiente punto). |
 
-**No construidas todavía** (siguiente en la lista, por petición explícita de Víctor: Reparto Super y las etiquetas van antes que el resto): Reparto Super con etiquetas Scanfisk, Transfrío, etiquetas multi-idioma con reglas de caducidad, listas de precios.
+**No construidas todavía**: las etiquetas (Scanfisk, multi-idioma, Transfrío) — siguiente en la lista, por petición explícita de Víctor — y listas de precio, renumerar pedido, completar el alta de artículos en Catálogos con científico/zona FAO/etc. (menor prioridad, confirmado por Víctor).
 
 ## 2. Un principio de diseño importante para la agilidad (Fase 4 punto 2)
 
