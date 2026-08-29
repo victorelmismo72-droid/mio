@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>MARINAFISK — Compras</title>
+<link rel="stylesheet" href="app.css">
+<style>
+  #tabla-lineas input, #tabla-lineas select { min-width: 6rem; }
+  #tabla-lineas td.calculado { color: #556; font-size: 0.85rem; }
+  .fila-totales td { font-weight: 700; background: #f4f6f5; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Registrar compra</h1>
+  <p class="ayuda">El 2% de OP se aplica solo si el proveedor está marcado como subasta/lonja, y se calcula en el momento de guardar — nunca antes.</p>
+  <div id="mensaje"></div>
+
+  <div class="tarjeta">
+    <div class="fila-form">
+      <div>
+        <label for="c-proveedor">Proveedor</label>
+        <input type="text" id="c-proveedor" list="lista-proveedores" placeholder="Código o nombre...">
+        <datalist id="lista-proveedores"></datalist>
+      </div>
+      <div>
+        <label for="c-fecha">Fecha</label>
+        <input type="date" id="c-fecha">
+      </div>
+      <div>
+        <label for="c-alb">Albarán del proveedor</label>
+        <input type="text" id="c-alb">
+      </div>
+    </div>
+    <p id="c-proveedor-info" class="ayuda"></p>
+
+    <h2>Líneas</h2>
+    <div class="tabla-envoltorio">
+      <table id="tabla-lineas">
+        <thead><tr><th>Producto</th><th>Descripción</th><th class="num">Cajas</th><th class="num">Kilos</th><th class="num">Precio/kg</th><th class="num">2% OP</th><th class="num">Base real</th><th class="num">IVA</th><th class="num">Total</th><th></th></tr></thead>
+        <tbody></tbody>
+        <tfoot><tr class="fila-totales"><td colspan="3"></td><td class="num" id="tot-kilos">0</td><td></td><td class="num" id="tot-op2">0,00 €</td><td class="num" id="tot-basereal">0,00 €</td><td class="num" id="tot-iva">0,00 €</td><td class="num" id="tot-total">0,00 €</td><td></td></tr></tfoot>
+      </table>
+    </div>
+    <button type="button" class="btn secundario" id="btn-anadir-linea" style="margin-top:0.7rem;">+ Añadir línea</button>
+
+    <div style="margin-top:1.4rem;">
+      <button type="button" class="btn" id="btn-guardar">Guardar compra</button>
+    </div>
+  </div>
+
+  <h2>Últimas compras</h2>
+  <div class="tabla-envoltorio">
+    <table id="tabla-historico">
+      <thead><tr><th>Partida</th><th>Fecha</th><th>Proveedor</th><th class="num">Kilos</th><th class="num">Base real</th><th class="num">Total factura</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</main>
+
+<script src="app.js"></script>
+<script>
+const usuario = protegerPagina();
+let proveedores = [];
+let lineas = [];
+
+function lineaVacia() {
+  return { producto: '', descripcion: '', cajas: '', kilos: '', precio_kg: '' };
+}
+
+async function cargarProveedores() {
+  const res = await apiFetch('/proveedores');
+  proveedores = await res.json();
+  const datalist = document.getElementById('lista-proveedores');
+  datalist.innerHTML = proveedores.map((p) => `<option value="${p.codigo} — ${p.nombre}">`).join('');
+}
+
+function proveedorSeleccionado() {
+  const texto = document.getElementById('c-proveedor').value.trim();
+  const codigo = texto.split(' — ')[0].trim();
+  return proveedores.find((p) => p.codigo === codigo) || null;
+}
+
+document.getElementById('c-proveedor').addEventListener('input', () => {
+  const p = proveedorSeleccionado();
+  const info = document.getElementById('c-proveedor-info');
+  if (!p) { info.textContent = ''; return; }
+  info.textContent = `${p.nombre} — ${p.es_subasta_op ? 'Subasta/Lonja (lleva 2% de OP)' : 'Sin 2% de OP'} — ${p.tipo_iva === 'INTRACOMUNITARIO' ? 'Intracomunitario (sin IVA)' : 'Nacional (10% IVA)'}`;
+});
+
+function recalcularLinea(l) {
+  const p = proveedorSeleccionado();
+  const kilos = Number(l.kilos) || 0;
+  const precioKg = Number(l.precio_kg) || 0;
+  const baseZgz = kilos * precioKg;
+  const op2 = (p && p.es_subasta_op) ? baseZgz * 0.02 : 0;
+  const baseReal = baseZgz + op2;
+  const ivaPct = (p && p.tipo_iva === 'INTRACOMUNITARIO') ? 0 : 10;
+  const iva = baseReal * (ivaPct / 100);
+  const total = baseReal + iva;
+  return { op2, baseReal, iva, total };
+}
+
+// Importante para la agilidad (Fase 4 punto 2): NUNCA se reconstruyen los
+// <input> mientras se escribe - eso le quitaria el foco al usuario a mitad
+// de teclear un numero. `pintarLineas()` (reconstruye toda la tabla) solo
+// se llama al anadir/quitar una linea; escribir en un campo solo actualiza
+// las celdas calculadas de ESA fila y los totales, sin tocar los <input>.
+function actualizarCalculadosFila(tr, l) {
+  const calc = recalcularLinea(l);
+  tr.querySelector('[data-calc=op2]').textContent = fmtEUR(calc.op2);
+  tr.querySelector('[data-calc=basereal]').textContent = fmtEUR(calc.baseReal);
+  tr.querySelector('[data-calc=iva]').textContent = fmtEUR(calc.iva);
+  tr.querySelector('[data-calc=total]').innerHTML = `<strong>${fmtEUR(calc.total)}</strong>`;
+  return calc;
+}
+
+function actualizarTotales() {
+  let totKilos = 0, totOp2 = 0, totBaseReal = 0, totIva = 0, totTotal = 0;
+  lineas.forEach((l) => {
+    const calc = recalcularLinea(l);
+    totKilos += Number(l.kilos) || 0;
+    totOp2 += calc.op2; totBaseReal += calc.baseReal; totIva += calc.iva; totTotal += calc.total;
+  });
+  document.getElementById('tot-kilos').textContent = fmtKg(totKilos);
+  document.getElementById('tot-op2').textContent = fmtEUR(totOp2);
+  document.getElementById('tot-basereal').textContent = fmtEUR(totBaseReal);
+  document.getElementById('tot-iva').textContent = fmtEUR(totIva);
+  document.getElementById('tot-total').textContent = fmtEUR(totTotal);
+}
+
+function pintarLineas() {
+  const tbody = document.querySelector('#tabla-lineas tbody');
+  tbody.innerHTML = '';
+
+  lineas.forEach((l, i) => {
+    const calc = recalcularLinea(l);
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><input type="text" data-campo="producto" value="${l.producto}" style="width:6rem;"></td>
+      <td><input type="text" data-campo="descripcion" value="${l.descripcion}" style="width:11rem;"></td>
+      <td class="num"><input type="number" data-campo="cajas" value="${l.cajas}" style="width:4.5rem;text-align:right;"></td>
+      <td class="num"><input type="number" step="0.01" data-campo="kilos" value="${l.kilos}" style="width:5.5rem;text-align:right;"></td>
+      <td class="num"><input type="number" step="0.01" data-campo="precio_kg" value="${l.precio_kg}" style="width:5.5rem;text-align:right;"></td>
+      <td class="num calculado" data-calc="op2">${fmtEUR(calc.op2)}</td>
+      <td class="num calculado" data-calc="basereal">${fmtEUR(calc.baseReal)}</td>
+      <td class="num calculado" data-calc="iva">${fmtEUR(calc.iva)}</td>
+      <td class="num calculado" data-calc="total"><strong>${fmtEUR(calc.total)}</strong></td>
+      <td><button type="button" class="btn secundario" data-quitar="${i}" style="padding:0.2rem 0.5rem;">✕</button></td>
+    `;
+    tr.querySelectorAll('input').forEach((input) => {
+      input.addEventListener('input', () => {
+        l[input.dataset.campo] = input.value;
+        actualizarCalculadosFila(tr, l);
+        actualizarTotales();
+      });
+    });
+    tr.querySelector('[data-quitar]').addEventListener('click', () => { lineas.splice(i, 1); pintarLineas(); });
+    tbody.appendChild(tr);
+  });
+
+  actualizarTotales();
+}
+
+document.getElementById('btn-anadir-linea').addEventListener('click', () => { lineas.push(lineaVacia()); pintarLineas(); });
+
+function mostrarMensaje(texto, tipo) {
+  document.getElementById('mensaje').innerHTML = `<div class="mensaje ${tipo}">${texto}</div>`;
+}
+
+document.getElementById('btn-guardar').addEventListener('click', async () => {
+  const p = proveedorSeleccionado();
+  if (!p) { mostrarMensaje('Elige un proveedor válido de la lista.', 'error'); return; }
+  const lineasValidas = lineas.filter((l) => l.producto && Number(l.kilos) > 0);
+  if (!lineasValidas.length) { mostrarMensaje('Añade al menos una línea con producto y kilos.', 'error'); return; }
+
+  try {
+    const res = await apiFetch('/compras', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        proveedor_codigo: p.codigo,
+        fecha: document.getElementById('c-fecha').value || fechaLocalISO(),
+        alb_proveedor: document.getElementById('c-alb').value || null,
+        lineas: lineasValidas,
+      }),
+    });
+    const datos = await res.json();
+    if (!res.ok) { mostrarMensaje(datos.error || 'No se pudo guardar.', 'error'); return; }
+    mostrarMensaje(`Compra guardada — partida ${datos.numero_partida}, total ${fmtEUR(datos.total_fact)}.`, 'ok');
+    lineas = [lineaVacia()];
+    document.getElementById('c-alb').value = '';
+    pintarLineas();
+    cargarHistorico();
+  } catch (e) { mostrarMensaje(e.message, 'error'); }
+});
+
+async function cargarHistorico() {
+  const res = await apiFetch('/compras');
+  const compras = await res.json();
+  const ultimas = compras.slice(-15).reverse();
+  document.querySelector('#tabla-historico tbody').innerHTML = ultimas.map((c) => `
+    <tr>
+      <td>${c.numero_partida ?? ''}</td>
+      <td>${fmtFecha(c.fecha)}</td>
+      <td>${c.proveedor_nombre || c.proveedor_codigo}</td>
+      <td class="num">${fmtKg(c.total_kilos)}</td>
+      <td class="num">${fmtEUR(c.total_base_real)}</td>
+      <td class="num">${fmtEUR(c.total_fact)}</td>
+    </tr>
+  `).join('');
+}
+
+if (usuario) {
+  renderBarraNavegacion(usuario, 'compras.html');
+  document.getElementById('c-fecha').value = fechaLocalISO();
+  lineas = [lineaVacia()];
+  pintarLineas();
+  cargarProveedores();
+  cargarHistorico();
+}
+</script>
+</body>
+</html>

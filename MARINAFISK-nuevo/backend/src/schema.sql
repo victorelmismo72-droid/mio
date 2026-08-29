@@ -285,6 +285,21 @@ CREATE TABLE configuracion (
 );
 
 -- ---------------------------------------------------------------------------
+-- Panel "Clientes a Contactar Hoy" (Fase 4 punto 1/3): quien ya se ha
+-- marcado como contactado hoy. A diferencia del HTML actual (que lo
+-- guardaba en localStorage, por ordenador), aqui se comparte entre todos
+-- los usuarios - si Victor lo marca, Pancho tambien lo ve marcado.
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE contactados_hoy (
+  cliente_codigo TEXT NOT NULL,
+  fecha           DATE NOT NULL,
+  marcado_por     TEXT,
+  marcado_en      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (cliente_codigo, fecha)
+);
+
+-- ---------------------------------------------------------------------------
 -- Listas de precios (Pescaderías / Mayoristas) — Fase 0 punto 5
 -- ---------------------------------------------------------------------------
 

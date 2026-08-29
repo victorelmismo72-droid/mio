@@ -1,4 +1,4 @@
-# MARINAFISK — Backend (Fases 1, 2 y 3)
+# MARINAFISK — Backend (Fases 1 a 4)
 
 Explicación en términos sencillos de qué es esto, para Víctor.
 
@@ -87,9 +87,24 @@ Al crear una compra (`POST /api/compras`), el servidor calcula solo el 2% de OP 
 
 Detalle completo de lo probado en `VERIFICACION_FASE_3.md`.
 
+## Fase 4 (ya construida): pantallas para el trabajo diario
+
+Con el servidor arrancado, abre `http://localhost:3001/login.html` — desde ahí, una barra de navegación lleva a cada pantalla:
+
+- **Inicio** (`index.html`): panel "Clientes a Contactar Hoy", con recordatorios ordenados por el margen real que suele dejar cada cliente.
+- **Compras** (`compras.html`): registrar una compra viendo en vivo el 2% de OP y el IVA según el proveedor, antes de guardar.
+- **Pedidos** (`pedidos.html`): crear un albarán con asignación de partida en línea (✅ automática o ⚠️ para elegir a mano), y una vista previa que alterna entre la versión interna (con precio y partida) y la de cliente (sin ninguno de los dos).
+- **Partidas** (`partidas.html`): asignar partidas de un día entero, cerrar/reabrir partidas, consultar rentabilidad.
+- **Listados** (`listados.html`): los 7 listados de gestión, con fecha y exportación a CSV real.
+- **Usuarios** (`usuarios.html`, solo Administrador): alta de usuarios y cierre de año.
+
+Detalle completo de lo probado (incluido un fallo real de agilidad que se encontró y corrigió antes de que llegara a verse) en `VERIFICACION_FASE_4.md`.
+
+**Todavía no construidas**: Transfrío, Reparto Super con etiquetas Scanfisk, etiquetas multi-idioma, listas de precios — necesitan estudiar a fondo el código de impresión del HTML actual, pendiente para una siguiente pasada.
+
 ## Qué falta todavía
 
+- **Que Víctor use personalmente cada pantalla de la Fase 4 con datos reales** y confirme que el resultado es idéntico al del programa actual — es el paso que de verdad cierra esta fase, y no lo puede hacer nadie más.
 - Confirmar con Víctor un par de detalles de la Fase 2 marcados explícitamente como "pendiente de confirmar" (ver `VERIFICACION_FASE_2.md`, punto 5) — no bloquean nada, pero conviene cerrarlos.
-- Exportar los listados también a PDF (hoy solo CSV/JSON) y los modelos de impresión (fichas de envío, etiquetas, Transfrío).
+- Exportar los listados también a PDF (hoy solo CSV/JSON) y los modelos de impresión (fichas de envío, etiquetas, Transfrío, Reparto Super, listas de precios).
 - Desplegar esta base de datos en la VPN de la empresa (decidido, pero no hecho todavía — esta sesión de pruebas vive en un contenedor temporal) para que tú y Pancho lleguéis a ella desde vuestros propios equipos.
-- **Fase 4**: pantallas propias para el trabajo diario (hoy solo existen la API y la pantalla de clasificación fiscal `fiscal.html`; el HTML actual sigue siendo la pantalla que usas en el día a día).

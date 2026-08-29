@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>MARINAFISK — Partidas</title>
+<link rel="stylesheet" href="app.css">
+<style>
+  .excepcion { margin-bottom: 0.8rem; }
+  .excepcion .cabecera { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; }
+  dl.rentabilidad { display: grid; grid-template-columns: auto 1fr; gap: 0.3rem 1rem; font-size: 0.92rem; }
+  dl.rentabilidad dt { color: #556; }
+  dl.rentabilidad dd { margin: 0; font-weight: 600; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Partidas</h1>
+  <div id="mensaje"></div>
+
+  <div class="tarjeta">
+    <h2 style="margin-top:0;">Asignar partidas de un día</h2>
+    <p class="ayuda">Asigna sola cada línea de pedido que llegue al margen mínimo; el resto se queda como excepción para elegir a mano.</p>
+    <div class="fila-form">
+      <div><label for="asig-fecha">Fecha</label><input type="date" id="asig-fecha"></div>
+      <div style="display:flex;align-items:flex-end;"><button type="button" class="btn" id="btn-asignar-dia">📦 Asignar partidas de ese día</button></div>
+    </div>
+    <div id="resumen-asignacion"></div>
+    <div id="excepciones"></div>
+  </div>
+
+  <div class="tarjetas-grid">
+    <div class="tarjeta">
+      <h2 style="margin-top:0;">Cerrar / reabrir partida</h2>
+      <div class="fila-form">
+        <div><label for="cierre-numero">Número de partida</label><input type="number" id="cierre-numero"></div>
+      </div>
+      <button type="button" class="btn secundario" id="btn-cerrar-partida">🔒 Cerrar</button>
+      <button type="button" class="btn secundario" id="btn-reabrir-partida">🔓 Reabrir</button>
+    </div>
+
+    <div class="tarjeta">
+      <h2 style="margin-top:0;">Cierre masivo por fecha</h2>
+      <p class="ayuda">Cierra de golpe todas las partidas que se originaron en compras de esa fecha.</p>
+      <div class="fila-form">
+        <div><label for="cierre-masivo-fecha">Fecha de las compras</label><input type="date" id="cierre-masivo-fecha"></div>
+      </div>
+      <button type="button" class="btn secundario" id="btn-cierre-masivo">🔒 Cerrar todas las de esa fecha</button>
+    </div>
+  </div>
+
+  <div class="tarjeta">
+    <h2 style="margin-top:0;">Rentabilidad de una partida</h2>
+    <div class="fila-form">
+      <div><label for="rent-numero">Número de partida</label><input type="number" id="rent-numero"></div>
+      <div style="display:flex;align-items:flex-end;"><button type="button" class="btn secundario" id="btn-consultar-rentabilidad">Consultar</button></div>
+    </div>
+    <div id="resultado-rentabilidad"></div>
+  </div>
+</main>
+
+<script src="app.js"></script>
+<script>
+const usuario = protegerPagina();
+
+function mostrarMensaje(texto, tipo) {
+  document.getElementById('mensaje').innerHTML = `<div class="mensaje ${tipo}">${texto}</div>`;
+}
+
+document.getElementById('btn-asignar-dia').addEventListener('click', async () => {
+  const fecha = document.getElementById('asig-fecha').value || fechaLocalISO();
+  const res = await apiFetch('/partidas/asignar-dia', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fecha }),
+  });
+  const datos = await res.json();
+  if (!res.ok) { mostrarMensaje(datos.error, 'error'); return; }
+
+  document.getElementById('resumen-asignacion').innerHTML = `<div class="mensaje ok">
+    <strong>${datos.asignadas_auto}</strong> asignadas automáticamente ·
+    <strong>${datos.ya_tenian}</strong> ya la tenían puesta ·
+    <strong>${datos.sin_compras}</strong> sin compras registradas de ese producto
+  </div>`;
+
+  const cont = document.getElementById('excepciones');
+  if (!datos.pendientes.length) {
+    cont.innerHTML = '<p class="ayuda">✅ No hay ninguna excepción que revisar — todo resuelto.</p>';
+    return;
+  }
+  cont.innerHTML = `<h2>Excepciones a elegir a mano (${datos.pendientes.length})</h2>` +
+    datos.pendientes.map((p, idx) => {
+      const opciones = p.candidatos.map((c) => {
+        const margen = (Number(p.precio_venta) || 0) - c.coste;
+        return `<option value="${c.numero_partida}">${c.numero_partida} · ${fmtFecha(c.fecha)} · ${fmtEUR(c.coste)} (margen ${fmtEUR(margen)})</option>`;
+      }).join('');
+      return `<div class="tarjeta excepcion">
+        <div class="cabecera">
+          <div><strong>Pedido ${p.pedido_numero}</strong> — ${p.descripcion || p.articulo_codigo} <span class="ayuda">(venta ${p.precio_venta ? fmtEUR(p.precio_venta) : 'sin precio'})</span></div>
+          <div>
+            <select id="excep-${idx}"><option value="">-- elegir --</option>${opciones}</select>
+            <button type="button" class="btn secundario" data-aplicar="${idx}" data-linea="${p.pedido_linea_id}">Aplicar</button>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+
+  cont.querySelectorAll('[data-aplicar]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const sel = document.getElementById(`excep-${btn.dataset.aplicar}`);
+      if (!sel.value) return;
+      await apiFetch(`/pedidos/lineas/${btn.dataset.linea}/partida`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ partida_numero: sel.value }),
+      }).catch(() => {});
+      btn.textContent = 'Aplicado ✓';
+      btn.disabled = true;
+    });
+  });
+});
+
+document.getElementById('btn-cerrar-partida').addEventListener('click', async () => {
+  const n = document.getElementById('cierre-numero').value;
+  if (!n) return;
+  await apiFetch(`/partidas/${n}/cerrar`, { method: 'POST' });
+  mostrarMensaje(`Partida ${n} cerrada.`, 'ok');
+});
+document.getElementById('btn-reabrir-partida').addEventListener('click', async () => {
+  const n = document.getElementById('cierre-numero').value;
+  if (!n) return;
+  await apiFetch(`/partidas/${n}/reabrir`, { method: 'POST' });
+  mostrarMensaje(`Partida ${n} reabierta.`, 'ok');
+});
+document.getElementById('btn-cierre-masivo').addEventListener('click', async () => {
+  const fecha = document.getElementById('cierre-masivo-fecha').value;
+  if (!fecha) return;
+  const res = await apiFetch('/partidas/cerrar-masivo', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fecha }),
+  });
+  const datos = await res.json();
+  mostrarMensaje(`${datos.cerradas.length} partida(s) cerrada(s): ${datos.cerradas.join(', ') || '(ninguna encontrada para esa fecha)'}`, 'ok');
+});
+
+document.getElementById('btn-consultar-rentabilidad').addEventListener('click', async () => {
+  const n = document.getElementById('rent-numero').value;
+  if (!n) return;
+  const res = await apiFetch(`/partidas/${n}/rentabilidad`);
+  const r = await res.json();
+  const cont = document.getElementById('resultado-rentabilidad');
+  const filasCoste = Object.entries(r.coste_por_articulo).map(([art, v]) => `<li>${art}: ${fmtEUR(v)}</li>`).join('') || '<li class="ayuda">—</li>';
+  const filasVendido = Object.entries(r.vendido_por_articulo).map(([art, v]) => `<li>${art}: ${fmtEUR(v)}</li>`).join('') || '<li class="ayuda">—</li>';
+  cont.innerHTML = `
+    <dl class="rentabilidad">
+      <dt>Estado</dt><dd>${r.cerrada ? '🔒 Cerrada' : 'Abierta'}</dd>
+      <dt>Coste total</dt><dd>${fmtEUR(r.coste_total)}</dd>
+      <dt>Total vendido</dt><dd>${fmtEUR(r.total_vendido)}</dd>
+      <dt>Rentabilidad</dt><dd style="color:${r.rentabilidad >= 0 ? '#1f6b40' : '#942f1c'};">${fmtEUR(r.rentabilidad)}</dd>
+    </dl>
+    <div class="tarjetas-grid" style="margin-top:1rem;">
+      <div><h2 style="margin-top:0;font-size:0.95rem;">Coste por artículo</h2><ul>${filasCoste}</ul></div>
+      <div><h2 style="margin-top:0;font-size:0.95rem;">Vendido por artículo</h2><ul>${filasVendido}</ul></div>
+    </div>
+  `;
+});
+
+if (usuario) {
+  renderBarraNavegacion(usuario, 'partidas.html');
+  document.getElementById('asig-fecha').value = fechaLocalISO();
+  document.getElementById('cierre-masivo-fecha').value = fechaLocalISO();
+}
+</script>
+</body>
+</html>

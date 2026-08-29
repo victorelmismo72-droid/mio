@@ -16,4 +16,11 @@ async function registrarAuditoria(client, { tabla, accion, registroId, puestoOri
   );
 }
 
-module.exports = { pool, registrarAuditoria };
+// Un campo numerico dejado vacio en un formulario llega como '' (texto),
+// no como null - Postgres no acepta '' como numero. Se trata igual que "no
+// informado" en cualquier INSERT/UPDATE generico.
+function vacioComoNull(v) {
+  return v === '' || v === undefined ? null : v;
+}
+
+module.exports = { pool, registrarAuditoria, vacioComoNull };

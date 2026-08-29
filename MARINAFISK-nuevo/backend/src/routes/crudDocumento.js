@@ -1,5 +1,5 @@
 const express = require('express');
-const { pool, registrarAuditoria } = require('../db');
+const { pool, registrarAuditoria, vacioComoNull } = require('../db');
 
 // `fecha` siempre es texto local 'AAAA-MM-DD' - nunca convertir con
 // Date/UTC para sacar el ano (Fase 0 punto 7).
@@ -57,7 +57,7 @@ function crudDocumento({ tabla, tablaLineas, columnasCabecera, columnasLinea, fk
         if (c === 'numero') return numero;
         if (c === 'anio') return anioDeFecha(req.body.fecha);
         if (c === 'puesto_origen') return req.usuario.usuario;
-        return req.body[c] ?? null;
+        return vacioComoNull(req.body[c]);
       });
       const placeholders = columnasCabecera.map((_, i) => `$${i + 1}`).join(', ');
       const { rows } = await client.query(
@@ -68,7 +68,7 @@ function crudDocumento({ tabla, tablaLineas, columnasCabecera, columnasLinea, fk
 
       const lineasInsertadas = [];
       for (const linea of lineas) {
-        const valoresLinea = columnasLinea.map((c) => linea[c] ?? null);
+        const valoresLinea = columnasLinea.map((c) => vacioComoNull(linea[c]));
         const ph = columnasLinea.map((_, i) => `$${i + 2}`).join(', ');
         const { rows: lr } = await client.query(
           `INSERT INTO ${tablaLineas} (${fkLinea}, ${columnasLinea.join(', ')}) VALUES ($1, ${ph}) RETURNING *`,
@@ -90,7 +90,7 @@ function crudDocumento({ tabla, tablaLineas, columnasCabecera, columnasLinea, fk
       const valores = columnasCabecera.map((c) => {
         if (c === 'anio') return anioDeFecha(req.body.fecha);
         if (c === 'puesto_origen') return req.usuario.usuario;
-        return req.body[c] ?? null;
+        return vacioComoNull(req.body[c]);
       });
       await client.query('BEGIN');
       const { rows } = await client.query(

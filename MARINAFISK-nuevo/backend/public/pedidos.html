@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>MARINAFISK — Pedidos</title>
+<link rel="stylesheet" href="app.css">
+<style>
+  #tabla-lineas-ped input, #tabla-lineas-ped select { min-width: 5.5rem; }
+  .fila-totales td { font-weight: 700; background: #f4f6f5; }
+  .celda-partida { white-space: normal; }
+  .celda-partida select { min-width: 11rem; margin-bottom: 0.2rem; }
+  .vista-toggle { display: flex; gap: 0.5rem; margin: 1rem 0; }
+  .vista-toggle button.activo { background: #2f7d64; color: #fff; }
+  #vista-cliente th, #vista-cliente td { }
+</style>
+</head>
+<body>
+<main>
+  <h1>Pedidos / Albaranes</h1>
+  <div id="mensaje"></div>
+
+  <div class="tarjeta">
+    <div class="fila-form">
+      <div>
+        <label for="p-cliente">Cliente</label>
+        <input type="text" id="p-cliente" list="lista-clientes" placeholder="Código o nombre...">
+        <datalist id="lista-clientes"></datalist>
+      </div>
+      <div>
+        <label for="p-fecha">Fecha</label>
+        <input type="date" id="p-fecha">
+      </div>
+    </div>
+    <p id="p-cliente-info" class="ayuda"></p>
+
+    <h2>Líneas</h2>
+    <div class="tabla-envoltorio">
+      <table id="tabla-lineas-ped">
+        <thead><tr><th>Artículo</th><th>Descripción</th><th class="num">Peso (kg)</th><th class="num">Precio/kg</th><th class="num">Dcto %</th><th class="num">Total</th><th>Partida</th><th></th></tr></thead>
+        <tbody></tbody>
+        <tfoot><tr class="fila-totales"><td colspan="2"></td><td class="num" id="tot-peso">0</td><td colspan="2"></td><td class="num" id="tot-total">0,00 €</td><td colspan="2"></td></tr></tfoot>
+      </table>
+    </div>
+    <button type="button" class="btn secundario" id="btn-anadir-linea" style="margin-top:0.7rem;">+ Añadir línea</button>
+
+    <div style="margin-top:1.4rem;">
+      <button type="button" class="btn" id="btn-guardar">Guardar pedido</button>
+    </div>
+  </div>
+
+  <div class="vista-toggle">
+    <button type="button" class="btn secundario activo" data-vista="interna">Vista interna (con precios y partida)</button>
+    <button type="button" class="btn secundario" data-vista="cliente">Vista cliente (sin precios ni partida)</button>
+  </div>
+  <div class="tabla-envoltorio" id="vista-previa"></div>
+
+  <h2>Últimos pedidos</h2>
+  <div class="tabla-envoltorio">
+    <table id="tabla-historico">
+      <thead><tr><th>Nº</th><th>Fecha</th><th>Cliente</th><th class="num">Total</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</main>
+
+<script src="app.js"></script>
+<script>
+const usuario = protegerPagina();
+let clientes = [];
+let lineas = [];
+
+function lineaVacia() {
+  return { articulo_codigo: '', descripcion: '', peso: '', precio: '', descuento: 0, partida_numero: null, partida_manual: false, _candidatos: [], _estado: null };
+}
+
+async function cargarClientes() {
+  const res = await apiFetch('/clientes');
+  clientes = await res.json();
+  document.getElementById('lista-clientes').innerHTML = clientes.map((c) => `<option value="${c.codigo} — ${c.nombre}">`).join('');
+}
+
+function clienteSeleccionado() {
+  const codigo = document.getElementById('p-cliente').value.trim().split(' — ')[0].trim();
+  return clientes.find((c) => c.codigo === codigo) || null;
+}
+
+document.getElementById('p-cliente').addEventListener('input', () => {
+  const c = clienteSeleccionado();
+  document.getElementById('p-cliente-info').textContent = c ? `${c.nombre} — ${c.tipo_iva === 'INTRACOMUNITARIO' ? 'Intracomunitario' : 'Nacional'}${c.recargo_equivalencia ? ' con Recargo de Equivalencia' : ''}` : '';
+});
+
+function calcularTotal(l) {
+  const peso = Number(l.peso) || 0;
+  const precio = Number(l.precio) || 0;
+  const dcto = Number(l.descuento) || 0;
+  return peso * precio * (1 - dcto / 100);
+}
+
+async function evaluarPartida(l) {
+  if (!l.articulo_codigo || !(Number(l.peso) > 0) || !(Number(l.precio) > 0)) {
+    l._estado = null; l._candidatos = []; l.partida_numero = null;
+    return;
+  }
+  const res = await apiFetch('/partidas/asignar', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ articulo_codigo: l.articulo_codigo, precio_venta: l.precio }),
+  });
+  const datos = await res.json();
+  l._candidatos = datos.candidatos;
+  l._margenMinimo = datos.margen_minimo;
+  if (!l.partida_manual) {
+    l._estado = datos.estado;
+    l.partida_numero = datos.estado === 'OK' ? datos.partida_numero : null;
+  } else {
+    l._estado = 'MANUAL';
+  }
+}
+
+function celdaPartidaHtml(l, i) {
+  if (!l._candidatos || !l._candidatos.length) {
+    return l.articulo_codigo ? '<span class="ayuda">Sin compras</span>' : '<span class="ayuda">—</span>';
+  }
+  const opciones = l._candidatos.map((c) => {
+    const margen = (Number(l.precio) || 0) - c.coste;
+    const marca = margen >= (l._margenMinimo || 1.3) ? '✅' : '⚠️';
+    const sel = String(c.numero_partida) === String(l.partida_numero) ? ' selected' : '';
+    return `<option value="${c.numero_partida}"${sel}>${c.numero_partida} · ${fmtFecha(c.fecha)} · ${fmtEUR(c.coste)} ${marca}</option>`;
+  }).join('');
+  const pill = l._estado === 'OK'
+    ? '<span class="pill ok">✅ auto</span>'
+    : '<span class="pill warn">⚠️ elige tú</span>';
+  return `<select data-partida="${i}"><option value="">-- elegir --</option>${opciones}</select> ${pill}`;
+}
+
+// Importante para la agilidad (Fase 4 punto 2): los <input> de texto/numero
+// nunca se reconstruyen mientras el usuario escribe o tabula entre campos -
+// eso le haria perder el foco a mitad de teclear. Solo se actualizan en el
+// sitio la celda de total y la celda de partida (que si cambia de contenido,
+// por ejemplo al pasar de "Sin compras" a un desplegable).
+function bindSelectPartida(celdaPartida, l, i, tr) {
+  const sel = celdaPartida.querySelector('[data-partida]');
+  if (!sel) return;
+  sel.addEventListener('change', () => {
+    l.partida_numero = sel.value || null;
+    l.partida_manual = true;
+    celdaPartida.innerHTML = celdaPartidaHtml(l, i);
+    bindSelectPartida(celdaPartida, l, i, tr);
+    actualizarTotalesPed();
+    pintarVistaPrevia();
+  });
+}
+
+async function actualizarFilaPedido(tr, l, i) {
+  await evaluarPartida(l);
+  tr.querySelector('[data-calc=total]').innerHTML = `<strong>${fmtEUR(calcularTotal(l))}</strong>`;
+  const celdaPartida = tr.querySelector('.celda-partida');
+  celdaPartida.innerHTML = celdaPartidaHtml(l, i);
+  bindSelectPartida(celdaPartida, l, i, tr);
+  actualizarTotalesPed();
+}
+
+function actualizarTotalesPed() {
+  let totPeso = 0, totTotal = 0;
+  lineas.forEach((l) => { totPeso += Number(l.peso) || 0; totTotal += calcularTotal(l); });
+  document.getElementById('tot-peso').textContent = fmtKg(totPeso);
+  document.getElementById('tot-total').textContent = fmtEUR(totTotal);
+}
+
+function pintarLineas() {
+  const tbody = document.querySelector('#tabla-lineas-ped tbody');
+  tbody.innerHTML = '';
+
+  lineas.forEach((l, i) => {
+    const total = calcularTotal(l);
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><input type="text" data-campo="articulo_codigo" value="${l.articulo_codigo}" style="width:6rem;"></td>
+      <td><input type="text" data-campo="descripcion" value="${l.descripcion}" style="width:11rem;"></td>
+      <td class="num"><input type="number" step="0.01" data-campo="peso" value="${l.peso}" style="width:5.5rem;text-align:right;"></td>
+      <td class="num"><input type="number" step="0.01" data-campo="precio" value="${l.precio}" style="width:5.5rem;text-align:right;"></td>
+      <td class="num"><input type="number" step="0.1" data-campo="descuento" value="${l.descuento}" style="width:4rem;text-align:right;"></td>
+      <td class="num" data-calc="total"><strong>${fmtEUR(total)}</strong></td>
+      <td class="celda-partida">${celdaPartidaHtml(l, i)}</td>
+      <td><button type="button" class="btn secundario" data-quitar="${i}" style="padding:0.2rem 0.5rem;">✕</button></td>
+    `;
+    // Los campos de texto (articulo/descripcion) se guardan segundo a
+    // segundo con 'input' sin recalcular nada pesado; peso/precio/descuento
+    // recalculan al confirmar el valor ('change', es decir, al salir del
+    // campo), que es cuando de verdad hace falta consultar partidas.
+    tr.querySelectorAll('input').forEach((input) => {
+      input.addEventListener('input', () => { l[input.dataset.campo] = input.value; });
+      input.addEventListener('change', async () => {
+        l[input.dataset.campo] = input.value;
+        if (['peso', 'precio', 'descuento'].includes(input.dataset.campo)) {
+          await actualizarFilaPedido(tr, l, i);
+          pintarVistaPrevia();
+        }
+      });
+    });
+    bindSelectPartida(tr.querySelector('.celda-partida'), l, i, tr);
+    tr.querySelector('[data-quitar]').addEventListener('click', () => { lineas.splice(i, 1); pintarLineas(); pintarVistaPrevia(); });
+    tbody.appendChild(tr);
+  });
+
+  actualizarTotalesPed();
+}
+
+document.getElementById('btn-anadir-linea').addEventListener('click', () => { lineas.push(lineaVacia()); pintarLineas(); pintarVistaPrevia(); });
+
+let vistaActual = 'interna';
+document.querySelectorAll('.vista-toggle button').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    vistaActual = btn.dataset.vista;
+    document.querySelectorAll('.vista-toggle button').forEach((b) => b.classList.toggle('activo', b === btn));
+    pintarVistaPrevia();
+  });
+});
+
+function pintarVistaPrevia() {
+  const cont = document.getElementById('vista-previa');
+  const validas = lineas.filter((l) => l.articulo_codigo && Number(l.peso) > 0);
+  if (!validas.length) { cont.innerHTML = '<p class="ayuda">Añade líneas para ver la vista previa del albarán.</p>'; return; }
+
+  if (vistaActual === 'cliente') {
+    // Vista cliente: NUNCA precio de coste ni numero de partida (Fase 0 punto 3).
+    cont.innerHTML = `<table><thead><tr><th>Artículo</th><th class="num">Peso (kg)</th></tr></thead><tbody>
+      ${validas.map((l) => `<tr><td>${l.descripcion || l.articulo_codigo}</td><td class="num">${fmtKg(l.peso)}</td></tr>`).join('')}
+    </tbody></table>`;
+  } else {
+    cont.innerHTML = `<table><thead><tr><th>Artículo</th><th class="num">Peso (kg)</th><th class="num">Precio</th><th class="num">Total</th><th>Partida</th></tr></thead><tbody>
+      ${validas.map((l) => `<tr><td>${l.descripcion || l.articulo_codigo}</td><td class="num">${fmtKg(l.peso)}</td><td class="num">${fmtEUR(l.precio)}</td><td class="num">${fmtEUR(calcularTotal(l))}</td><td>${l.partida_numero || '(sin asignar)'}</td></tr>`).join('')}
+    </tbody></table>`;
+  }
+}
+
+function mostrarMensaje(texto, tipo) {
+  document.getElementById('mensaje').innerHTML = `<div class="mensaje ${tipo}">${texto}</div>`;
+}
+
+document.getElementById('btn-guardar').addEventListener('click', async () => {
+  const c = clienteSeleccionado();
+  if (!c) { mostrarMensaje('Elige un cliente válido de la lista.', 'error'); return; }
+  const validas = lineas.filter((l) => l.articulo_codigo && Number(l.peso) > 0);
+  if (!validas.length) { mostrarMensaje('Añade al menos una línea con artículo y peso.', 'error'); return; }
+
+  try {
+    const res = await apiFetch('/pedidos', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        cliente_codigo: c.codigo,
+        cliente_nombre_snapshot: c.nombre,
+        cliente_cif_snapshot: c.cif,
+        cliente_dir_snapshot: c.direccion,
+        cliente_pob_snapshot: c.poblacion,
+        cliente_tel_snapshot: c.telefono,
+        fecha: document.getElementById('p-fecha').value || fechaLocalISO(),
+        base: validas.reduce((s, l) => s + calcularTotal(l), 0),
+        lineas: validas.map((l) => ({ ...l, total: calcularTotal(l) })),
+      }),
+    });
+    const datos = await res.json();
+    if (!res.ok) { mostrarMensaje(datos.error || 'No se pudo guardar.', 'error'); return; }
+    mostrarMensaje(`Pedido guardado — nº ${datos.numero}, total ${fmtEUR(datos.base)}.`, 'ok');
+    lineas = [lineaVacia()];
+    pintarLineas();
+    pintarVistaPrevia();
+    cargarHistorico();
+  } catch (e) { mostrarMensaje(e.message, 'error'); }
+});
+
+async function cargarHistorico() {
+  const res = await apiFetch('/pedidos');
+  const pedidos = await res.json();
+  const ultimos = pedidos.slice(-15).reverse();
+  document.querySelector('#tabla-historico tbody').innerHTML = ultimos.map((p) => `
+    <tr><td>${p.numero}</td><td>${fmtFecha(p.fecha)}</td><td>${p.cliente_nombre_snapshot || p.cliente_codigo}</td><td class="num">${fmtEUR(p.base)}</td></tr>
+  `).join('');
+}
+
+if (usuario) {
+  renderBarraNavegacion(usuario, 'pedidos.html');
+  document.getElementById('p-fecha').value = fechaLocalISO();
+  lineas = [lineaVacia()];
+  pintarLineas();
+  pintarVistaPrevia();
+  cargarClientes();
+  cargarHistorico();
+}
+</script>
+</body>
+</html>

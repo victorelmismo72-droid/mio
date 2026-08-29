@@ -81,7 +81,9 @@ router.post('/', async (req, res, next) => {
 
     const lineasInsertadas = [];
     for (const linea of lineasCalculadas) {
-      const valores = CAMPOS_LINEA.map((c) => linea[c] ?? null);
+      // '' (campo numerico dejado vacio en el formulario) no es un numero
+      // valido para Postgres - se trata igual que "no informado".
+      const valores = CAMPOS_LINEA.map((c) => (linea[c] === '' || linea[c] == null ? null : linea[c]));
       const placeholders = CAMPOS_LINEA.map((_, i) => `$${i + 2}`).join(', ');
       // eslint-disable-next-line no-await-in-loop
       const { rows: lr } = await client.query(

@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>MARINAFISK — Inicio</title>
+<link rel="stylesheet" href="app.css">
+<style>
+  .tarjeta-cliente { margin-bottom: 0.9rem; }
+  .tarjeta-cliente .cabecera { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; }
+  .tarjeta-cliente ul { margin: 0.5rem 0 0 1.1rem; padding: 0; font-size: 0.88rem; }
+  .tarjeta-cliente li { margin-bottom: 0.2rem; }
+  .margen-pos { color: #1f6b40; font-weight: 700; }
+  .margen-neg { color: #a3402c; font-weight: 700; }
+  .resumen-contactar { background: #eaf3fb; border: 1px solid #bcdcf5; border-radius: 6px; padding: 0.7rem 1rem; margin-bottom: 1rem; font-size: 0.9rem; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Inicio</h1>
+  <p class="ayuda" id="saludo"></p>
+
+  <h2>📋 Clientes a contactar hoy</h2>
+  <div id="contactar-lista"><p class="ayuda">Calculando...</p></div>
+</main>
+
+<script src="app.js"></script>
+<script>
+const usuario = protegerPagina();
+if (usuario) {
+  renderBarraNavegacion(usuario, 'index.html');
+  document.getElementById('saludo').textContent = `Hola, ${usuario.nombre || usuario.usuario}.`;
+  cargarContactarHoy();
+}
+
+async function cargarContactarHoy() {
+  const cont = document.getElementById('contactar-lista');
+  try {
+    const res = await apiFetch('/clientes-a-contactar');
+    const datos = await res.json();
+    pintarContactarHoy(datos.candidatos);
+  } catch (e) {
+    cont.innerHTML = `<p class="mensaje error">No se pudo calcular la lista: ${e.message}</p>`;
+  }
+}
+
+function pintarContactarHoy(candidatos) {
+  const cont = document.getElementById('contactar-lista');
+  if (!candidatos.length) {
+    cont.innerHTML = '<p class="ayuda">✅ Ningún cliente con recordatorio pendiente ahora mismo — todo al día.</p>';
+    return;
+  }
+
+  const conMargen = candidatos.filter((c) => c.mejor_margen !== null);
+  const margenTotal = conMargen.reduce((s, c) => s + c.mejor_margen, 0);
+  const resumen = `<div class="resumen-contactar">
+    <strong>${candidatos.length}</strong> cliente(s) pendiente(s) de contactar hoy
+    ${conMargen.length ? ` — margen potencial aproximado si repiten su producto de siempre: <strong>${fmtEUR(margenTotal)}/kg</strong> (estimado sobre ${conMargen.length} de ellos)` : ''}
+  </div>`;
+
+  cont.innerHTML = resumen + candidatos.map((c) => {
+    const filas = c.recordatorios.map((p) => {
+      const precioTxt = p.coste ? fmtEUR(p.coste + 1.70) + '/kg' : '(sin coste de compra todavía)';
+      let margenTxt = '';
+      if (p.margen_real !== null) {
+        const clase = p.margen_real >= 0 ? 'margen-pos' : 'margen-neg';
+        margenTxt = ` — la última vez le cobraste ${fmtEUR(p.precio_real)}/kg (margen real: <span class="${clase}">${fmtEUR(p.margen_real)}</span>)`;
+      }
+      return `<li>${p.desc} — normalmente cada ${p.intervaloMedio} días, van ${p.diasSinPedirlo} sin pedirlo · <strong>${precioTxt}</strong>${margenTxt}</li>`;
+    }).join('');
+
+    return `<div class="tarjeta tarjeta-cliente">
+      <div class="cabecera">
+        <div><strong>${c.cliente.nombre}</strong> <span class="ayuda">(${c.cliente.telefono || 'sin teléfono'})</span></div>
+        <button class="btn secundario" data-codigo="${c.cliente.codigo}">✅ Ya contactado hoy</button>
+      </div>
+      <ul>${filas}</ul>
+    </div>`;
+  }).join('');
+
+  cont.querySelectorAll('button[data-codigo]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      await apiFetch(`/clientes-a-contactar/${btn.dataset.codigo}/marcar`, { method: 'POST' });
+      cargarContactarHoy();
+    });
+  });
+}
+</script>
+</body>
+</html>

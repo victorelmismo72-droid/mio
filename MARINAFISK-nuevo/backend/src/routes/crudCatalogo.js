@@ -1,5 +1,5 @@
 const express = require('express');
-const { pool, registrarAuditoria } = require('../db');
+const { pool, registrarAuditoria, vacioComoNull } = require('../db');
 
 // Fabrica de CRUD basico para tablas de catalogo simples (clientes, articulos,
 // proveedores): sin logica de negocio, solo leer/crear/actualizar/borrar.
@@ -49,7 +49,7 @@ function crudCatalogo({ tabla, columnas, camposFecha }) {
     const client = await pool.connect();
     try {
       const sets = columnas.map((c, i) => `${c} = $${i + 1}`).join(', ');
-      const valores = columnas.map((c) => req.body[c] ?? null);
+      const valores = columnas.map((c) => vacioComoNull(req.body[c]));
       await client.query('BEGIN');
       const { rows } = await client.query(
         `UPDATE ${tabla} SET ${sets}, modificado_en = now() WHERE id = $${columnas.length + 1} RETURNING id, ${cols}, creado_en, modificado_en`,

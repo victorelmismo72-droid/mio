@@ -33,6 +33,7 @@ app.use('/api/configuracion', require('./routes/configuracion'));
 app.use('/api/listados', require('./routes/listados'));
 app.use('/api/export', require('./routes/export'));
 app.use('/api/usuarios', require('./routes/usuarios'));
+app.use('/api/clientes-a-contactar', require('./routes/clientesContactar'));
 app.use('/api/cierre-anual', require('./routes/cierreAnual'));
 
 // Manejador de errores generico: devuelve el mensaje de error de forma legible.

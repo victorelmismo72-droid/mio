@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>MARINAFISK — Entrar</title>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+
+<div id="pantalla-login">
+  <h1>MARINAFISK</h1>
+  <p class="ayuda">Entra con tu usuario y contraseña.</p>
+  <form id="form-login">
+    <label for="login-usuario">Usuario</label>
+    <input type="text" id="login-usuario" autocomplete="username" required style="margin-bottom:0.9rem;">
+    <label for="login-password">Contraseña</label>
+    <input type="password" id="login-password" autocomplete="current-password" required style="margin-bottom:0.9rem;">
+    <div id="login-error" class="mensaje error" style="display:none;"></div>
+    <button type="submit" class="btn" style="width:100%;">Entrar</button>
+  </form>
+</div>
+
+<script src="app.js"></script>
+<script>
+document.getElementById('form-login').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const usuario = document.getElementById('login-usuario').value.trim();
+  const password = document.getElementById('login-password').value;
+  const cajaError = document.getElementById('login-error');
+  cajaError.style.display = 'none';
+  try {
+    const res = await fetch(`${API}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ usuario, password }),
+    });
+    const datos = await res.json();
+    if (!res.ok) {
+      cajaError.textContent = datos.error || 'No se pudo entrar.';
+      cajaError.style.display = 'block';
+      return;
+    }
+    guardarSesion(datos.token, datos.usuario);
+    window.location.href = 'index.html';
+  } catch (err) {
+    cajaError.textContent = 'No se pudo conectar con el servidor.';
+    cajaError.style.display = 'block';
+  }
+});
+
+// si ya hay sesion, no hace falta volver a entrar
+if (tokenGuardado()) window.location.href = 'index.html';
+</script>
+</body>
+</html>
