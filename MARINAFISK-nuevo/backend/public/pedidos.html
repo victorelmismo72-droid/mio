@@ -34,6 +34,7 @@
     <p id="p-cliente-info" class="ayuda"></p>
 
     <h2>Líneas</h2>
+    <datalist id="lista-articulos"></datalist>
     <div class="tabla-envoltorio">
       <table id="tabla-lineas-ped">
         <thead><tr><th>Artículo</th><th>Descripción</th><th class="num">Peso (kg)</th><th class="num">Precio/kg</th><th class="num">Dcto %</th><th class="num">Total</th><th>Partida</th><th></th></tr></thead>
@@ -67,6 +68,7 @@
 <script>
 const usuario = protegerPagina();
 let clientes = [];
+let articulos = [];
 let lineas = [];
 
 function lineaVacia() {
@@ -84,6 +86,30 @@ function clienteSeleccionado() {
   return clientes.find((c) => c.codigo === codigo) || null;
 }
 
+// Autocompletar Artículo (Fase 4: buscar por codigo o descripcion escribiendo
+// una letra o palabra) - mismo mecanismo que Proveedor/Cliente/Producto.
+async function cargarArticulos() {
+  const res = await apiFetch('/articulos');
+  articulos = await res.json();
+  document.getElementById('lista-articulos').innerHTML = articulos.map((a) => `<option value="${a.codigo} — ${a.descripcion || ''}">`).join('');
+}
+
+// El campo puede llevar "codigo — descripcion" pegado por el datalist -
+// aqui se separa el codigo real, igual que ya se hace con Cliente/Proveedor.
+function codigoDeTexto(texto) {
+  return String(texto || '').split(' — ')[0].trim();
+}
+
+function autorrellenarDescripcionArticulo(l, tr) {
+  const codigo = codigoDeTexto(l.articulo_codigo);
+  const art = articulos.find((a) => a.codigo === codigo);
+  if (art && !l.descripcion) {
+    l.descripcion = art.descripcion || '';
+    const inputDesc = tr.querySelector('[data-campo="descripcion"]');
+    if (inputDesc) inputDesc.value = l.descripcion;
+  }
+}
+
 document.getElementById('p-cliente').addEventListener('input', () => {
   const c = clienteSeleccionado();
   document.getElementById('p-cliente-info').textContent = c ? `${c.nombre} — ${c.tipo_iva === 'INTRACOMUNITARIO' ? 'Intracomunitario' : 'Nacional'}${c.recargo_equivalencia ? ' con Recargo de Equivalencia' : ''}` : '';
@@ -97,13 +123,14 @@ function calcularTotal(l) {
 }
 
 async function evaluarPartida(l) {
-  if (!l.articulo_codigo || !(Number(l.peso) > 0) || !(Number(l.precio) > 0)) {
+  const codigo = codigoDeTexto(l.articulo_codigo);
+  if (!codigo || !(Number(l.peso) > 0) || !(Number(l.precio) > 0)) {
     l._estado = null; l._candidatos = []; l.partida_numero = null;
     return;
   }
   const res = await apiFetch('/partidas/asignar', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ articulo_codigo: l.articulo_codigo, precio_venta: l.precio }),
+    body: JSON.stringify({ articulo_codigo: codigo, precio_venta: l.precio }),
   });
   const datos = await res.json();
   l._candidatos = datos.candidatos;
@@ -175,7 +202,7 @@ function pintarLineas() {
 
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td><input type="text" data-campo="articulo_codigo" value="${l.articulo_codigo}" style="width:6rem;"></td>
+      <td><input type="text" data-campo="articulo_codigo" list="lista-articulos" value="${l.articulo_codigo}" style="width:6rem;"></td>
       <td><input type="text" data-campo="descripcion" value="${l.descripcion}" style="width:11rem;"></td>
       <td class="num"><input type="number" step="0.01" data-campo="peso" value="${l.peso}" style="width:5.5rem;text-align:right;"></td>
       <td class="num"><input type="number" step="0.01" data-campo="precio" value="${l.precio}" style="width:5.5rem;text-align:right;"></td>
@@ -189,10 +216,13 @@ function pintarLineas() {
     // recalculan al confirmar el valor ('change', es decir, al salir del
     // campo), que es cuando de verdad hace falta consultar partidas.
     tr.querySelectorAll('input').forEach((input) => {
-      input.addEventListener('input', () => { l[input.dataset.campo] = input.value; });
+      input.addEventListener('input', () => {
+        l[input.dataset.campo] = input.value;
+        if (input.dataset.campo === 'articulo_codigo') autorrellenarDescripcionArticulo(l, tr);
+      });
       input.addEventListener('change', async () => {
         l[input.dataset.campo] = input.value;
-        if (['peso', 'precio', 'descuento'].includes(input.dataset.campo)) {
+        if (['articulo_codigo', 'peso', 'precio', 'descuento'].includes(input.dataset.campo)) {
           await actualizarFilaPedido(tr, l, i);
           pintarVistaPrevia();
         }
@@ -241,7 +271,11 @@ function mostrarMensaje(texto, tipo) {
 document.getElementById('btn-guardar').addEventListener('click', async () => {
   const c = clienteSeleccionado();
   if (!c) { mostrarMensaje('Elige un cliente válido de la lista.', 'error'); return; }
-  const validas = lineas.filter((l) => l.articulo_codigo && Number(l.peso) > 0);
+  // El Artículo puede llevar "codigo — descripcion" pegado por el datalist -
+  // se guarda solo el codigo (igual que Producto en Compras).
+  const validas = lineas
+    .filter((l) => l.articulo_codigo && Number(l.peso) > 0)
+    .map((l) => ({ ...l, articulo_codigo: codigoDeTexto(l.articulo_codigo) }));
   if (!validas.length) { mostrarMensaje('Añade al menos una línea con artículo y peso.', 'error'); return; }
 
   try {
@@ -286,6 +320,7 @@ if (usuario) {
   pintarLineas();
   pintarVistaPrevia();
   cargarClientes();
+  cargarArticulos();
   cargarHistorico();
 }
 </script>

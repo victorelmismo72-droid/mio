@@ -35,6 +35,7 @@
     <p id="c-proveedor-info" class="ayuda"></p>
 
     <h2>Líneas</h2>
+    <datalist id="lista-articulos"></datalist>
     <div class="tabla-envoltorio">
       <table id="tabla-lineas">
         <thead><tr><th>Producto</th><th>Descripción</th><th class="num">Cajas</th><th class="num">Kilos</th><th class="num">Precio/kg</th><th class="num">2% OP</th><th class="num">Base real</th><th class="num">IVA</th><th class="num">Total</th><th></th></tr></thead>
@@ -62,6 +63,7 @@
 <script>
 const usuario = protegerPagina();
 let proveedores = [];
+let articulos = [];
 let lineas = [];
 
 function lineaVacia() {
@@ -73,6 +75,30 @@ async function cargarProveedores() {
   proveedores = await res.json();
   const datalist = document.getElementById('lista-proveedores');
   datalist.innerHTML = proveedores.map((p) => `<option value="${p.codigo} — ${p.nombre}">`).join('');
+}
+
+// Autocompletar Producto (Fase 4: "en cada registro se puede buscar por
+// codigo o descripcion escribiendo una letra o palabra") - el datalist deja
+// escribir libremente (el codigo no tiene por que existir en el catalogo
+// todavia) pero ofrece las coincidencias mientras se teclea.
+async function cargarArticulos() {
+  const res = await apiFetch('/articulos');
+  articulos = await res.json();
+  const datalist = document.getElementById('lista-articulos');
+  datalist.innerHTML = articulos.map((a) => `<option value="${a.codigo} — ${a.descripcion || ''}">`).join('');
+}
+
+// Si el producto tecleado coincide con un articulo del catalogo, rellena la
+// descripcion automaticamente (no obliga a escribirla dos veces).
+function autorrellenarDescripcion(l, tr) {
+  const texto = String(l.producto || '').trim();
+  const codigo = texto.split(' — ')[0].trim();
+  const art = articulos.find((a) => a.codigo === codigo);
+  if (art && !l.descripcion) {
+    l.descripcion = art.descripcion || '';
+    const inputDesc = tr.querySelector('[data-campo="descripcion"]');
+    if (inputDesc) inputDesc.value = l.descripcion;
+  }
 }
 
 function proveedorSeleccionado() {
@@ -137,7 +163,7 @@ function pintarLineas() {
     const calc = recalcularLinea(l);
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td><input type="text" data-campo="producto" value="${l.producto}" style="width:6rem;"></td>
+      <td><input type="text" data-campo="producto" list="lista-articulos" value="${l.producto}" style="width:6rem;"></td>
       <td><input type="text" data-campo="descripcion" value="${l.descripcion}" style="width:11rem;"></td>
       <td class="num"><input type="number" data-campo="cajas" value="${l.cajas}" style="width:4.5rem;text-align:right;"></td>
       <td class="num"><input type="number" step="0.01" data-campo="kilos" value="${l.kilos}" style="width:5.5rem;text-align:right;"></td>
@@ -151,6 +177,7 @@ function pintarLineas() {
     tr.querySelectorAll('input').forEach((input) => {
       input.addEventListener('input', () => {
         l[input.dataset.campo] = input.value;
+        if (input.dataset.campo === 'producto') autorrellenarDescripcion(l, tr);
         actualizarCalculadosFila(tr, l);
         actualizarTotales();
       });
@@ -171,7 +198,12 @@ function mostrarMensaje(texto, tipo) {
 document.getElementById('btn-guardar').addEventListener('click', async () => {
   const p = proveedorSeleccionado();
   if (!p) { mostrarMensaje('Elige un proveedor válido de la lista.', 'error'); return; }
-  const lineasValidas = lineas.filter((l) => l.producto && Number(l.kilos) > 0);
+  // El campo Producto puede llevar "codigo — descripcion" pegado por el
+  // datalist (ayuda a buscar, ver Fase 4) - se guarda solo el codigo, igual
+  // que ya se hacia con el Proveedor.
+  const lineasValidas = lineas
+    .filter((l) => l.producto && Number(l.kilos) > 0)
+    .map((l) => ({ ...l, producto: String(l.producto).split(' — ')[0].trim() }));
   if (!lineasValidas.length) { mostrarMensaje('Añade al menos una línea con producto y kilos.', 'error'); return; }
 
   try {
@@ -217,6 +249,7 @@ if (usuario) {
   lineas = [lineaVacia()];
   pintarLineas();
   cargarProveedores();
+  cargarArticulos();
   cargarHistorico();
 }
 </script>
