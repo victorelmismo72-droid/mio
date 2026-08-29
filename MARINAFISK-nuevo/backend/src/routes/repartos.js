@@ -1,6 +1,7 @@
 const { pool } = require('../db');
 const crudDocumento = require('./crudDocumento');
 const { generarPaginaEtiquetasReparto } = require('../negocio/etiquetas');
+const { construirFichaEnvioHtml } = require('../negocio/documentosImpresion');
 
 const router = crudDocumento({
   tabla: 'repartos',
@@ -47,6 +48,25 @@ router.get('/:id/etiquetas', async (req, res, next) => {
     });
     if (!html) return res.status(400).json({ error: 'Este reparto no tiene líneas con cajas.' });
 
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(html);
+  } catch (err) { next(err); }
+});
+
+// Ficha de envio (A4) de un reparto - igual que dibujarFichaEnvioEnPdf() del
+// HTML actual, pero como pagina HTML lista para Ctrl+P en vez de PDF.
+// `?rutas=1` la duplica dos veces en la misma hoja (hoja de ruta para el
+// camionero, para cortar y quedarse una copia), igual que
+// generarPdfHojaDeRutaReparto().
+router.get('/:id/ficha-envio', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query('SELECT * FROM repartos WHERE id = $1', [req.params.id]);
+    if (!rows.length) return res.status(404).json({ error: 'No encontrado' });
+    const { rows: lineas } = await pool.query(
+      `SELECT * FROM reparto_lineas WHERE reparto_id = $1 ORDER BY id`, [req.params.id]
+    );
+    const copias = req.query.rutas ? 2 : 1;
+    const html = construirFichaEnvioHtml(rows[0], lineas, copias);
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.send(html);
   } catch (err) { next(err); }

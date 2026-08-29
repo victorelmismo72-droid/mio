@@ -19,7 +19,7 @@ Leyenda: ✅ comprobado y coincide · ⚠️ diferencia encontrada (se explica c
 - ✅ **Caducidad Francia/Pomona (12 días)** (29/08/2026): probado contra un pedido real de POMONA - (TERRE AZUR) (cliente 50262, único cliente real con este formato) — fecha 02/06/2026 → caduca 14/06/2026, exactamente +12 días.
 - ✅ **Etiquetas multi-idioma (Francés/Italiano)** (29/08/2026): construidas y probadas contra pedidos reales de los clientes que de verdad tienen cada formato — POMONA (francés) y Altida Trade (italiano), los únicos clientes reales con esos formatos migrados. Traducciones de campo (zona/destinatario/modo de conservación/etc.) y nombre de producto (`nombre_frances`/`nombre_italiano` del artículo) verificados campo a campo contra el HTML. De regalo, también construidos y probados los otros dos formatos de cliente especiales que existían en el HTML actual (Más y Más con su propio sello, David Sala con su propio expedidor/RSI) — cada uno contra un pedido real de su único cliente migrado con ese formato.
 - ⏳ **Transfrío**: no abordado todavía.
-- ⏳ **Ficha de envío / hoja de ruta de Reparto Super**: no construida todavía (solo las etiquetas).
+- ✅ **Ficha de envío / hoja de ruta de Reparto Super** (29/08/2026): construida y probada contra un reparto real (ECOMORA, nº 80) — mismo contenido que el HTML actual (cabecera, destinatario, tabla, totales), como página HTML lista para imprimir en vez de PDF.
 - ✅ **Albarán con precios vs. sin precios**: ya verificado en Fase 4 (vista interna vs. vista cliente en `pedidos.html`) — la vista cliente nunca muestra partida, coste ni margen.
 - 🙋 **Impresión física real** (en la impresora que se usa a diario): no se puede probar desde este entorno — hace falta que Víctor lo pruebe él mismo con la pantalla ya construida.
 

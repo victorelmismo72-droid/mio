@@ -31,7 +31,11 @@ Probado contra pedidos **reales** de los 4 clientes que de verdad tienen cada fo
 
 Ver `VERIFICACION_TRANSVERSAL.md` para el detalle punto por punto frente al documento de auditoría de Víctor.
 
-**No construidas todavía**: Transfrío, ficha de envío/hoja de ruta de Reparto Super, WhatsApp/Email — y, de menor prioridad confirmada por Víctor: listas de precio, renumerar pedido, completar el alta de artículos en Catálogos con científico/zona FAO/etc.
+**Ficha de envío y hoja de ruta de Reparto Super** (29/08/2026): nuevo `src/negocio/documentosImpresion.js` — mismo contenido que `dibujarFichaEnvioEnPdf()` del HTML actual (cabecera SCANFISK SEAFOOD SL con su Reg. San. 12.01671/C, destinatario/fecha/conductor, tabla lote/producto/barco/subzona/cajas/kg, totales), pero como página HTML lista para Ctrl+P en vez de PDF con jsPDF — mismo contenido y orden de datos, solo cambia el mecanismo (evita depender de una librería de PDF en el servidor). La hoja de ruta es la misma ficha impresa dos veces en la misma A4 (para cortar y quedarse una copia), igual que `generarPdfHojaDeRutaReparto()`. Botones "📄 Ficha envío" y "🚚 Hoja de ruta" en `repartos.html`.
+
+Probado contra un reparto real (nº 80, ECOMORA): contenido y totales correctos, verificado visualmente con captura de pantalla.
+
+**No construidas todavía**: Transfrío, WhatsApp/Email — y, de menor prioridad confirmada por Víctor: listas de precio, renumerar pedido, completar el alta de artículos en Catálogos con científico/zona FAO/etc.
 
 ## 2. Un principio de diseño importante para la agilidad (Fase 4 punto 2)
 
