@@ -135,6 +135,29 @@ function crudDocumento({ tabla, tablaLineas, columnasCabecera, columnasLinea, fk
     } catch (err) { await client.query('ROLLBACK'); next(err); } finally { client.release(); }
   });
 
+  // Cambiar solo el numero de un documento ya grabado - igual que
+  // renumerarPedido()/renumerarTraspaso() del HTML actual: no toca nada mas
+  // (cabecera ni lineas), asi que no hace falta reenviar todo el documento
+  // solo para corregir un numero. La unicidad real (dentro del mismo ano) la
+  // garantiza la propia base de datos (UNIQUE(anio, numero)) - aqui solo se
+  // traduce ese rechazo a un mensaje que tenga sentido para quien lo usa.
+  router.put('/:id/numero', async (req, res, next) => {
+    try {
+      const nuevoNumero = parseInt(req.body.numero, 10);
+      if (!nuevoNumero || nuevoNumero < 1) return res.status(400).json({ error: 'Número no válido.' });
+      const { rows } = await pool.query(
+        `UPDATE ${tabla} SET numero = $1, modificado_en = now() WHERE id = $2 RETURNING *`,
+        [nuevoNumero, req.params.id]
+      );
+      if (!rows.length) return res.status(404).json({ error: 'No encontrado' });
+      await registrarAuditoria(pool, { tabla, accion: 'UPDATE', registroId: req.params.id, puestoOrigen: req.usuario.usuario, detalle: { renumerado_a: nuevoNumero } });
+      res.json(rows[0]);
+    } catch (err) {
+      if (err.code === '23505') return res.status(400).json({ error: 'Ese número ya lo usa otro documento de ese año. Elige uno distinto.' });
+      next(err);
+    }
+  });
+
   router.delete('/:id', async (req, res, next) => {
     const client = await pool.connect();
     try {

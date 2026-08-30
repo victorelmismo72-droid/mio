@@ -458,6 +458,7 @@ function pintarHistorico() {
     <tr><td><input type="checkbox" class="h-check-fila" data-id="${p.id}"></td><td>${p.numero}</td><td>${fmtFecha(p.fecha)}</td><td>${p.cliente_nombre_snapshot || p.cliente_codigo}</td><td class="num">${fmtEUR(p.base)}</td>
     <td>
       <button type="button" class="btn secundario" data-editar-pedido="${p.id}" style="padding:0.2rem 0.6rem;">✏️ Editar</button>
+      <button type="button" class="btn secundario" data-renumerar-pedido="${p.id}" data-numero-actual="${p.numero}" style="padding:0.2rem 0.6rem;">🔢 Renumerar</button>
       <button type="button" class="btn secundario" data-etiquetas-pedido="${p.id}" style="padding:0.2rem 0.6rem;">🏷️ Etiquetas</button>
       <button type="button" class="btn secundario" data-whatsapp-pedido="${p.id}" style="padding:0.2rem 0.6rem;">📱 WhatsApp</button>
       <button type="button" class="btn secundario" data-email-pedido="${p.id}" style="padding:0.2rem 0.6rem;">✉️ Email</button>
@@ -466,6 +467,9 @@ function pintarHistorico() {
   `).join('');
   document.querySelectorAll('[data-editar-pedido]').forEach((btn) => {
     btn.addEventListener('click', () => cargarPedidoParaEditar(btn.dataset.editarPedido));
+  });
+  document.querySelectorAll('[data-renumerar-pedido]').forEach((btn) => {
+    btn.addEventListener('click', () => renumerarPedido(btn.dataset.renumerarPedido, btn.dataset.numeroActual));
   });
   document.querySelectorAll('[data-etiquetas-pedido]').forEach((btn) => {
     btn.addEventListener('click', () => imprimirEtiquetasPedido(btn.dataset.etiquetasPedido));
@@ -519,6 +523,26 @@ async function anularPedido(id, numero) {
     if (!res.ok) { const datos = await res.json().catch(() => ({})); mostrarMensaje(datos.error || 'No se pudo anular.', 'error'); return; }
     mostrarMensaje(`Pedido nº ${numero} anulado.`, 'ok');
     if (String(pedidoEnEdicionId) === String(id)) cancelarEdicionPedido();
+    cargarHistorico();
+  } catch (e) { mostrarMensaje(e.message, 'error'); }
+}
+
+// Igual que renumerarPedido() del HTML actual: pide el numero nuevo, y deja
+// que sea la propia base de datos quien rechace un numero ya usado ese
+// mismo ano (no toca nada mas del pedido - ni cabecera ni lineas).
+async function renumerarPedido(id, numeroActual) {
+  const nuevoTexto = prompt(`Nuevo número para el pedido ${numeroActual}:`, '');
+  if (nuevoTexto === null) return;
+  const nuevo = parseInt(nuevoTexto, 10);
+  if (!nuevo || nuevo < 1) { mostrarMensaje('Número no válido.', 'error'); return; }
+  if (!confirm(`¿Cambiar el pedido ${numeroActual} al número ${nuevo}?`)) return;
+  try {
+    const res = await apiFetch(`/pedidos/${id}/numero`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ numero: nuevo }),
+    });
+    const datos = await res.json();
+    if (!res.ok) { mostrarMensaje(datos.error || 'No se pudo renumerar.', 'error'); return; }
+    mostrarMensaje(`Pedido renumerado a ${datos.numero}.`, 'ok');
     cargarHistorico();
   } catch (e) { mostrarMensaje(e.message, 'error'); }
 }

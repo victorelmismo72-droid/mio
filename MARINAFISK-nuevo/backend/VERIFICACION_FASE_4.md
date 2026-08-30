@@ -49,7 +49,11 @@ Probado contra pedidos y clientes reales: PDF "con precios" y "sin precios" veri
 
 Probado con datos reales: filtrado el día 25/08/2026 (18 pedidos), marcados 3 a mano, generado el PDF combinado — confirmado con el texto extraído que salen los 3 números marcados, en el orden correcto, cada uno en su propia página, sin precios. Verificado con `npm run verify`: 0 discrepancias.
 
-**No construidas todavía**, de menor prioridad confirmada por Víctor: listas de precio, renumerar pedido, completar el alta de artículos en Catálogos con científico/zona FAO/etc.
+**Renumerar pedidos y traspasos** (30/08/2026): botón "🔢 Renumerar" en el historial de `pedidos.html` y `traspasos.html` (igual que `renumerarPedido()`/`renumerarTraspaso()` del HTML actual — repartos no lo tenía en el original, así que no se ha añadido ahí). Pide el número nuevo y dice sí o no según lo confirme la propia base de datos — no hace falta comprobarlo a mano, porque `UNIQUE(anio, numero)` ya lo garantiza; solo se traduce ese rechazo a un mensaje claro. No toca nada más del documento (ni cabecera ni líneas), así que no hay riesgo de perder datos al renumerar.
+
+Probado con datos reales: pedido 13692 renumerado a 99999 (éxito, confirmado en la tabla), intento de renumerarlo a 13691 (ya usado por otro pedido — rechazado con mensaje claro), devuelto a 13692. Lo mismo con un traspaso real (27 → 999 → 27). Verificado con `npm run verify` tras cada prueba: 0 discrepancias.
+
+**No construidas todavía**, de menor prioridad confirmada por Víctor: listas de precio y completar el alta de artículos en Catálogos con científico/zona FAO/etc.
 
 ## 2. Un principio de diseño importante para la agilidad (Fase 4 punto 2)
 
