@@ -71,9 +71,13 @@
       <div style="display:flex;align-items:flex-end;"><button type="button" class="btn secundario" id="btn-limpiar-filtro">Limpiar</button></div>
     </div>
   </div>
+  <p class="ayuda">Marca varios pedidos con la casilla para dárselos todos juntos al conductor (sin precios, uno detrás de otro en el mismo PDF). Sin marcar ninguno, se usan los que salgan con el filtro de arriba.</p>
+  <div style="margin-bottom:0.5rem;">
+    <button type="button" class="btn secundario" id="btn-imprimir-seleccionados">🖨️ Imprimir juntos (sin precios)</button>
+  </div>
   <div class="tabla-envoltorio">
     <table id="tabla-historico">
-      <thead><tr><th>Nº</th><th>Fecha</th><th>Cliente</th><th class="num">Total</th><th></th></tr></thead>
+      <thead><tr><th><input type="checkbox" id="h-marcar-todos" title="Marcar/desmarcar todos"></th><th>Nº</th><th>Fecha</th><th>Cliente</th><th class="num">Total</th><th></th></tr></thead>
       <tbody></tbody>
     </table>
   </div>
@@ -420,6 +424,7 @@ async function intentarGuardarPedido() {
 // filtra en el propio navegador, para que cada tecla de busqueda no tenga
 // que ir al servidor.
 let todosPedidos = [];
+let filasHistoricoActual = []; // lo que se ve ahora mismo en la tabla (tras el filtro/limite de 30)
 
 async function cargarHistorico() {
   const res = await apiFetch('/pedidos');
@@ -445,10 +450,12 @@ function pintarHistorico() {
   // coincidencias (puede ser un pedido muy antiguo).
   if (!hayFiltro) filas = filas.slice(0, 30);
 
+  filasHistoricoActual = filas;
   const tbody = document.querySelector('#tabla-historico tbody');
-  if (!filas.length) { tbody.innerHTML = '<tr><td colspan="5" class="ayuda">Sin pedidos para ese filtro.</td></tr>'; return; }
+  document.getElementById('h-marcar-todos').checked = false;
+  if (!filas.length) { tbody.innerHTML = '<tr><td colspan="6" class="ayuda">Sin pedidos para ese filtro.</td></tr>'; return; }
   tbody.innerHTML = filas.map((p) => `
-    <tr><td>${p.numero}</td><td>${fmtFecha(p.fecha)}</td><td>${p.cliente_nombre_snapshot || p.cliente_codigo}</td><td class="num">${fmtEUR(p.base)}</td>
+    <tr><td><input type="checkbox" class="h-check-fila" data-id="${p.id}"></td><td>${p.numero}</td><td>${fmtFecha(p.fecha)}</td><td>${p.cliente_nombre_snapshot || p.cliente_codigo}</td><td class="num">${fmtEUR(p.base)}</td>
     <td>
       <button type="button" class="btn secundario" data-editar-pedido="${p.id}" style="padding:0.2rem 0.6rem;">✏️ Editar</button>
       <button type="button" class="btn secundario" data-etiquetas-pedido="${p.id}" style="padding:0.2rem 0.6rem;">🏷️ Etiquetas</button>
@@ -705,9 +712,9 @@ function generarPdfAlbaran(ped, conPrecios = true) {
 // Igual que dibujarAlbaranCompletoEnDoc()/generarPdfAlbaranCompleto() del
 // HTML actual: primero se mide si el albarán cabe doblado en media hoja (dos
 // copias en la misma A4, para cortar y quedarse una); si no cabe, cada copia
-// sale entera en su propia hoja.
-function generarPdfAlbaranCompleto(ped, conPrecios = true) {
-  const doc = new window.jspdf.jsPDF({ unit: 'mm', format: 'a4' });
+// sale entera en su propia hoja. Escribe en un doc ya existente para poder
+// encadenar varios pedidos en el mismo PDF (ver "Imprimir juntos" más abajo).
+function dibujarAlbaranCompletoEnDoc(doc, ped, conPrecios) {
   const pruebaDoc = new window.jspdf.jsPDF({ unit: 'mm', format: 'a4' });
   const finalY = dibujarAlbaranEnPdf(pruebaDoc, ped, conPrecios, 18, 9999);
   const cabeDoblado = finalY <= 140 && pruebaDoc.internal.getNumberOfPages() === 1;
@@ -722,6 +729,11 @@ function generarPdfAlbaranCompleto(ped, conPrecios = true) {
     doc.addPage();
     dibujarAlbaranEnPdf(doc, ped, conPrecios, 18, 270);
   }
+}
+
+function generarPdfAlbaranCompleto(ped, conPrecios = true) {
+  const doc = new window.jspdf.jsPDF({ unit: 'mm', format: 'a4' });
+  dibujarAlbaranCompletoEnDoc(doc, ped, conPrecios);
   return doc;
 }
 
@@ -821,6 +833,41 @@ async function enviarAlbaranPorEmail(id) {
   mostrarMensaje('PDF descargado. Se abrirá tu programa de correo con el mensaje ya escrito — solo tienes que ADJUNTAR ese PDF y pulsar enviar.', 'info');
   window.location.href = `mailto:${encodeURIComponent(cli.email)}?subject=${encodeURIComponent(asunto)}&body=${encodeURIComponent(cuerpo)}`;
 }
+
+// ===== IMPRIMIR VARIOS PEDIDOS JUNTOS (para el conductor) =====
+// Igual que imprimirListadoSinPreciosPorAgencia()/generarPdfListadoSinPreciosPorAgencia()
+// del HTML actual: si hay filas marcadas con la casilla, imprime SOLO esas
+// (para elegir, por ejemplo, un camión concreto); si no hay ninguna marcada,
+// usa lo que esté saliendo ahora mismo con el filtro de arriba. Siempre sin
+// precios (es para el conductor) - cada pedido en su propia copia, doblada
+// en la misma A4 si cabe.
+document.getElementById('h-marcar-todos').addEventListener('change', function () {
+  document.querySelectorAll('.h-check-fila').forEach((cb) => { cb.checked = this.checked; });
+});
+
+document.getElementById('btn-imprimir-seleccionados').addEventListener('click', async () => {
+  const marcados = Array.from(document.querySelectorAll('.h-check-fila:checked')).map((cb) => cb.dataset.id);
+  const idsAImprimir = marcados.length ? marcados : filasHistoricoActual.map((p) => String(p.id));
+  if (!idsAImprimir.length) { mostrarMensaje('No hay pedidos que imprimir.', 'error'); return; }
+  if (!confirm(`¿Imprimir ${idsAImprimir.length} pedido(s) sin precios, uno detrás de otro en el mismo PDF?`)) return;
+
+  mostrarMensaje(`Generando ${idsAImprimir.length} pedido(s)...`, 'info');
+  const pedidos = [];
+  for (const id of idsAImprimir) {
+    // eslint-disable-next-line no-await-in-loop
+    const ped = await obtenerPedidoCompleto(id);
+    if (ped) pedidos.push(ped);
+  }
+  pedidos.sort((a, b) => (a.fecha || '').localeCompare(b.fecha || '') || a.numero - b.numero);
+
+  const doc = new window.jspdf.jsPDF({ unit: 'mm', format: 'a4' });
+  pedidos.forEach((ped, i) => {
+    if (i > 0) doc.addPage();
+    dibujarAlbaranCompletoEnDoc(doc, ped, false);
+  });
+  window.open(doc.output('bloburl'), '_blank');
+  mostrarMensaje(`${pedidos.length} pedido(s) generados en un único PDF, listo para imprimir.`, 'ok');
+});
 
 if (usuario) {
   renderBarraNavegacion(usuario, 'pedidos.html');

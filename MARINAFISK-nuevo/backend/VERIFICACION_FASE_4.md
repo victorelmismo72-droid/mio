@@ -45,6 +45,10 @@ El envío por WhatsApp/Email **no es una integración real** — tampoco lo era 
 
 Probado contra pedidos y clientes reales: PDF "con precios" y "sin precios" verificados campo a campo extrayendo su texto (incluida la traza científica/zona/lote/arte/barco, y confirmado que la versión sin precios nunca lleva la palabra "Partida"); envío por WhatsApp probado con un cliente real de dos teléfonos (SCANFISK SEAFOOD, S.L.) — el aviso de "más de un teléfono" salió correctamente con el prefijo de España añadido a ambos; envío por email probado con un cliente real con email guardado (FRESHMAR ARANDA, S.L.) — PDF descargado y `mailto:` disparado. Verificado con `npm run verify`: 0 discrepancias.
 
+**Imprimir varios pedidos juntos, marcándolos con una casilla** (30/08/2026, a petición de Víctor: "¿se pueden enviar todos juntos, marcándolos de alguna forma?"): igual que `imprimirListadoSinPreciosPorAgencia()` del HTML actual. Cada fila del historial de `pedidos.html` lleva una casilla, más una de "marcar todos"; el botón "🖨️ Imprimir juntos (sin precios)" genera un único PDF con un pedido detrás de otro (siempre sin precios, para el conductor). Si hay filas marcadas a mano se usan solo esas (para elegir, por ejemplo, un camión concreto); si no hay ninguna marcada, se usa lo que esté saliendo con el filtro de arriba. Los pedidos salen ordenados por fecha y número, igual que el original.
+
+Probado con datos reales: filtrado el día 25/08/2026 (18 pedidos), marcados 3 a mano, generado el PDF combinado — confirmado con el texto extraído que salen los 3 números marcados, en el orden correcto, cada uno en su propia página, sin precios. Verificado con `npm run verify`: 0 discrepancias.
+
 **No construidas todavía**, de menor prioridad confirmada por Víctor: listas de precio, renumerar pedido, completar el alta de artículos en Catálogos con científico/zona FAO/etc.
 
 ## 2. Un principio de diseño importante para la agilidad (Fase 4 punto 2)
