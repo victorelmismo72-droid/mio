@@ -39,7 +39,13 @@ Probado contra un reparto real (nº 80, ECOMORA): contenido y totales correctos,
 
 Probado generando un PDF real a partir de un pedido de prueba en el formulario: extraído el texto del PDF resultante y confirmado carácter a carácter — "CORUÑA 29 agosto 2026" (lugar, día, mes en español, año), nombre del cliente, bultos y kg, todo en su sitio. La posición exacta sobre el papel físico real solo la puede confirmar Víctor cuando tenga impresora a mano (ver `VERIFICACION_TRANSVERSAL.md`).
 
-**No construidas todavía**: WhatsApp/Email — y, de menor prioridad confirmada por Víctor: listas de precio, renumerar pedido, completar el alta de artículos en Catálogos con científico/zona FAO/etc.
+**Imprimir albarán (con/sin precios) y envío por WhatsApp/Email** (29/08/2026): completa el bloque de impresión. Reproduce `dibujarAlbaranEnPdf()`/`generarPdfAlbaranCompleto()` del HTML actual — cabecera de la empresa, datos del cliente, tabla de líneas con o sin precios, traza por línea (científico/zona/lote/arte de pesca/barco), **la versión sin precios nunca incluye el número de partida** (Fase 0 punto 3, comprobado explícitamente). "Con precios" es una sola copia; "sin precios" intenta encajar dos copias dobladas en la misma A4 (para cortar y quedarse una) y si no cabe usa una hoja por copia — igual que el original. Botones nuevos en `pedidos.html`: 🖨️ Con precios, 🖨️ Sin precios (conductor), y en el historial 📱 WhatsApp / ✉️ Email por cada pedido.
+
+El envío por WhatsApp/Email **no es una integración real** — tampoco lo era en el HTML actual: descarga el PDF del albarán, avisa con un mensaje claro, y abre WhatsApp Web (`wa.me`) o el programa de correo (`mailto:`) con el texto ya escrito, para que solo haga falta adjuntar el PDF ya descargado y pulsar enviar. Si el cliente tiene más de un teléfono guardado (separados por coma), se pregunta cuál usar — igual que el original.
+
+Probado contra pedidos y clientes reales: PDF "con precios" y "sin precios" verificados campo a campo extrayendo su texto (incluida la traza científica/zona/lote/arte/barco, y confirmado que la versión sin precios nunca lleva la palabra "Partida"); envío por WhatsApp probado con un cliente real de dos teléfonos (SCANFISK SEAFOOD, S.L.) — el aviso de "más de un teléfono" salió correctamente con el prefijo de España añadido a ambos; envío por email probado con un cliente real con email guardado (FRESHMAR ARANDA, S.L.) — PDF descargado y `mailto:` disparado. Verificado con `npm run verify`: 0 discrepancias.
+
+**No construidas todavía**, de menor prioridad confirmada por Víctor: listas de precio, renumerar pedido, completar el alta de artículos en Catálogos con científico/zona FAO/etc.
 
 ## 2. Un principio de diseño importante para la agilidad (Fase 4 punto 2)
 

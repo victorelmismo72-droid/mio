@@ -47,6 +47,8 @@
     <div style="margin-top:1.4rem;">
       <button type="button" class="btn" id="btn-guardar">Guardar pedido</button>
       <button type="button" class="btn secundario" id="btn-cancelar-edicion" style="display:none;">Cancelar edición</button>
+      <button type="button" class="btn secundario" id="btn-imprimir-con-precios">🖨️ Con precios</button>
+      <button type="button" class="btn secundario" id="btn-imprimir-sin-precios">🖨️ Sin precios (conductor)</button>
       <button type="button" class="btn secundario" id="btn-transfrio">🚚 Hoja Transfrío</button>
       <label style="font-size:0.85rem;margin-left:0.4rem;"><input type="checkbox" id="transfrio-regla"> con regla de calibración</label>
     </div>
@@ -450,6 +452,8 @@ function pintarHistorico() {
     <td>
       <button type="button" class="btn secundario" data-editar-pedido="${p.id}" style="padding:0.2rem 0.6rem;">✏️ Editar</button>
       <button type="button" class="btn secundario" data-etiquetas-pedido="${p.id}" style="padding:0.2rem 0.6rem;">🏷️ Etiquetas</button>
+      <button type="button" class="btn secundario" data-whatsapp-pedido="${p.id}" style="padding:0.2rem 0.6rem;">📱 WhatsApp</button>
+      <button type="button" class="btn secundario" data-email-pedido="${p.id}" style="padding:0.2rem 0.6rem;">✉️ Email</button>
       <button type="button" class="btn secundario" data-anular-pedido="${p.id}" data-numero-pedido="${p.numero}" style="padding:0.2rem 0.6rem;">🗑️ Anular</button>
     </td></tr>
   `).join('');
@@ -458,6 +462,12 @@ function pintarHistorico() {
   });
   document.querySelectorAll('[data-etiquetas-pedido]').forEach((btn) => {
     btn.addEventListener('click', () => imprimirEtiquetasPedido(btn.dataset.etiquetasPedido));
+  });
+  document.querySelectorAll('[data-whatsapp-pedido]').forEach((btn) => {
+    btn.addEventListener('click', () => enviarAlbaranPorWhatsapp(btn.dataset.whatsappPedido));
+  });
+  document.querySelectorAll('[data-email-pedido]').forEach((btn) => {
+    btn.addEventListener('click', () => enviarAlbaranPorEmail(btn.dataset.emailPedido));
   });
   document.querySelectorAll('[data-anular-pedido]').forEach((btn) => {
     btn.addEventListener('click', () => anularPedido(btn.dataset.anularPedido, btn.dataset.numeroPedido));
@@ -576,6 +586,241 @@ document.getElementById('btn-transfrio').addEventListener('click', () => {
   const doc = generarPdfTransfrio(pedTmp, modoRegla);
   window.open(doc.output('bloburl'), '_blank');
 });
+
+// ===== ALBARÁN EN PDF + ENVÍO POR WHATSAPP/EMAIL =====
+// Igual que dibujarAlbaranEnPdf() del HTML actual: cabecera de la empresa,
+// datos del cliente, tabla de líneas (con o sin precios) y totales. La
+// versión "sin precios" (conductor) nunca lleva partida/coste en la traza -
+// eso ya lo exigía la Fase 0 punto 3, y aquí se respeta también en el PDF.
+function construirTrazaLineaPed(l, fechaVal, incluirPartida) {
+  if (!l.articulo_codigo) return '';
+  const art = articulos.find((a) => a.codigo === codigoDeTexto(l.articulo_codigo));
+  if (!art) return '';
+  const lote = fechaVal ? (() => { const [y, m, d] = fechaVal.split('-'); return d + m + y.slice(2); })() : '';
+  const partes = [];
+  if (art.cientifico) partes.push(art.cientifico);
+  if (art.zona_fao) partes.push(art.zona_fao + (art.subzona ? ` (${art.subzona})` : ''));
+  if (lote) partes.push(`Lote ${lote}`);
+  if (incluirPartida && l.partida_numero) partes.push(`Partida ${l.partida_numero}`);
+  if (art.arte_pesca) partes.push(art.arte_pesca);
+  if (art.barco) partes.push(art.barco);
+  return partes.join(' · ');
+}
+
+function dibujarAlbaranEnPdf(doc, ped, conPrecios, yInicial, limiteY) {
+  let y = yInicial;
+  const margenIzq = 15, anchoUtil = 180;
+
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(15);
+  doc.text('MARINAFISK PESCADOS, S.A.', margenIzq, y); y += 6;
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
+  doc.text('Muelle de Linares Rivas, almacén 34-35 — Lonja de Coruña — 15006 A Coruña', margenIzq, y); y += 4.5;
+  doc.text('Tel: 981 282 298 / 659 131 896 | CIF: A-50789742 | Reg. San.: 12.01671/C', margenIzq, y); y += 8;
+
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(13);
+  doc.text(`HOJA DE PEDIDO Nº ${ped.numero}`, margenIzq, y);
+  doc.setFontSize(10);
+  doc.text(`Fecha: ${fmtFecha(ped.fecha)}`, margenIzq + anchoUtil - 45, y);
+  y += 7;
+
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
+  doc.text(`Forma de pago: ${ped.forma_pago || 'CONTADO'}`, margenIzq, y);
+  doc.text(`Agencia: ${ped.agencia || ''}`, margenIzq + 70, y);
+  y += 8;
+
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(10);
+  doc.text(`Cliente: ${ped.cliente_codigo || ''} — ${ped.cliente_nombre_snapshot || ''}`, margenIzq, y); y += 5;
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
+  const dirLinea = (ped.cliente_dir_snapshot || '') + (ped.cliente_pob_snapshot ? `, ${ped.cliente_pob_snapshot}` : '');
+  if (dirLinea.trim()) { doc.text(dirLinea, margenIzq, y); y += 6; } else { y += 2; }
+
+  const colX = conPrecios
+    ? { desc: margenIzq, cant: margenIzq + 95, peso: margenIzq + 112, precio: margenIzq + 130, dcto: margenIzq + 148, iva: margenIzq + 160, total: margenIzq + 172 }
+    : { desc: margenIzq, cant: margenIzq + 140, peso: margenIzq + 160 };
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(8);
+  doc.setFillColor(31, 78, 121); doc.rect(margenIzq, y - 4, anchoUtil, 6, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.text('DESCRIPCIÓN / CALIDAD / TALLA', colX.desc + 1, y);
+  doc.text('CANT.', colX.cant, y);
+  doc.text('PESO', colX.peso, y);
+  if (conPrecios) {
+    doc.text('PRECIO', colX.precio, y);
+    doc.text('DCTO%', colX.dcto, y);
+    doc.text('IVA%', colX.iva, y);
+    doc.text('TOTAL', colX.total, y);
+  }
+  doc.setTextColor(0, 0, 0);
+  y += 5;
+
+  (ped.lineas || []).forEach((l) => {
+    if (!l.articulo_codigo) return;
+    if (y > limiteY) { doc.addPage(); y = 18; }
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(9);
+    const descTexto = l.descripcion_editada || l.descripcion || l.articulo_codigo || '';
+    const descLineas = doc.splitTextToSize(descTexto, conPrecios ? 90 : 130);
+    doc.text(descLineas, colX.desc, y);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
+    doc.text(String(l.cantidad || ''), colX.cant, y);
+    doc.text(String(l.peso || ''), colX.peso, y);
+    if (conPrecios) {
+      doc.text(String(l.precio || ''), colX.precio, y);
+      doc.text(String(l.descuento || 0), colX.dcto, y);
+      doc.text(String(l.iva_pct || 0), colX.iva, y);
+      doc.text(fmtEUR(l.total), colX.total, y);
+    }
+    y += descLineas.length * 4;
+    const traza = construirTrazaLineaPed(l, ped.fecha, conPrecios);
+    if (traza) {
+      doc.setFont('helvetica', 'italic'); doc.setFontSize(7); doc.setTextColor(90, 90, 90);
+      const trazaLineas = doc.splitTextToSize(traza, conPrecios ? 90 : 130);
+      doc.text(trazaLineas, colX.desc, y);
+      doc.setTextColor(0, 0, 0);
+      y += trazaLineas.length * 3.2;
+    }
+    y += 3;
+  });
+
+  y += 3;
+  doc.setDrawColor(31, 78, 121); doc.line(margenIzq, y, margenIzq + anchoUtil, y); y += 6;
+  const totalBultos = (ped.lineas || []).reduce((s, l) => s + (Number(l.cantidad) || 0), 0);
+  const totalKgAlbaran = (ped.lineas || []).reduce((s, l) => s + (Number(l.peso) || 0), 0);
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(10);
+  doc.text(`Total bultos: ${totalBultos}`, margenIzq, y);
+  doc.text(`Total kg: ${totalKgAlbaran.toFixed(2)} kg`, margenIzq + 45, y);
+  if (conPrecios) {
+    doc.text(`Base imponible: ${fmtEUR(ped.base)}`, margenIzq + 95, y); y += 5;
+    doc.text(`IVA: ${fmtEUR(ped.iva)}`, margenIzq + 95, y); y += 5;
+    doc.setFontSize(12);
+    doc.text(`TOTAL: ${fmtEUR(ped.total)}`, margenIzq + 95, y);
+  }
+  return y;
+}
+
+function generarPdfAlbaran(ped, conPrecios = true) {
+  const doc = new window.jspdf.jsPDF({ unit: 'mm', format: 'a4' });
+  dibujarAlbaranEnPdf(doc, ped, conPrecios, 18, 270);
+  return doc;
+}
+
+// Igual que dibujarAlbaranCompletoEnDoc()/generarPdfAlbaranCompleto() del
+// HTML actual: primero se mide si el albarán cabe doblado en media hoja (dos
+// copias en la misma A4, para cortar y quedarse una); si no cabe, cada copia
+// sale entera en su propia hoja.
+function generarPdfAlbaranCompleto(ped, conPrecios = true) {
+  const doc = new window.jspdf.jsPDF({ unit: 'mm', format: 'a4' });
+  const pruebaDoc = new window.jspdf.jsPDF({ unit: 'mm', format: 'a4' });
+  const finalY = dibujarAlbaranEnPdf(pruebaDoc, ped, conPrecios, 18, 9999);
+  const cabeDoblado = finalY <= 140 && pruebaDoc.internal.getNumberOfPages() === 1;
+  if (cabeDoblado) {
+    dibujarAlbaranEnPdf(doc, ped, conPrecios, 18, 140);
+    doc.setDrawColor(180, 180, 180); doc.setLineDashPattern([2, 2], 0);
+    doc.line(15, 149, 195, 149);
+    doc.setLineDashPattern([], 0);
+    dibujarAlbaranEnPdf(doc, ped, conPrecios, 158, 280);
+  } else {
+    dibujarAlbaranEnPdf(doc, ped, conPrecios, 18, 270);
+    doc.addPage();
+    dibujarAlbaranEnPdf(doc, ped, conPrecios, 18, 270);
+  }
+  return doc;
+}
+
+// Construye un "pedido temporal" con los datos ya escritos en el formulario
+// (sin necesidad de guardar antes) - igual que construirPedidoTmpDesdeFormulario().
+function pedTmpDesdeFormulario() {
+  const c = clienteSeleccionado();
+  if (!c) return null;
+  const validas = lineas
+    .filter((l) => l.articulo_codigo && Number(l.peso) > 0)
+    .map((l) => ({ ...l, articulo_codigo: codigoDeTexto(l.articulo_codigo) }));
+  return {
+    numero: pedidoEnEdicionNumero || '(sin grabar)',
+    fecha: document.getElementById('p-fecha').value || fechaLocalISO(),
+    cliente_codigo: c.codigo,
+    cliente_nombre_snapshot: c.nombre,
+    cliente_dir_snapshot: c.direccion,
+    cliente_pob_snapshot: c.poblacion,
+    agencia: '',
+    forma_pago: 'CONTADO',
+    lineas: validas.map((l) => ({ ...l, total: calcularTotal(l) })),
+    base: validas.reduce((s, l) => s + calcularTotal(l), 0),
+    iva: 0,
+    total: validas.reduce((s, l) => s + calcularTotal(l), 0),
+  };
+}
+
+document.getElementById('btn-imprimir-con-precios').addEventListener('click', () => {
+  const pedTmp = pedTmpDesdeFormulario();
+  if (!pedTmp) { mostrarMensaje('Elige un cliente válido de la lista.', 'error'); return; }
+  if (!pedTmp.lineas.length) { mostrarMensaje('Añade al menos una línea con artículo y peso.', 'error'); return; }
+  const doc = generarPdfAlbaran(pedTmp, true);
+  window.open(doc.output('bloburl'), '_blank');
+});
+
+document.getElementById('btn-imprimir-sin-precios').addEventListener('click', () => {
+  const pedTmp = pedTmpDesdeFormulario();
+  if (!pedTmp) { mostrarMensaje('Elige un cliente válido de la lista.', 'error'); return; }
+  if (!pedTmp.lineas.length) { mostrarMensaje('Añade al menos una línea con artículo y peso.', 'error'); return; }
+  const doc = generarPdfAlbaranCompleto(pedTmp, false);
+  window.open(doc.output('bloburl'), '_blank');
+});
+
+// Igual que limpiarNumerosTelefono()/enviarWhatsappMultiple() del HTML
+// actual: separa varios números por coma/punto y coma, añade el prefijo de
+// España (34) si no lleva ya uno, y si hay más de un número deja elegir cuál
+// abrir (WhatsApp Web no deja abrir varios de golpe).
+function limpiarNumerosTelefono(numerosStr) {
+  return String(numerosStr || '').split(/[,;]/).map((n) => n.trim()).filter(Boolean).map((n) => {
+    let limpio = n.replace(/[^0-9+]/g, '');
+    if (limpio.indexOf('+') !== 0 && limpio.length <= 9) limpio = `34${limpio}`;
+    return limpio;
+  });
+}
+
+function enviarWhatsappMultiple(numerosStr, mensaje) {
+  const numeros = limpiarNumerosTelefono(numerosStr);
+  if (!numeros.length) return;
+  if (numeros.length === 1) {
+    window.open(`https://wa.me/${numeros[0].replace('+', '')}?text=${encodeURIComponent(mensaje)}`, '_blank');
+    return;
+  }
+  const elegido = prompt(`Este cliente tiene varios teléfonos guardados. Escribe cuál usar:\n${numeros.join(', ')}`, numeros[0]);
+  if (!elegido) return;
+  window.open(`https://wa.me/${elegido.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(mensaje)}`, '_blank');
+}
+
+async function obtenerPedidoCompleto(id) {
+  const res = await apiFetch(`/pedidos/${id}`);
+  if (!res.ok) return null;
+  return res.json();
+}
+
+async function enviarAlbaranPorWhatsapp(id) {
+  const ped = await obtenerPedidoCompleto(id);
+  if (!ped) { mostrarMensaje('No se encontró ese pedido.', 'error'); return; }
+  const cRes = await apiFetch(`/clientes`);
+  const cli = (await cRes.json()).find((x) => x.codigo === ped.cliente_codigo) || {};
+  if (!cli.telefono) { mostrarMensaje('Este cliente no tiene teléfono guardado en su ficha. Añádelo en Catálogos.', 'error'); return; }
+  const doc = generarPdfAlbaran(ped);
+  doc.save(`Albaran_${ped.numero}_${(ped.cliente_nombre_snapshot || '').replace(/[^a-zA-Z0-9]/g, '_').slice(0, 30)}.pdf`);
+  const mensaje = `Hola, le adjuntamos el pedido Nº ${ped.numero} de MARINAFISK PESCADOS, S.A. (fecha ${fmtFecha(ped.fecha)}, total ${fmtEUR(ped.total)}). Un saludo.`;
+  mostrarMensaje('PDF descargado. Se abrirá WhatsApp con el mensaje ya escrito — solo tienes que ADJUNTAR ese PDF y pulsar enviar.', 'info');
+  enviarWhatsappMultiple(cli.telefono, mensaje);
+}
+
+async function enviarAlbaranPorEmail(id) {
+  const ped = await obtenerPedidoCompleto(id);
+  if (!ped) { mostrarMensaje('No se encontró ese pedido.', 'error'); return; }
+  const cRes = await apiFetch(`/clientes`);
+  const cli = (await cRes.json()).find((x) => x.codigo === ped.cliente_codigo) || {};
+  if (!cli.email) { mostrarMensaje('Este cliente no tiene email guardado en su ficha. Añádelo en Catálogos.', 'error'); return; }
+  const doc = generarPdfAlbaran(ped);
+  doc.save(`Albaran_${ped.numero}_${(ped.cliente_nombre_snapshot || '').replace(/[^a-zA-Z0-9]/g, '_').slice(0, 30)}.pdf`);
+  const asunto = `Pedido Nº ${ped.numero} — MARINAFISK PESCADOS, S.A.`;
+  const cuerpo = `Buenos días,\n\nAdjuntamos el pedido Nº ${ped.numero} de fecha ${fmtFecha(ped.fecha)}, por un total de ${fmtEUR(ped.total)}.\n\nUn saludo,\nMARINAFISK PESCADOS, S.A.`;
+  mostrarMensaje('PDF descargado. Se abrirá tu programa de correo con el mensaje ya escrito — solo tienes que ADJUNTAR ese PDF y pulsar enviar.', 'info');
+  window.location.href = `mailto:${encodeURIComponent(cli.email)}?subject=${encodeURIComponent(asunto)}&body=${encodeURIComponent(cuerpo)}`;
+}
 
 if (usuario) {
   renderBarraNavegacion(usuario, 'pedidos.html');
