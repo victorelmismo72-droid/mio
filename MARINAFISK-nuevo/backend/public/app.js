@@ -56,6 +56,7 @@ const PAGINAS_NAV = [
   { href: 'repartos.html', etiqueta: 'Reparto Super' },
   { href: 'partidas.html', etiqueta: 'Partidas' },
   { href: 'listados.html', etiqueta: 'Listados' },
+  { href: 'listasprecio.html', etiqueta: 'Lista de precios' },
   { href: 'catalogos.html', etiqueta: 'Catálogos' },
   { href: 'fiscal.html', etiqueta: 'Clasificación fiscal' },
 ];

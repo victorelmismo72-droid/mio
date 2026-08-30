@@ -1,0 +1,422 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>MARINAFISK — Lista de precios</title>
+<link rel="stylesheet" href="app.css">
+<style>
+  .selector-tipo, .selector-modo { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
+  .selector-tipo button.activo, .selector-modo button.activo { background: #2f7d64; color: #fff; }
+  .fila-manual { display: flex; gap: 0.5rem; margin-bottom: 0.5rem; align-items: center; }
+  .fila-manual input { padding: 0.35rem 0.5rem; }
+  .fila-manual input[data-campo="descripcion"] { flex: 2; }
+  .fila-manual input[data-campo="precio"] { flex: 1; }
+  .fila-manual input[data-campo="coste"], .fila-manual input[data-campo="existencias"] { flex: 1; background: #fff8e1; }
+  .margen-fila { flex: 0 0 80px; font-size: 0.8rem; text-align: right; }
+  #contenedor-canvas canvas { max-width: 100%; border: 1px solid #ddd; border-radius: 6px; margin-top: 0.7rem; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Lista de precios</h1>
+  <p class="ayuda">Imagen lista para mandar por WhatsApp — automática (con las compras de hoy) o escrita a mano. El borrador de hoy se comparte entre Víctor y Pancho.</p>
+  <div id="mensaje"></div>
+
+  <div class="selector-tipo">
+    <button type="button" class="btn secundario activo" data-tipo="PESCADERIA">Pescaderías (precio en destino)</button>
+    <button type="button" class="btn secundario" data-tipo="MAYORISTA">Mayoristas (precio en Coruña)</button>
+  </div>
+  <div class="selector-modo">
+    <button type="button" class="btn secundario activo" data-modo="AUTO">📈 Automática (compras de hoy)</button>
+    <button type="button" class="btn secundario" data-modo="MANUAL">✏️ Manual</button>
+  </div>
+
+  <div id="panel-auto" class="tarjeta">
+    <p class="ayuda">Coste medio ponderado por kilos de lo comprado hoy + margen fijo de 1,70 €/kg.</p>
+    <div class="tabla-envoltorio">
+      <table id="tabla-auto">
+        <thead><tr><th>Producto</th><th class="num">Kg comprados hoy</th><th class="num">Coste medio</th><th class="num">Precio (+1,70€)</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="panel-manual" class="tarjeta" style="display:none;">
+    <div id="filas-manual"></div>
+    <button type="button" class="btn secundario" id="btn-anadir-fila">+ Añadir línea</button>
+    <p class="ayuda">Coste y existencias son solo para ti — nunca aparecen en la imagen que se manda al cliente.</p>
+  </div>
+
+  <div style="margin-top:1rem;">
+    <button type="button" class="btn" id="btn-generar">🖼️ Generar imagen</button>
+    <button type="button" class="btn secundario" id="btn-descargar" style="display:none;">⬇️ Descargar imagen</button>
+    <button type="button" class="btn secundario" id="btn-descargar-interna" style="display:none;">⬇️ Descargar imagen interna (con coste)</button>
+    <button type="button" class="btn secundario" id="btn-copiar-mensaje" style="display:none;">📋 Copiar mensaje para WhatsApp</button>
+  </div>
+  <div id="contenedor-canvas"></div>
+</main>
+
+<script src="app.js"></script>
+<script>
+const usuario = protegerPagina();
+let tipoActual = 'PESCADERIA';
+let modoActual = 'AUTO';
+let filasManual = [];
+let canvasPublico = null;
+let canvasInterno = null;
+let guardarBorradorTimeout = null;
+
+document.querySelectorAll('[data-tipo]').forEach((btn) => {
+  btn.addEventListener('click', async () => {
+    document.querySelectorAll('[data-tipo]').forEach((b) => b.classList.toggle('activo', b === btn));
+    tipoActual = btn.dataset.tipo;
+    await cargarPanelActivo();
+  });
+});
+document.querySelectorAll('[data-modo]').forEach((btn) => {
+  btn.addEventListener('click', async () => {
+    document.querySelectorAll('[data-modo]').forEach((b) => b.classList.toggle('activo', b === btn));
+    modoActual = btn.dataset.modo;
+    document.getElementById('panel-auto').style.display = modoActual === 'AUTO' ? '' : 'none';
+    document.getElementById('panel-manual').style.display = modoActual === 'AUTO' ? 'none' : '';
+    await cargarPanelActivo();
+  });
+});
+
+function mostrarMensaje(texto, tipo) {
+  document.getElementById('mensaje').innerHTML = `<div class="mensaje ${tipo}">${texto}</div>`;
+}
+
+async function cargarPanelActivo() {
+  if (modoActual === 'AUTO') await cargarTablaAuto();
+  else await cargarListaManual();
+}
+
+// ---------- MODO AUTOMÁTICO ----------
+// Igual que construirListaPreciosHoy() del HTML actual: coste medio
+// ponderado por kilos de las compras de HOY (no el precio de venta, el
+// precioKg negociado en la compra), + margen fijo de 1,70 €/kg.
+async function calcularListaAuto() {
+  const res = await apiFetch('/compras');
+  const compras = await res.json();
+  const hoy = fechaLocalISO();
+  const comprasHoy = compras.filter((c) => c.fecha === hoy);
+  const porProducto = {};
+  for (const c of comprasHoy) {
+    const detalle = await apiFetch(`/compras/${c.id}`);
+    const datos = await detalle.json();
+    (datos.lineas || []).forEach((l) => {
+      if (!l.producto) return;
+      const kilos = Number(l.kilos) || 0;
+      const coste = Number(l.precio_kg) || 0;
+      if (!porProducto[l.producto]) porProducto[l.producto] = { desc: l.descripcion || l.producto, totalKg: 0, totalBase: 0 };
+      porProducto[l.producto].totalKg += kilos;
+      porProducto[l.producto].totalBase += kilos * coste;
+    });
+  }
+  return Object.values(porProducto).map((p) => {
+    const costeMedio = p.totalKg > 0 ? p.totalBase / p.totalKg : 0;
+    return { desc: p.desc, kg: p.totalKg, coste: costeMedio, precio: costeMedio + 1.70 };
+  });
+}
+
+async function cargarTablaAuto() {
+  const productos = await calcularListaAuto();
+  const tbody = document.querySelector('#tabla-auto tbody');
+  if (!productos.length) {
+    tbody.innerHTML = '<tr><td colspan="4" class="ayuda">No hay compras registradas hoy todavía. Prueba con "✏️ Manual" si quieres mandarla ya mismo.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = productos.map((p) => `
+    <tr><td>${p.desc}</td><td class="num">${fmtKg(p.kg)}</td><td class="num">${fmtEUR(p.coste)}</td><td class="num"><strong>${fmtEUR(p.precio)}</strong></td></tr>
+  `).join('');
+}
+
+// ---------- MODO MANUAL ----------
+function filaVacia() { return { descripcion: '', precio: '', coste: '', existencias: '' }; }
+
+async function cargarListaManual() {
+  const res = await apiFetch(`/listas-precio/${tipoActual}/hoy`);
+  const datos = await res.json();
+  if (datos && datos.lineas && datos.lineas.length) {
+    filasManual = datos.lineas.map((l) => ({ descripcion: l.descripcion || '', precio: l.precio ?? '', coste: l.coste ?? '', existencias: l.existencias ?? '' }));
+    pintarFilasManual();
+    return;
+  }
+  // Si esta lista de tipo esta vacia hoy, se copian las filas de la OTRA
+  // (si la tiene) como punto de partida - igual que cargarListaManual() del
+  // HTML actual - y se guardan ya como propias de este tipo.
+  const otroTipo = tipoActual === 'PESCADERIA' ? 'MAYORISTA' : 'PESCADERIA';
+  const resOtro = await apiFetch(`/listas-precio/${otroTipo}/hoy`);
+  const datosOtro = await resOtro.json();
+  if (datosOtro && datosOtro.lineas && datosOtro.lineas.length) {
+    filasManual = datosOtro.lineas.map((l) => ({ descripcion: l.descripcion || '', precio: l.precio ?? '', coste: l.coste ?? '', existencias: l.existencias ?? '' }));
+    pintarFilasManual();
+    guardarBorradorManual();
+    mostrarMensaje(`Se han copiado los productos de "${otroTipo === 'MAYORISTA' ? 'Mayoristas' : 'Pescaderías'}" como punto de partida — modifica lo que necesites.`, 'info');
+    return;
+  }
+  filasManual = [filaVacia(), filaVacia(), filaVacia()];
+  pintarFilasManual();
+}
+
+function pintarFilasManual() {
+  const cont = document.getElementById('filas-manual');
+  cont.innerHTML = '';
+  filasManual.forEach((f, i) => {
+    const div = document.createElement('div');
+    div.className = 'fila-manual';
+    div.innerHTML = `
+      <input type="text" data-campo="descripcion" placeholder="Producto (ej. Merluza)" value="${f.descripcion}">
+      <input type="number" step="0.01" min="0" data-campo="precio" placeholder="Precio €/kg" value="${f.precio}">
+      <input type="number" step="0.01" min="0" data-campo="coste" placeholder="Coste (solo tú)" title="Solo para tu referencia — no sale en la imagen que ve el cliente" value="${f.coste}">
+      <input type="number" step="1" min="0" data-campo="existencias" placeholder="Existencias cajas (solo tú)" title="Solo para tu referencia — no sale en la imagen que ve el cliente" value="${f.existencias}">
+      <span class="margen-fila"></span>
+      <button type="button" class="btn secundario" data-quitar="${i}" style="padding:0.2rem 0.5rem;">✕</button>
+    `;
+    div.querySelectorAll('input').forEach((input) => {
+      input.addEventListener('input', () => {
+        f[input.dataset.campo] = input.value;
+        actualizarMargenFila(div, f);
+        guardarBorradorManualDebounced();
+      });
+    });
+    div.querySelector('[data-quitar]').addEventListener('click', () => { filasManual.splice(i, 1); pintarFilasManual(); guardarBorradorManual(); });
+    actualizarMargenFila(div, f);
+    cont.appendChild(div);
+  });
+}
+
+function actualizarMargenFila(div, f) {
+  const span = div.querySelector('.margen-fila');
+  const precio = Number(f.precio), coste = Number(f.coste);
+  if (precio > 0 && coste > 0) {
+    const margen = precio - coste;
+    span.textContent = `margen: ${margen.toFixed(2)}€`;
+    span.style.color = margen >= 0 ? '#1a7a1a' : '#b00000';
+  } else {
+    span.textContent = '';
+  }
+}
+
+document.getElementById('btn-anadir-fila').addEventListener('click', () => {
+  filasManual.push(filaVacia());
+  pintarFilasManual();
+});
+
+function guardarBorradorManualDebounced() {
+  clearTimeout(guardarBorradorTimeout);
+  guardarBorradorTimeout = setTimeout(guardarBorradorManual, 600);
+}
+async function guardarBorradorManual() {
+  const lineas = filasManual
+    .filter((f) => f.descripcion.trim())
+    .map((f) => ({ descripcion: f.descripcion.trim(), precio: f.precio || null, coste: f.coste || null, existencias: f.existencias || null }));
+  await apiFetch(`/listas-precio/${tipoActual}/hoy`, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ modo: 'MANUAL', lineas }),
+  });
+}
+
+// ---------- IMAGEN (canvas) ----------
+// Reproduce dibujarTablaPreciosEnCanvas()/dibujarTablaPreciosInternaEnCanvas()
+// del HTML actual: misma cabecera azul con el logo real, misma franja
+// amarilla de título, misma paleta y disposición de filas.
+function cargarLogo() {
+  return new Promise((resolve) => {
+    const img = new Image();
+    let resuelto = false;
+    const terminar = () => { if (!resuelto) { resuelto = true; resolve(img.complete ? img : null); } };
+    img.onload = terminar;
+    img.onerror = () => resolve(null);
+    setTimeout(terminar, 2500);
+    img.src = 'img/logo-marina-fisk.jpg';
+  });
+}
+
+function subtituloTipo() {
+  return tipoActual === 'MAYORISTA' ? 'MAYORISTAS — PRECIO EN CORUÑA' : 'PESCADERÍAS — PRECIO EN DESTINO';
+}
+
+async function dibujarCanvasPublico(productos) {
+  const anchoCanvas = 700, altoFila = 42, altoCabecera = 150, altoBandaTitulo = 55, altoSubtitulo = 30, altoPie = 45;
+  const altoCanvas = altoCabecera + altoBandaTitulo + altoSubtitulo + 30 + productos.length * altoFila + altoPie;
+  const canvas = document.createElement('canvas');
+  canvas.width = anchoCanvas; canvas.height = altoCanvas;
+  const ctx = canvas.getContext('2d');
+  const logo = await cargarLogo();
+
+  ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0, 0, anchoCanvas, altoCanvas);
+  ctx.fillStyle = '#163A52'; ctx.fillRect(0, 0, anchoCanvas, altoCabecera);
+  if (logo) ctx.drawImage(logo, 25, 35, 90, 90);
+  ctx.fillStyle = '#FFFFFF'; ctx.font = 'bold 34px Arial'; ctx.fillText('MARINA FISK', 130, 65);
+  ctx.font = '18px Arial'; ctx.fillStyle = '#C9A227'; ctx.fillText('Lista de precios', 130, 92);
+  ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.beginPath(); ctx.moveTo(20, altoCabecera - 15); ctx.lineTo(anchoCanvas - 20, altoCabecera - 15); ctx.stroke();
+
+  const yBanda = altoCabecera;
+  ctx.fillStyle = '#FFE800'; ctx.fillRect(0, yBanda, anchoCanvas, altoBandaTitulo);
+  ctx.fillStyle = '#B00000'; ctx.font = 'bold 22px Arial'; ctx.textAlign = 'center';
+  ctx.fillText('PRECIOS DE HOY — ' + fmtFecha(fechaLocalISO()).toUpperCase(), anchoCanvas / 2, yBanda + 35);
+
+  const ySubtitulo = yBanda + altoBandaTitulo;
+  ctx.fillStyle = '#163A52'; ctx.fillRect(0, ySubtitulo, anchoCanvas, altoSubtitulo);
+  ctx.fillStyle = '#FFFFFF'; ctx.font = 'bold 14px Arial';
+  ctx.fillText(subtituloTipo(), anchoCanvas / 2, ySubtitulo + 20);
+  ctx.textAlign = 'left';
+
+  const yColHead = ySubtitulo + altoSubtitulo + 26;
+  ctx.fillStyle = '#163A52'; ctx.font = 'bold 14px Arial';
+  ctx.fillText('PRODUCTO', 30, yColHead); ctx.fillText('PRECIO €/KG', anchoCanvas - 170, yColHead);
+
+  const yInicioFilas = ySubtitulo + altoSubtitulo + 30;
+  productos.forEach((p, i) => {
+    const yFilaTop = yInicioFilas + altoFila * i;
+    ctx.fillStyle = (i % 2 === 0) ? '#C8D9EC' : '#FFFFFF';
+    ctx.fillRect(0, yFilaTop, anchoCanvas, altoFila);
+    ctx.fillStyle = '#1a1a1a'; ctx.font = 'bold 17px Arial';
+    ctx.fillText(p.desc, 30, yFilaTop + 27);
+    ctx.fillStyle = '#163A52'; ctx.font = 'bold 18px Arial';
+    ctx.fillText(p.precio.toFixed(2) + ' €', anchoCanvas - 170, yFilaTop + 27);
+  });
+
+  ctx.fillStyle = '#888888'; ctx.font = 'italic 12px Arial';
+  ctx.fillText('Precios orientativos, sujetos a confirmación en el momento del pedido.', 25, altoCanvas - 18);
+  return canvas;
+}
+
+async function dibujarCanvasInterno(productos) {
+  const anchoCanvas = 950, altoFila = 42, altoCabecera = 150, altoBandaTitulo = 55, altoSubtitulo = 30, altoAviso = 40, altoPie = 45;
+  const altoCanvas = altoCabecera + altoBandaTitulo + altoSubtitulo + altoAviso + 30 + productos.length * altoFila + altoPie;
+  const canvas = document.createElement('canvas');
+  canvas.width = anchoCanvas; canvas.height = altoCanvas;
+  const ctx = canvas.getContext('2d');
+  const logo = await cargarLogo();
+
+  ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0, 0, anchoCanvas, altoCanvas);
+  ctx.fillStyle = '#163A52'; ctx.fillRect(0, 0, anchoCanvas, altoCabecera);
+  if (logo) ctx.drawImage(logo, 25, 35, 90, 90);
+  ctx.fillStyle = '#FFFFFF'; ctx.font = 'bold 34px Arial'; ctx.fillText('MARINA FISK', 130, 65);
+  ctx.font = '18px Arial'; ctx.fillStyle = '#C9A227'; ctx.fillText('Lista de precios', 130, 92);
+  ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.beginPath(); ctx.moveTo(20, altoCabecera - 15); ctx.lineTo(anchoCanvas - 20, altoCabecera - 15); ctx.stroke();
+
+  const yBanda = altoCabecera;
+  ctx.fillStyle = '#FFE800'; ctx.fillRect(0, yBanda, anchoCanvas, altoBandaTitulo);
+  ctx.fillStyle = '#B00000'; ctx.font = 'bold 22px Arial'; ctx.textAlign = 'center';
+  ctx.fillText('PRECIOS DE HOY — ' + fmtFecha(fechaLocalISO()).toUpperCase(), anchoCanvas / 2, yBanda + 35);
+
+  const ySubtitulo = yBanda + altoBandaTitulo;
+  ctx.fillStyle = '#163A52'; ctx.fillRect(0, ySubtitulo, anchoCanvas, altoSubtitulo);
+  ctx.fillStyle = '#FFFFFF'; ctx.font = 'bold 14px Arial';
+  ctx.fillText(subtituloTipo(), anchoCanvas / 2, ySubtitulo + 20);
+
+  const yAviso = ySubtitulo + altoSubtitulo;
+  ctx.fillStyle = '#B00000'; ctx.fillRect(0, yAviso, anchoCanvas, altoAviso);
+  ctx.fillStyle = '#FFFFFF'; ctx.font = 'bold 16px Arial';
+  ctx.fillText('⚠️ USO INTERNO — NO ENVIAR A CLIENTES (lleva coste, existencias y margen)', anchoCanvas / 2, yAviso + 26);
+  ctx.textAlign = 'left';
+
+  const xProducto = 30, xPrecio = 330, xCoste = 460, xExistencias = 610, xMargen = anchoCanvas - 160;
+  const yColHead = yAviso + altoAviso + 26;
+  ctx.fillStyle = '#163A52'; ctx.font = 'bold 14px Arial';
+  ctx.fillText('PRODUCTO', xProducto, yColHead);
+  ctx.fillText('PRECIO €/KG', xPrecio, yColHead);
+  ctx.fillText('COSTE €/KG', xCoste, yColHead);
+  ctx.fillText('EXIST. (CAJAS)', xExistencias, yColHead);
+  ctx.fillText('MARGEN €/KG', xMargen, yColHead);
+
+  const yInicioFilas = yAviso + altoAviso + 30;
+  productos.forEach((p, i) => {
+    const yFilaTop = yInicioFilas + altoFila * i;
+    ctx.fillStyle = (i % 2 === 0) ? '#C8D9EC' : '#FFFFFF';
+    ctx.fillRect(0, yFilaTop, anchoCanvas, altoFila);
+    ctx.fillStyle = '#1a1a1a'; ctx.font = 'bold 17px Arial';
+    ctx.fillText(p.desc, xProducto, yFilaTop + 27);
+    ctx.fillStyle = '#163A52'; ctx.font = 'bold 18px Arial';
+    ctx.fillText(p.precio.toFixed(2) + ' €', xPrecio, yFilaTop + 27);
+    if (p.coste !== null) {
+      ctx.fillStyle = '#555555'; ctx.font = '16px Arial';
+      ctx.fillText(p.coste.toFixed(2) + ' €', xCoste, yFilaTop + 27);
+      const margen = p.precio - p.coste;
+      ctx.fillStyle = margen >= 0 ? '#1a7a1a' : '#b00000'; ctx.font = 'bold 17px Arial';
+      ctx.fillText(margen.toFixed(2) + ' €', xMargen, yFilaTop + 27);
+    } else {
+      ctx.fillStyle = '#999999'; ctx.font = 'italic 14px Arial';
+      ctx.fillText('(sin coste)', xCoste, yFilaTop + 27);
+    }
+    if (p.existencias !== null) {
+      ctx.fillStyle = '#555555'; ctx.font = '16px Arial';
+      ctx.fillText(Math.round(p.existencias) + ' cajas', xExistencias, yFilaTop + 27);
+    } else {
+      ctx.fillStyle = '#999999'; ctx.font = 'italic 14px Arial';
+      ctx.fillText('(s/d)', xExistencias, yFilaTop + 27);
+    }
+  });
+
+  ctx.fillStyle = '#888888'; ctx.font = 'italic 12px Arial';
+  ctx.fillText('Documento interno de referencia — no repartir fuera del equipo comercial.', 25, altoCanvas - 18);
+  return canvas;
+}
+
+document.getElementById('btn-generar').addEventListener('click', async () => {
+  let productosPublico, productosInterno;
+  if (modoActual === 'AUTO') {
+    const auto = await calcularListaAuto();
+    if (!auto.length) { mostrarMensaje('No hay compras registradas hoy todavía. Prueba con "✏️ Manual".', 'error'); return; }
+    productosPublico = auto.map((p) => ({ desc: p.desc.toUpperCase(), precio: p.precio }));
+    productosInterno = null; // el modo automatico no enseña coste/existencias por separado
+  } else {
+    const validas = filasManual.filter((f) => f.descripcion.trim() && Number(f.precio) > 0);
+    if (!validas.length) { mostrarMensaje('Escribe al menos un producto con su precio.', 'error'); return; }
+    productosPublico = validas.map((f) => ({ desc: f.descripcion.trim().toUpperCase(), precio: Number(f.precio) }));
+    const hayCosteOExistencias = validas.some((f) => Number(f.coste) > 0 || Number(f.existencias) > 0);
+    productosInterno = hayCosteOExistencias
+      ? validas.map((f) => ({ desc: f.descripcion.trim().toUpperCase(), precio: Number(f.precio), coste: Number(f.coste) > 0 ? Number(f.coste) : null, existencias: Number(f.existencias) > 0 ? Number(f.existencias) : null }))
+      : null;
+  }
+
+  mostrarMensaje('Generando imagen...', 'info');
+  canvasPublico = await dibujarCanvasPublico(productosPublico);
+  const cont = document.getElementById('contenedor-canvas');
+  cont.innerHTML = '';
+  cont.appendChild(canvasPublico);
+  document.getElementById('btn-descargar').style.display = '';
+  document.getElementById('btn-copiar-mensaje').style.display = '';
+
+  if (productosInterno) {
+    canvasInterno = await dibujarCanvasInterno(productosInterno);
+    document.getElementById('btn-descargar-interna').style.display = '';
+  } else {
+    canvasInterno = null;
+    document.getElementById('btn-descargar-interna').style.display = 'none';
+  }
+  mostrarMensaje('Imagen generada. Puedes descargarla o copiar el mensaje para WhatsApp.', 'ok');
+});
+
+document.getElementById('btn-descargar').addEventListener('click', () => {
+  if (!canvasPublico) return;
+  const a = document.createElement('a');
+  a.href = canvasPublico.toDataURL('image/png');
+  a.download = `Precios_Marinafisk_${tipoActual}_${fechaLocalISO()}.png`;
+  a.click();
+});
+document.getElementById('btn-descargar-interna').addEventListener('click', () => {
+  if (!canvasInterno) return;
+  const a = document.createElement('a');
+  a.href = canvasInterno.toDataURL('image/png');
+  a.download = `USO_INTERNO_Precios_con_coste_${tipoActual}_${fechaLocalISO()}.png`;
+  a.click();
+});
+document.getElementById('btn-copiar-mensaje').addEventListener('click', async () => {
+  const mensaje = 'Hoy en la lonja de A Coruña tenemos disponible lo siguiente. Cualquier cosa que necesites, aquí estamos.';
+  try {
+    await navigator.clipboard.writeText(mensaje);
+    mostrarMensaje('Mensaje copiado — pégalo en tu lista de difusión junto con la imagen.', 'ok');
+  } catch (e) { mostrarMensaje(mensaje, 'info'); }
+});
+
+if (usuario) {
+  renderBarraNavegacion(usuario, 'listasprecio.html');
+  cargarTablaAuto();
+}
+</script>
+</body>
+</html>

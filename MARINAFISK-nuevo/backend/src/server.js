@@ -28,6 +28,7 @@ app.use('/api/pedidos', require('./routes/pedidos'));
 app.use('/api/traspasos', require('./routes/traspasos'));
 app.use('/api/repartos', require('./routes/repartos'));
 app.use('/api/listas-precio', require('./routes/listasPrecio'));
+app.use('/api/listas-precio', require('./routes/listasPrecio'));
 app.use('/api/partidas', require('./routes/partidas'));
 app.use('/api/configuracion', require('./routes/configuracion'));
 app.use('/api/listados', require('./routes/listados'));

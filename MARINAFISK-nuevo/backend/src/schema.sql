@@ -314,11 +314,18 @@ CREATE TABLE listas_precio (
   UNIQUE (tipo, fecha)
 );
 
+-- Las lineas son texto libre (ej. "Merluza"), no necesariamente un codigo del
+-- catalogo de articulos - asi es como ya funciona en el HTML actual (Lista de
+-- precios en modo manual). `coste`/`existencias` son "solo para ti", nunca
+-- salen en la imagen que se manda al cliente (ver src/negocio/listasPrecio.js).
 CREATE TABLE lista_precio_lineas (
   id               SERIAL PRIMARY KEY,
   lista_precio_id  INTEGER NOT NULL REFERENCES listas_precio(id),
   articulo_codigo  TEXT,
-  precio           NUMERIC
+  descripcion      TEXT,
+  precio           NUMERIC,
+  coste            NUMERIC,
+  existencias      NUMERIC
 );
 
 -- ---------------------------------------------------------------------------

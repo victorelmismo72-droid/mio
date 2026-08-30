@@ -93,14 +93,18 @@ Con el servidor arrancado, abre `http://localhost:3001/login.html` — desde ah�
 
 - **Inicio** (`index.html`): panel "Clientes a Contactar Hoy", con recordatorios ordenados por el margen real que suele dejar cada cliente.
 - **Compras** (`compras.html`): registrar una compra viendo en vivo el 2% de OP y el IVA según el proveedor, antes de guardar.
-- **Pedidos** (`pedidos.html`): crear o editar un albarán (botón ✏️ Editar en "Últimos pedidos"), con asignación de partida en línea (✅ automática o ⚠️ para elegir a mano), y una vista previa que alterna entre la versión interna (con precio y partida) y la de cliente (sin ninguno de los dos).
+- **Pedidos** (`pedidos.html`): crear, editar, renumerar o anular un albarán, con asignación de partida en línea (✅ automática o ⚠️ para elegir a mano), vista previa interna/cliente, imprimir con o sin precios (uno o varios pedidos juntos marcándolos con una casilla), imprimir etiquetas (6 formatos según el cliente), hoja Transfrío, y envío por WhatsApp/Email.
+- **Traspasos** (`traspasos.html`): traspaso interno Coruña → Zaragoza, con número de partida a mano (no se asigna solo, no es una venta).
+- **Reparto Super** (`repartos.html`): reparto a supermercados, con etiquetas Scanfisk, ficha de envío y hoja de ruta.
 - **Partidas** (`partidas.html`): asignar partidas de un día entero, cerrar/reabrir partidas, consultar rentabilidad.
-- **Listados** (`listados.html`): 8 listados de gestión (incluido un detalle de pedidos con IVA/Recargo por cliente y fila de totales, pensado para contabilidad), con fecha y exportación a CSV real.
+- **Listados** (`listados.html`): 8 listados de gestión, con fecha y exportación a CSV y PDF.
+- **Lista de precios** (`listasprecio.html`): imagen de precios para WhatsApp, automática (compras de hoy) o manual, Mayoristas/Pescaderías.
+- **Catálogos** (`catalogos.html`): alta y edición de clientes, proveedores y artículos (incluidos los campos de trazabilidad/etiquetas).
 - **Usuarios** (`usuarios.html`, solo Administrador): alta de usuarios y cierre de año.
 
-Detalle completo de lo probado (incluido un fallo real de agilidad que se encontró y corrigió antes de que llegara a verse) en `VERIFICACION_FASE_4.md`.
+Detalle completo de lo probado en `VERIFICACION_FASE_4.md` — incluye varios fallos reales encontrados y corregidos por el camino (una pérdida de foco al escribir rápido, un campo `calibre` que la migración de la Fase 1 nunca trajo, un riesgo real de fechas desplazadas un día si se instala fuera de UTC).
 
-**Todavía no construidas**: Transfrío, Reparto Super con etiquetas Scanfisk, etiquetas multi-idioma, listas de precios — necesitan estudiar a fondo el código de impresión del HTML actual, pendiente para una siguiente pasada.
+Todas las pantallas de la lista original de Fase 4 están construidas. Lo que queda pendiente (ver `VERIFICACION_TRANSVERSAL.md`) es sobre todo cosas que solo Víctor puede comprobar con el programa delante: la impresora física, el cronómetro frente al Excel, y una prueba con Pancho conectado a la vez.
 
 ## Qué falta todavía
 
