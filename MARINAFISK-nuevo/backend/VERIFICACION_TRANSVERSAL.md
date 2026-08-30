@@ -9,7 +9,7 @@ Leyenda: ✅ comprobado y coincide · ⚠️ diferencia encontrada (se explica c
 - ⏳ Totales de los listados (ventas por cliente, compras por proveedor, rentabilidad, stock, márgenes, sin actividad) calculados a mano desde el HTML actual para el mismo periodo — no se ha hecho todavía el cálculo manual comparativo; lo ya verificado hasta ahora (Fase 1/2) fue contra el backup migrado, no contra un cálculo manual independiente.
 - ⏳ Filtro de fecha con 3 rangos que crucen fin de mes y fin de año — probado el filtro en general (Fase 4), pero no específicamente con rangos que crucen fin de año.
 - ✅ Exportación CSV: probada repetidamente (Fase 2/4), los números coinciden con lo mostrado en pantalla.
-- ⏳ Exportación PDF de listados: no existe todavía (solo CSV/JSON).
+- ✅ **Exportación a PDF de listados** (30/08/2026, a petición de Víctor): cualquiera de los 8 listados se exporta a PDF con el mismo contenido exacto que se ve en pantalla. Probado con datos reales, extrayendo el texto del PDF y comparándolo carácter a carácter con lo mostrado en pantalla.
 
 ## 2. Etiquetas e impresión
 
