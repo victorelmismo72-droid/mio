@@ -61,6 +61,20 @@ Víctor envió un informe de bugs confirmados en el HTML actual, para asegurar q
 
 **Corrección:** se desactiva esa conversión a nivel del driver, una sola vez, en `src/db.js` (`types.setTypeParser(types.builtins.DATE, valor => valor)`), para que una columna `DATE` llegue siempre como texto `'AAAA-MM-DD'` tal cual, sin pasar nunca por un objeto `Date` con zona horaria de por medio. Esto aplica a **toda** la aplicación (compras, pedidos, traspasos, repartos, listados) de una sola vez, en vez de tener que acordarse pantalla por pantalla — así ninguna pantalla nueva puede reintroducir el mismo fallo sin darse cuenta. Vuelto a comprobar con `TZ=Europe/Madrid` tras el cambio: la misma fecha llega correctamente como `"2026-08-25"`.
 
+## 8. Fallo de migración encontrado y corregido: el calibre de los artículos se perdía (30/08/2026)
+
+Al completar el formulario de alta/edición de artículos en Catálogos (ver `VERIFICACION_FASE_4.md`) se encontró que la migración de la Fase 1 **nunca trajo el campo `calibre`** — ni existía la columna en la base de datos, ni el script de migración lo leía del backup. No había ninguna comprobación campo a campo de artículos hasta ahora (solo se comprobaba el conteo total), así que este fallo llevaba desde la Fase 1 sin detectarse.
+
+**Alcance real:** 152 de los 154 artículos del backup tenían un valor de `calibre` (todos "3" en la muestra revisada) que se estaba perdiendo silenciosamente en cada migración.
+
+**Corrección:**
+- Añadida la columna `calibre` a `articulos` en `schema.sql` (para cualquier instalación nueva desde cero).
+- Corregido `scripts/migrar_backup.js` para leer y guardar `a.calibre`.
+- Sobre la base de datos ya migrada: añadida la columna con `ALTER TABLE` y rellenado el valor real de los 152 artículos leyendo el mismo backup ya verificado — no se ha vuelto a migrar nada desde cero (las compras son inmutables y no se puede arriesgar a duplicar historial).
+- Añadida `verificarArticulosMuestra()` a `scripts/verificar_migracion.js` — una comprobación campo a campo de artículos (igual que ya existía para clientes) que no existía hasta ahora, precisamente para que este tipo de fallo (una columna entera migrada en blanco) no pueda volver a pasar desapercibido.
+
+Probado: 20 artículos de muestra comprobados campo a campo (calibre incluido) contra el backup — todos coinciden. `npm run verify` completo: 0 discrepancias.
+
 ## Cómo reproducir esta verificación
 
 ```bash

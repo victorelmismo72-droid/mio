@@ -108,6 +108,23 @@
         <div><label>PVP1</label><input type="number" step="0.01" id="art-pvp1"></div>
         <div><label>PVP2</label><input type="number" step="0.01" id="art-pvp2"></div>
         <div><label>IVA %</label><input type="number" step="0.01" id="art-iva_pct" value="10"></div>
+        <div><label>Calibre</label><input type="text" id="art-calibre" placeholder="ej. 3"></div>
+      </div>
+      <h3>Datos para etiquetas y trazabilidad</h3>
+      <p class="ayuda">Se usan al imprimir etiquetas, Reparto Super y la traza del albarán — rellénalos aunque no imprimas hoy, porque ya se guardan con cada artículo.</p>
+      <div class="fila-form">
+        <div style="flex:2;"><label>Nombre científico</label><input type="text" id="art-cientifico" placeholder="ej. Merluccius merluccius"></div>
+        <div><label>Zona FAO</label><input type="text" id="art-zona_fao" placeholder="ej. FAO 27"></div>
+        <div><label>Subzona</label><input type="text" id="art-subzona" placeholder="ej. VIIIc"></div>
+        <div><label>Arte de pesca</label><input type="text" id="art-arte_pesca" placeholder="ej. ARRASTRE"></div>
+        <div><label>Barco</label><input type="text" id="art-barco" placeholder="VARIOS BARCOS"></div>
+      </div>
+      <div class="fila-form">
+        <div><label>Peso de etiqueta</label><input type="text" id="art-peso_etiqueta" placeholder="VER CAJA (o un peso fijo, ej. 6 kg)"></div>
+        <div><label>Modo de presentación</label><input type="text" id="art-modo_presentacion" placeholder="ej. C/C"></div>
+        <div><label>Forma de obtención</label><input type="text" id="art-forma_obtencion" placeholder="CAPTURADO"></div>
+        <div style="flex:2;"><label>Nombre en francés</label><input type="text" id="art-nombre_frances"></div>
+        <div style="flex:2;"><label>Nombre en italiano</label><input type="text" id="art-nombre_italiano"></div>
       </div>
       <button type="button" class="btn" id="btn-guardar-articulo">Guardar</button>
       <button type="button" class="btn secundario" id="btn-cancelar-articulo" style="display:none;">Cancelar edición</button>
@@ -303,16 +320,23 @@ function pintarArticulos(lista) {
     tr.addEventListener('click', () => cargarArticuloEnFormulario(Number(tr.dataset.id)));
   });
 }
+// Campos de texto libre que se cargan/limpian igual (sin valor por defecto).
+const CAMPOS_ARTICULO_LIBRES = ['tipo', 'calibre', 'cientifico', 'zona_fao', 'subzona', 'arte_pesca', 'modo_presentacion', 'nombre_frances', 'nombre_italiano'];
+
 function cargarArticuloEnFormulario(id) {
   const a = articulos.find((x) => x.id === id);
   if (!a) return;
   document.getElementById('art-id').value = a.id;
   document.getElementById('art-codigo').value = a.codigo || '';
   document.getElementById('art-descripcion').value = a.descripcion || '';
-  document.getElementById('art-tipo').value = a.tipo || '';
   document.getElementById('art-pvp1').value = a.pvp1 ?? '';
   document.getElementById('art-pvp2').value = a.pvp2 ?? '';
   document.getElementById('art-iva_pct').value = a.iva_pct ?? 10;
+  CAMPOS_ARTICULO_LIBRES.forEach((c) => { document.getElementById(`art-${c}`).value = a[c] || ''; });
+  // Estos dos llevan un valor por defecto en vez de vacío, igual que el HTML actual.
+  document.getElementById('art-barco').value = a.barco || 'VARIOS BARCOS';
+  document.getElementById('art-peso_etiqueta').value = a.peso_etiqueta || 'VER CAJA';
+  document.getElementById('art-forma_obtencion').value = a.forma_obtencion || 'CAPTURADO';
   document.getElementById('titulo-form-articulo').textContent = `Editando: ${a.descripcion || a.codigo}`;
   document.getElementById('btn-cancelar-articulo').style.display = '';
 }
@@ -320,10 +344,13 @@ function limpiarFormularioArticulo() {
   document.getElementById('art-id').value = '';
   document.getElementById('art-codigo').value = '';
   document.getElementById('art-descripcion').value = '';
-  document.getElementById('art-tipo').value = '';
   document.getElementById('art-pvp1').value = '';
   document.getElementById('art-pvp2').value = '';
   document.getElementById('art-iva_pct').value = 10;
+  CAMPOS_ARTICULO_LIBRES.forEach((c) => { document.getElementById(`art-${c}`).value = ''; });
+  document.getElementById('art-barco').value = 'VARIOS BARCOS';
+  document.getElementById('art-peso_etiqueta').value = 'VER CAJA';
+  document.getElementById('art-forma_obtencion').value = 'CAPTURADO';
   document.getElementById('titulo-form-articulo').textContent = 'Nuevo artículo';
   document.getElementById('btn-cancelar-articulo').style.display = 'none';
 }
@@ -333,11 +360,14 @@ document.getElementById('btn-guardar-articulo').addEventListener('click', async 
   const cuerpo = {
     codigo: document.getElementById('art-codigo').value.trim(),
     descripcion: document.getElementById('art-descripcion').value.trim(),
-    tipo: document.getElementById('art-tipo').value.trim(),
     pvp1: document.getElementById('art-pvp1').value || null,
     pvp2: document.getElementById('art-pvp2').value || null,
     iva_pct: document.getElementById('art-iva_pct').value || 10,
   };
+  CAMPOS_ARTICULO_LIBRES.forEach((c) => { cuerpo[c] = document.getElementById(`art-${c}`).value.trim(); });
+  cuerpo.barco = document.getElementById('art-barco').value.trim() || 'VARIOS BARCOS';
+  cuerpo.peso_etiqueta = document.getElementById('art-peso_etiqueta').value.trim() || 'VER CAJA';
+  cuerpo.forma_obtencion = document.getElementById('art-forma_obtencion').value.trim() || 'CAPTURADO';
   if (!cuerpo.codigo || !cuerpo.descripcion) { mostrarMensaje('Artículo: hace falta código y descripción.', 'error'); return; }
   const res = await apiFetch(id ? `/articulos/${id}` : '/articulos', {
     method: id ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cuerpo),

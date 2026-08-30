@@ -75,6 +75,35 @@ async function verificarClientesMuestra() {
   }
 }
 
+// Añadido tras encontrar que la migracion se dejaba el campo `calibre` de
+// articulos sin traer (152 de 154 articulos reales lo tenian en el backup) -
+// no habia ninguna comprobacion campo a campo de articulos, solo de conteo.
+// Esta funcion existe para que ese tipo de fallo (una columna entera que se
+// migra en blanco) no pueda volver a pasar desapercibido.
+async function verificarArticulosMuestra() {
+  console.log('\nMuestra de artículos (campo a campo):');
+  const idx = muestraRepresentativa(backup.articulos, 20);
+  for (const i of idx) {
+    const a = backup.articulos[i];
+    const { rows } = await pool.query('SELECT * FROM articulos WHERE codigo = $1', [a.codigo]);
+    if (!rows.length) { fail(`articulo ${a.codigo} no encontrado en BD`); continue; }
+    const r = rows[0];
+    const campos = [
+      ['descripcion', a.descripcion, r.descripcion], ['tipo', a.tipo, r.tipo],
+      ['pvp1', a.pvp1, r.pvp1], ['pvp2', a.pvp2, r.pvp2], ['calibre', a.calibre, r.calibre],
+      ['cientifico', a.cientifico, r.cientifico], ['zonaFao', a.zonaFao, r.zona_fao],
+      ['subzona', a.subzona, r.subzona], ['artePesca', a.artePesca, r.arte_pesca],
+      ['barco', a.barco, r.barco], ['pesoEtiqueta', a.pesoEtiqueta, r.peso_etiqueta],
+      ['modoPresentacion', a.modoPresentacion, r.modo_presentacion],
+      ['formaObtencion', a.formaObtencion, r.forma_obtencion],
+      ['nombreFrances', a.nombreFrances, r.nombre_frances], ['nombreItaliano', a.nombreItaliano, r.nombre_italiano],
+    ];
+    const malos = campos.filter(([, av, bv]) => !casiIgual(av, bv));
+    if (malos.length) fail(`articulo ${a.codigo}: difiere en ${malos.map((m) => m[0]).join(', ')}`);
+    else ok(`articulo ${a.codigo} coincide`);
+  }
+}
+
 async function verificarComprasIntegridad() {
   console.log('\nVerificacion especifica de compras (dato sagrado):');
   const idx = muestraRepresentativa(backup.compras, 20);
@@ -134,6 +163,7 @@ async function main() {
   await verificarConteo('pedido_lineas', { length: lineasPedidoBackup }, 'SELECT count(*) n FROM pedido_lineas');
 
   await verificarClientesMuestra();
+  await verificarArticulosMuestra();
   await verificarComprasIntegridad();
 
   console.log('\n=== Resultado ===');

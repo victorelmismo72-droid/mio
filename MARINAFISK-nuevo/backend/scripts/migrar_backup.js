@@ -87,14 +87,14 @@ async function migrarArticulos(client) {
   for (const a of backup.articulos || []) {
     const ts = a._modTimestamp || null;
     await client.query(
-      `INSERT INTO articulos (codigo, descripcion, tipo, pvp1, pvp2, iva_pct,
+      `INSERT INTO articulos (codigo, descripcion, tipo, pvp1, pvp2, iva_pct, calibre,
                                cientifico, zona_fao, subzona, arte_pesca, barco,
                                peso_etiqueta, modo_presentacion, forma_obtencion,
                                nombre_frances, nombre_italiano, creado_en, modificado_en)
-       VALUES ($1,$2,$3,$4,$5,COALESCE($6,10),$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,
-               COALESCE($17::timestamptz, now()), COALESCE($17::timestamptz, now()))`,
+       VALUES ($1,$2,$3,$4,$5,COALESCE($6,10),$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,
+               COALESCE($18::timestamptz, now()), COALESCE($18::timestamptz, now()))`,
       [a.codigo, a.descripcion || null, a.tipo || null, numOrNull(a.pvp1), numOrNull(a.pvp2),
-        numOrNull(a.iva), a.cientifico || null, a.zonaFao || null, a.subzona || null,
+        numOrNull(a.iva), a.calibre || null, a.cientifico || null, a.zonaFao || null, a.subzona || null,
         a.artePesca || null, a.barco || null, a.pesoEtiqueta || null, a.modoPresentacion || null,
         a.formaObtencion || null, a.nombreFrances || null, a.nombreItaliano || null, ts]
     );

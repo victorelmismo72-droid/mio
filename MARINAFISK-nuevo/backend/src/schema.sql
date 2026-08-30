@@ -49,6 +49,7 @@ CREATE TABLE articulos (
   pvp1              NUMERIC,
   pvp2              NUMERIC,
   iva_pct           NUMERIC NOT NULL DEFAULT 10,
+  calibre           TEXT,
   cientifico        TEXT,
   zona_fao          TEXT,
   subzona           TEXT,

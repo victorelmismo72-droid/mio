@@ -53,7 +53,13 @@ Probado con datos reales: filtrado el día 25/08/2026 (18 pedidos), marcados 3 a
 
 Probado con datos reales: pedido 13692 renumerado a 99999 (éxito, confirmado en la tabla), intento de renumerarlo a 13691 (ya usado por otro pedido — rechazado con mensaje claro), devuelto a 13692. Lo mismo con un traspaso real (27 → 999 → 27). Verificado con `npm run verify` tras cada prueba: 0 discrepancias.
 
-**No construidas todavía**, de menor prioridad confirmada por Víctor: listas de precio y completar el alta de artículos en Catálogos con científico/zona FAO/etc.
+**Completar el alta/edición de artículos en Catálogos** (30/08/2026): el formulario solo tenía código/descripción/tipo/PVP1/PVP2/IVA — le faltaban todos los campos de trazabilidad y etiquetas (científico, zona FAO, subzona, arte de pesca, barco, peso de etiqueta, calibre, modo de presentación, forma de obtención, nombre en francés/italiano), que ya usan las etiquetas y Reparto Super pero que hasta ahora solo se podían ver, nunca editar ni dar de alta para un artículo nuevo. Añadidos todos, con los mismos valores por defecto que el HTML actual (barco "VARIOS BARCOS", peso de etiqueta "VER CAJA", forma de obtención "CAPTURADO").
+
+**De rebote, al completar este formulario se encontró un fallo real de migración**: el campo `calibre` nunca se había traído de la Fase 1 (ver `VERIFICACION_FASE_1.md` punto 8) — 152 de 154 artículos reales lo tenían y se estaba perdiendo. Corregido de raíz (esquema, script de migración, y una comprobación nueva campo a campo de artículos que no existía) y recuperado el dato real de los 152 artículos desde el mismo backup, sin volver a migrar nada desde cero.
+
+Probado contra un artículo real (C650, ABADEJO RIA): todos los campos cargan con su valor real (incluido `calibre: 3`, antes vacío), editado uno a propósito, guardado, recargada la página y confirmado que persiste, devuelto a su valor original. Verificado con `npm run verify` (con la nueva comprobación de artículos incluida): 0 discrepancias.
+
+**No construida todavía**, de menor prioridad confirmada por Víctor: la pantalla de listas de precio.
 
 ## 2. Un principio de diseño importante para la agilidad (Fase 4 punto 2)
 
