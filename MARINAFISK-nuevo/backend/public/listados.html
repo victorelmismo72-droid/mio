@@ -20,7 +20,7 @@
           <option value="compras-por-proveedor">Compras por proveedor</option>
           <option value="rentabilidad-partidas">Rentabilidad por partida</option>
           <option value="margenes-por-articulo">Márgenes por artículo</option>
-          <option value="movimiento-producto">Movimiento de producto (pedidos + traspasos)</option>
+          <option value="movimiento-producto">Movimiento de producto (ventas)</option>
           <option value="stock-actual">Stock actual</option>
           <option value="clientes-sin-actividad">Clientes sin actividad reciente</option>
         </select>
@@ -28,6 +28,9 @@
       <div id="campo-desde"><label for="l-desde">Desde</label><input type="date" id="l-desde"></div>
       <div id="campo-hasta"><label for="l-hasta">Hasta</label><input type="date" id="l-hasta"></div>
       <div id="campo-dias" style="display:none;"><label for="l-dias">Días sin actividad</label><input type="number" id="l-dias" value="90"></div>
+      <div id="campo-incluir-traspasos" style="display:none;align-items:flex-end;">
+        <label style="font-size:0.85rem;"><input type="checkbox" id="l-incluir-traspasos"> Incluir traspasos a Zaragoza (estadística, no es venta)</label>
+      </div>
       <div style="display:flex;align-items:flex-end;gap:0.5rem;">
         <button type="button" class="btn" id="btn-consultar">Consultar</button>
         <button type="button" class="btn secundario" id="btn-exportar">⬇️ Exportar CSV</button>
@@ -53,6 +56,7 @@ function actualizarCamposFiltro() {
   document.getElementById('campo-desde').style.display = usaFecha(tipo) ? '' : 'none';
   document.getElementById('campo-hasta').style.display = usaFecha(tipo) ? '' : 'none';
   document.getElementById('campo-dias').style.display = tipo === 'clientes-sin-actividad' ? '' : 'none';
+  document.getElementById('campo-incluir-traspasos').style.display = tipo === 'movimiento-producto' ? 'flex' : 'none';
 }
 
 function construirQuery(formato) {
@@ -63,6 +67,13 @@ function construirQuery(formato) {
     if (document.getElementById('l-hasta').value) params.set('hasta', document.getElementById('l-hasta').value);
   }
   if (tipo === 'clientes-sin-actividad') params.set('dias', document.getElementById('l-dias').value || 90);
+  // Por defecto el movimiento de producto es solo ventas reales - los
+  // traspasos a Zaragoza solo se piden si se marca la casilla, y llegan
+  // siempre como categoría aparte, nunca mezclados en el mismo total
+  // (informe de Víctor, 02/09/2026, punto 3).
+  if (tipo === 'movimiento-producto' && document.getElementById('l-incluir-traspasos').checked) {
+    params.set('incluirTraspasos', '1');
+  }
   if (formato) params.set('formato', formato);
   return `/listados/${tipo}?${params.toString()}`;
 }
@@ -108,7 +119,12 @@ async function descargarCsv() {
 const PALABRAS_CANTIDAD = ['kilos', 'kg', 'total', 'importe', 'coste', 'base', 'iva', 'margen', 'num_', 'cajas', 'peso', 'rentabilidad', 'vendido', 'facturado', 'disponibles', 'comprados'];
 function esColumnaCantidad(c) { return PALABRAS_CANTIDAD.some((p) => c.includes(p)); }
 function esValorNumerico(c, v) { return esColumnaCantidad(c) && v !== null && v !== '' && !isNaN(Number(v)) && typeof v !== 'boolean'; }
-function esFilaTotal(f) { return f.numero === 'TOTAL'; }
+// La fila de totales se reconoce por `numero === 'TOTAL'` (listado
+// "Pedidos detalle") o, en "Movimiento de producto", por el campo `tipo`
+// empezando por "TOTAL" - ahí puede haber hasta tres (ventas, traspasos y
+// pescado movido), nunca solo una fusionada (punto 3 del informe de
+// Víctor, 02/09/2026).
+function esFilaTotal(f) { return f.numero === 'TOTAL' || (typeof f.tipo === 'string' && f.tipo.startsWith('TOTAL')); }
 function formatearCelda(c, v, esTotal) {
   if (esTotal && (v === '' || v === null)) return '';
   if (c === 'fecha' || c.endsWith('_en')) return fmtFecha(v);

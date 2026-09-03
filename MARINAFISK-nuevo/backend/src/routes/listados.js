@@ -188,27 +188,69 @@ router.get('/clientes-sin-actividad', async (req, res, next) => {
 
 // Listado de movimiento de producto por fecha: pedidos + traspasos (nunca
 // repartos - ver Fase 0 punto 9).
+// Listado de movimiento de producto por fecha: por defecto SOLO ventas
+// reales (pedidos) - nunca repartos (ver Fase 0 punto 9). Los traspasos a
+// Zaragoza son movimiento de producto real pero no son una venta fiscal,
+// así que solo se incluyen si se pide explícitamente (?incluirTraspasos=1)
+// y siempre como una categoría aparte, nunca mezclados en el mismo total
+// (informe de Víctor, 02/09/2026, punto 3 - mismo criterio ya aplicado en
+// el HTML actual al buscador de artículos del historial): la columna
+// `tipo` distingue cada fila, y al final se añaden tres totales separados
+// en vez de uno solo - Ventas reales (kg + importe), Traspasado a Zaragoza
+// (solo kg, no es venta) y Total pescado movido (kg, suma de ambos, solo
+// para estadística).
 router.get('/movimiento-producto', async (req, res, next) => {
   try {
     const [desde, hasta] = rangoFechas(req);
-    const { rows } = await pool.query(
-      `SELECT m.fecha, m.articulo_codigo, max(coalesce(a.descripcion, m.descripcion)) AS articulo_descripcion,
-              sum(m.peso) AS kilos, sum(m.importe) AS importe
-       FROM (
-         SELECT p.fecha, pl.articulo_codigo AS articulo_codigo, pl.descripcion AS descripcion, pl.peso AS peso, pl.total AS importe
-         FROM pedidos p JOIN pedido_lineas pl ON pl.pedido_id = p.id
-         WHERE p.fecha BETWEEN $1 AND $2
-         UNION ALL
-         SELECT t.fecha, tl.articulo_codigo AS articulo_codigo, tl.descripcion AS descripcion, tl.peso AS peso, 0 AS importe
-         FROM traspasos t JOIN traspaso_lineas tl ON tl.traspaso_id = t.id
-         WHERE t.fecha BETWEEN $1 AND $2
-       ) m
-       LEFT JOIN articulos a ON a.codigo = m.articulo_codigo
-       GROUP BY m.fecha, m.articulo_codigo
-       ORDER BY m.fecha, m.articulo_codigo`,
+    const incluirTraspasos = req.query.incluirTraspasos === '1' || req.query.incluirTraspasos === 'true';
+
+    const { rows: ventas } = await pool.query(
+      `SELECT p.fecha, pl.articulo_codigo AS articulo_codigo,
+              max(coalesce(a.descripcion, pl.descripcion)) AS articulo_descripcion,
+              sum(pl.peso) AS kilos, sum(pl.total) AS importe
+       FROM pedidos p JOIN pedido_lineas pl ON pl.pedido_id = p.id
+       LEFT JOIN articulos a ON a.codigo = pl.articulo_codigo
+       WHERE p.fecha BETWEEN $1 AND $2
+       GROUP BY p.fecha, pl.articulo_codigo
+       ORDER BY p.fecha, pl.articulo_codigo`,
       [desde, hasta]
     );
-    responderListado(req, res, rows);
+    const totalVentasKg = ventas.reduce((s, r) => s + Number(r.kilos || 0), 0);
+    const totalVentasImporte = ventas.reduce((s, r) => s + Number(r.importe || 0), 0);
+    let filas = ventas.map((r) => ({
+      fecha: r.fecha, tipo: 'VENTA', articulo_codigo: r.articulo_codigo,
+      articulo_descripcion: r.articulo_descripcion, kilos: r.kilos, importe: r.importe,
+    }));
+
+    let totalTraspasosKg = 0;
+    if (incluirTraspasos) {
+      const { rows: traspasos } = await pool.query(
+        `SELECT t.fecha, tl.articulo_codigo AS articulo_codigo,
+                max(coalesce(a.descripcion, tl.descripcion)) AS articulo_descripcion,
+                sum(tl.peso) AS kilos
+         FROM traspasos t JOIN traspaso_lineas tl ON tl.traspaso_id = t.id
+         LEFT JOIN articulos a ON a.codigo = tl.articulo_codigo
+         WHERE t.fecha BETWEEN $1 AND $2
+         GROUP BY t.fecha, tl.articulo_codigo
+         ORDER BY t.fecha, tl.articulo_codigo`,
+        [desde, hasta]
+      );
+      totalTraspasosKg = traspasos.reduce((s, r) => s + Number(r.kilos || 0), 0);
+      const filasTraspaso = traspasos.map((r) => ({
+        fecha: r.fecha, tipo: 'TRASPASO A ZARAGOZA (interno, no es venta)', articulo_codigo: r.articulo_codigo,
+        articulo_descripcion: r.articulo_descripcion, kilos: r.kilos, importe: null,
+      }));
+      filas = filas.concat(filasTraspaso).sort((a, b) => (a.fecha < b.fecha ? -1 : a.fecha > b.fecha ? 1 : 0));
+    }
+
+    if (filas.length) {
+      filas.push({ fecha: '', tipo: 'TOTAL VENTAS REALES', articulo_codigo: '', articulo_descripcion: '', kilos: totalVentasKg, importe: totalVentasImporte });
+      if (incluirTraspasos) {
+        filas.push({ fecha: '', tipo: 'TOTAL TRASPASADO A ZARAGOZA (no es venta)', articulo_codigo: '', articulo_descripcion: '', kilos: totalTraspasosKg, importe: null });
+        filas.push({ fecha: '', tipo: 'TOTAL PESCADO MOVIDO (venta + traspasos)', articulo_codigo: '', articulo_descripcion: '', kilos: totalVentasKg + totalTraspasosKg, importe: null });
+      }
+    }
+    responderListado(req, res, filas);
   } catch (err) { next(err); }
 });
 

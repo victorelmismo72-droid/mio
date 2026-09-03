@@ -1,6 +1,7 @@
 const express = require('express');
 const { pool, registrarAuditoria } = require('../db');
 const { calcularLineaCompra } = require('../negocio/calculoCompras');
+const { bloquearGrabacionDuplicada } = require('../negocio/bloqueoGrabado');
 
 // Compras = dato sagrado (Fase 0 punto 3). Este router SOLO expone lectura
 // y creacion. No hay PUT ni DELETE - ni siquiera a nivel de API - y ademas
@@ -38,7 +39,7 @@ router.get('/:id', async (req, res, next) => {
 // Fase 0 punto 2 y Fase 2 punto 1/2) - nunca se confia en un op2/iva/
 // baseReal que venga ya calculado desde el cliente, precisamente para no
 // repetir el fallo historico de formula congelada.
-router.post('/', async (req, res, next) => {
+router.post('/', bloquearGrabacionDuplicada('compras'), async (req, res, next) => {
   const client = await pool.connect();
   try {
     const {

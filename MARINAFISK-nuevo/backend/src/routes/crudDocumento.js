@@ -1,5 +1,6 @@
 const express = require('express');
 const { pool, registrarAuditoria, vacioComoNull } = require('../db');
+const { bloquearGrabacionDuplicada } = require('../negocio/bloqueoGrabado');
 
 // `fecha` siempre es texto local 'AAAA-MM-DD' - nunca convertir con
 // Date/UTC para sacar el ano (Fase 0 punto 7).
@@ -43,7 +44,7 @@ function crudDocumento({ tabla, tablaLineas, columnasCabecera, columnasLinea, fk
     } catch (err) { next(err); }
   });
 
-  router.post('/', async (req, res, next) => {
+  router.post('/', bloquearGrabacionDuplicada(tabla), async (req, res, next) => {
     const client = await pool.connect();
     try {
       const { lineas = [] } = req.body;
@@ -96,7 +97,7 @@ function crudDocumento({ tabla, tablaLineas, columnasCabecera, columnasLinea, fk
   // el mismo numero, ver funcion grabarPedido). Antes esto solo tocaba la
   // cabecera - las lineas nuevas nunca llegaban a guardarse, aunque no
   // hubiera pantalla todavia que lo intentara.
-  router.put('/:id', async (req, res, next) => {
+  router.put('/:id', bloquearGrabacionDuplicada(tabla), async (req, res, next) => {
     const client = await pool.connect();
     try {
       const { lineas = [] } = req.body;
