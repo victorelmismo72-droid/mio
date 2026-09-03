@@ -1,0 +1,391 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>MARINAFISK — Catálogos</title>
+<link rel="stylesheet" href="app.css">
+<style>
+  .pestañas { display: flex; gap: 0.4rem; margin-bottom: 1.2rem; }
+  .pestañas button { padding: 0.5rem 1.1rem; border: none; border-radius: 6px 6px 0 0; background: #e4e9e7; cursor: pointer; font-size: 0.92rem; }
+  .pestañas button.activa { background: #fff; font-weight: 600; box-shadow: 0 -2px 0 #2f7d64 inset; }
+  .seccion { display: none; }
+  .seccion.activa { display: block; }
+  tr.fila-clic { cursor: pointer; }
+  tr.fila-clic:hover { background: #f4f6f5; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Catálogos</h1>
+  <p class="ayuda">Alta y edición de clientes, proveedores y artículos. Para marcar solo la clasificación fiscal rápido, usa <a href="fiscal.html">Clasificación fiscal</a>.</p>
+  <div id="mensaje"></div>
+
+  <div class="pestañas">
+    <button data-tab="clientes" class="activa">Clientes</button>
+    <button data-tab="proveedores">Proveedores</button>
+    <button data-tab="articulos">Artículos</button>
+  </div>
+
+  <!-- ===== CLIENTES ===== -->
+  <section id="tab-clientes" class="seccion activa">
+    <div class="tarjeta">
+      <h2 style="margin-top:0;" id="titulo-form-cliente">Nuevo cliente</h2>
+      <input type="hidden" id="cli-id">
+      <div class="fila-form">
+        <div><label>Código</label><input type="text" id="cli-codigo"></div>
+        <div><label>Nombre</label><input type="text" id="cli-nombre"></div>
+        <div><label>CIF</label><input type="text" id="cli-cif"></div>
+        <div><label>Teléfono</label><input type="text" id="cli-telefono"></div>
+        <div><label>Email</label><input type="text" id="cli-email"></div>
+      </div>
+      <div class="fila-form">
+        <div><label>Dirección</label><input type="text" id="cli-direccion"></div>
+        <div><label>CP</label><input type="text" id="cli-cp"></div>
+        <div><label>Población</label><input type="text" id="cli-poblacion"></div>
+        <div><label>Provincia</label><input type="text" id="cli-provincia"></div>
+      </div>
+      <div class="fila-form">
+        <div><label>Forma de pago</label><input type="text" id="cli-forma_pago" value="CONTADO"></div>
+        <div><label>Agencia</label><input type="text" id="cli-agencia"></div>
+        <div>
+          <label>Clasificación fiscal</label>
+          <select id="cli-tipo_iva"><option value="NACIONAL">Nacional</option><option value="INTRACOMUNITARIO">Intracomunitario</option></select>
+        </div>
+        <div style="display:flex;align-items:flex-end;gap:0.4rem;">
+          <label style="margin:0;"><input type="checkbox" id="cli-recargo"> Recargo de Equivalencia</label>
+        </div>
+      </div>
+      <button type="button" class="btn" id="btn-guardar-cliente">Guardar</button>
+      <button type="button" class="btn secundario" id="btn-cancelar-cliente" style="display:none;">Cancelar edición</button>
+    </div>
+    <input type="text" id="filtro-clientes" placeholder="Buscar por código o nombre...">
+    <div class="tabla-envoltorio">
+      <table id="tabla-clientes">
+        <thead><tr><th>Código</th><th>Nombre</th><th>Teléfono</th><th>Población</th><th>Fiscal</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ===== PROVEEDORES ===== -->
+  <section id="tab-proveedores" class="seccion">
+    <div class="tarjeta">
+      <h2 style="margin-top:0;" id="titulo-form-proveedor">Nuevo proveedor</h2>
+      <input type="hidden" id="prov-id">
+      <div class="fila-form">
+        <div><label>Código</label><input type="text" id="prov-codigo"></div>
+        <div><label>Nombre</label><input type="text" id="prov-nombre"></div>
+        <div>
+          <label>Clasificación fiscal</label>
+          <select id="prov-tipo_iva"><option value="NACIONAL">Nacional</option><option value="INTRACOMUNITARIO">Intracomunitario</option></select>
+        </div>
+        <div style="display:flex;align-items:flex-end;gap:0.4rem;">
+          <label style="margin:0;"><input type="checkbox" id="prov-subasta"> Subasta/Lonja (2% OP)</label>
+        </div>
+        <div><label>Notas</label><input type="text" id="prov-notas"></div>
+      </div>
+      <button type="button" class="btn" id="btn-guardar-proveedor">Guardar</button>
+      <button type="button" class="btn secundario" id="btn-cancelar-proveedor" style="display:none;">Cancelar edición</button>
+    </div>
+    <input type="text" id="filtro-proveedores" placeholder="Buscar por código o nombre...">
+    <div class="tabla-envoltorio">
+      <table id="tabla-proveedores">
+        <thead><tr><th>Código</th><th>Nombre</th><th>Subasta</th><th>Fiscal</th><th>Notas</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ===== ARTICULOS ===== -->
+  <section id="tab-articulos" class="seccion">
+    <div class="tarjeta">
+      <h2 style="margin-top:0;" id="titulo-form-articulo">Nuevo artículo</h2>
+      <input type="hidden" id="art-id">
+      <div class="fila-form">
+        <div><label>Código</label><input type="text" id="art-codigo"></div>
+        <div style="flex:2;"><label>Descripción</label><input type="text" id="art-descripcion"></div>
+        <div><label>Tipo</label><input type="text" id="art-tipo" placeholder="FRESCO / CONGELADO..."></div>
+        <div><label>PVP1</label><input type="number" step="0.01" id="art-pvp1"></div>
+        <div><label>PVP2</label><input type="number" step="0.01" id="art-pvp2"></div>
+        <div><label>IVA %</label><input type="number" step="0.01" id="art-iva_pct" value="10"></div>
+        <div><label>Calibre</label><input type="text" id="art-calibre" placeholder="ej. 3"></div>
+      </div>
+      <h3>Datos para etiquetas y trazabilidad</h3>
+      <p class="ayuda">Se usan al imprimir etiquetas, Reparto Super y la traza del albarán — rellénalos aunque no imprimas hoy, porque ya se guardan con cada artículo.</p>
+      <div class="fila-form">
+        <div style="flex:2;"><label>Nombre científico</label><input type="text" id="art-cientifico" placeholder="ej. Merluccius merluccius"></div>
+        <div><label>Zona FAO</label><input type="text" id="art-zona_fao" placeholder="ej. FAO 27"></div>
+        <div><label>Subzona</label><input type="text" id="art-subzona" placeholder="ej. VIIIc"></div>
+        <div><label>Arte de pesca</label><input type="text" id="art-arte_pesca" placeholder="ej. ARRASTRE"></div>
+        <div><label>Barco</label><input type="text" id="art-barco" placeholder="VARIOS BARCOS"></div>
+      </div>
+      <div class="fila-form">
+        <div><label>Peso de etiqueta</label><input type="text" id="art-peso_etiqueta" placeholder="VER CAJA (o un peso fijo, ej. 6 kg)"></div>
+        <div><label>Modo de presentación</label><input type="text" id="art-modo_presentacion" placeholder="ej. C/C"></div>
+        <div><label>Forma de obtención</label><input type="text" id="art-forma_obtencion" placeholder="CAPTURADO"></div>
+        <div style="flex:2;"><label>Nombre en francés</label><input type="text" id="art-nombre_frances"></div>
+        <div style="flex:2;"><label>Nombre en italiano</label><input type="text" id="art-nombre_italiano"></div>
+      </div>
+      <button type="button" class="btn" id="btn-guardar-articulo">Guardar</button>
+      <button type="button" class="btn secundario" id="btn-cancelar-articulo" style="display:none;">Cancelar edición</button>
+    </div>
+    <input type="text" id="filtro-articulos" placeholder="Buscar por código o descripción...">
+    <div class="tabla-envoltorio">
+      <table id="tabla-articulos">
+        <thead><tr><th>Código</th><th>Descripción</th><th>Tipo</th><th class="num">PVP1</th><th class="num">PVP2</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+</main>
+
+<script src="app.js"></script>
+<script>
+const usuario = protegerPagina();
+
+function mostrarMensaje(texto, tipo) {
+  document.getElementById('mensaje').innerHTML = `<div class="mensaje ${tipo}">${texto}</div>`;
+}
+
+document.querySelectorAll('.pestañas button').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.pestañas button').forEach((b) => b.classList.toggle('activa', b === btn));
+    document.querySelectorAll('.seccion').forEach((s) => s.classList.toggle('activa', s.id === `tab-${btn.dataset.tab}`));
+  });
+});
+
+// ---------- CLIENTES ----------
+let clientes = [];
+async function cargarClientes() {
+  const res = await apiFetch('/clientes');
+  clientes = await res.json();
+  aplicarFiltroClientes();
+}
+function aplicarFiltroClientes() {
+  const t = document.getElementById('filtro-clientes').value.trim().toLowerCase();
+  pintarClientes(t ? clientes.filter((c) => (c.codigo || '').toLowerCase().includes(t) || (c.nombre || '').toLowerCase().includes(t)) : clientes);
+}
+function pintarClientes(lista) {
+  document.querySelector('#tabla-clientes tbody').innerHTML = lista.map((c) => `
+    <tr class="fila-clic" data-id="${c.id}">
+      <td>${c.codigo}</td><td>${c.nombre || ''}</td><td>${c.telefono || ''}</td><td>${c.poblacion || ''}</td>
+      <td>${c.tipo_iva === 'INTRACOMUNITARIO' ? 'Intracom.' : 'Nacional'}${c.recargo_equivalencia ? ' +RE' : ''}</td>
+    </tr>`).join('');
+  document.querySelectorAll('#tabla-clientes tr[data-id]').forEach((tr) => {
+    tr.addEventListener('click', () => cargarClienteEnFormulario(Number(tr.dataset.id)));
+  });
+}
+function cargarClienteEnFormulario(id) {
+  const c = clientes.find((x) => x.id === id);
+  if (!c) return;
+  document.getElementById('cli-id').value = c.id;
+  document.getElementById('cli-codigo').value = c.codigo || '';
+  document.getElementById('cli-nombre').value = c.nombre || '';
+  document.getElementById('cli-cif').value = c.cif || '';
+  document.getElementById('cli-telefono').value = c.telefono || '';
+  document.getElementById('cli-email').value = c.email || '';
+  document.getElementById('cli-direccion').value = c.direccion || '';
+  document.getElementById('cli-cp').value = c.cp || '';
+  document.getElementById('cli-poblacion').value = c.poblacion || '';
+  document.getElementById('cli-provincia').value = c.provincia || '';
+  document.getElementById('cli-forma_pago').value = c.forma_pago || '';
+  document.getElementById('cli-agencia').value = c.agencia || '';
+  document.getElementById('cli-tipo_iva').value = c.tipo_iva || 'NACIONAL';
+  document.getElementById('cli-recargo').checked = !!c.recargo_equivalencia;
+  document.getElementById('titulo-form-cliente').textContent = `Editando: ${c.nombre || c.codigo}`;
+  document.getElementById('btn-cancelar-cliente').style.display = '';
+}
+function limpiarFormularioCliente() {
+  document.getElementById('cli-id').value = '';
+  ['codigo', 'nombre', 'cif', 'telefono', 'email', 'direccion', 'cp', 'poblacion', 'provincia', 'agencia'].forEach((c) => { document.getElementById(`cli-${c}`).value = ''; });
+  document.getElementById('cli-forma_pago').value = 'CONTADO';
+  document.getElementById('cli-tipo_iva').value = 'NACIONAL';
+  document.getElementById('cli-recargo').checked = false;
+  document.getElementById('titulo-form-cliente').textContent = 'Nuevo cliente';
+  document.getElementById('btn-cancelar-cliente').style.display = 'none';
+}
+document.getElementById('btn-cancelar-cliente').addEventListener('click', limpiarFormularioCliente);
+document.getElementById('btn-guardar-cliente').addEventListener('click', async () => {
+  const id = document.getElementById('cli-id').value;
+  const cuerpo = {
+    codigo: document.getElementById('cli-codigo').value.trim(),
+    nombre: document.getElementById('cli-nombre').value.trim(),
+    cif: document.getElementById('cli-cif').value.trim(),
+    telefono: document.getElementById('cli-telefono').value.trim(),
+    email: document.getElementById('cli-email').value.trim(),
+    direccion: document.getElementById('cli-direccion').value.trim(),
+    cp: document.getElementById('cli-cp').value.trim(),
+    poblacion: document.getElementById('cli-poblacion').value.trim(),
+    provincia: document.getElementById('cli-provincia').value.trim(),
+    forma_pago: document.getElementById('cli-forma_pago').value.trim(),
+    agencia: document.getElementById('cli-agencia').value.trim(),
+    tipo_iva: document.getElementById('cli-tipo_iva').value,
+    recargo_equivalencia: document.getElementById('cli-recargo').checked,
+  };
+  if (!cuerpo.codigo || !cuerpo.nombre) { mostrarMensaje('Cliente: hace falta código y nombre.', 'error'); return; }
+  const res = await apiFetch(id ? `/clientes/${id}` : '/clientes', {
+    method: id ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cuerpo),
+  });
+  const datos = await res.json();
+  if (!res.ok) { mostrarMensaje(`Cliente: ${datos.error}`, 'error'); return; }
+  mostrarMensaje(`Cliente "${datos.nombre}" guardado.`, 'ok');
+  limpiarFormularioCliente();
+  cargarClientes();
+});
+document.getElementById('filtro-clientes').addEventListener('input', aplicarFiltroClientes);
+
+// ---------- PROVEEDORES ----------
+let proveedores = [];
+async function cargarProveedores() {
+  const res = await apiFetch('/proveedores');
+  proveedores = await res.json();
+  aplicarFiltroProveedores();
+}
+function aplicarFiltroProveedores() {
+  const t = document.getElementById('filtro-proveedores').value.trim().toLowerCase();
+  pintarProveedores(t ? proveedores.filter((p) => (p.codigo || '').toLowerCase().includes(t) || (p.nombre || '').toLowerCase().includes(t)) : proveedores);
+}
+function pintarProveedores(lista) {
+  document.querySelector('#tabla-proveedores tbody').innerHTML = lista.map((p) => `
+    <tr class="fila-clic" data-id="${p.id}">
+      <td>${p.codigo}</td><td>${p.nombre || ''}</td><td>${p.es_subasta_op ? 'Sí' : 'No'}</td>
+      <td>${p.tipo_iva === 'INTRACOMUNITARIO' ? 'Intracom.' : 'Nacional'}</td><td>${p.notas || ''}</td>
+    </tr>`).join('');
+  document.querySelectorAll('#tabla-proveedores tr[data-id]').forEach((tr) => {
+    tr.addEventListener('click', () => cargarProveedorEnFormulario(Number(tr.dataset.id)));
+  });
+}
+function cargarProveedorEnFormulario(id) {
+  const p = proveedores.find((x) => x.id === id);
+  if (!p) return;
+  document.getElementById('prov-id').value = p.id;
+  document.getElementById('prov-codigo').value = p.codigo || '';
+  document.getElementById('prov-nombre').value = p.nombre || '';
+  document.getElementById('prov-tipo_iva').value = p.tipo_iva || 'NACIONAL';
+  document.getElementById('prov-subasta').checked = !!p.es_subasta_op;
+  document.getElementById('prov-notas').value = p.notas || '';
+  document.getElementById('titulo-form-proveedor').textContent = `Editando: ${p.nombre || p.codigo}`;
+  document.getElementById('btn-cancelar-proveedor').style.display = '';
+}
+function limpiarFormularioProveedor() {
+  document.getElementById('prov-id').value = '';
+  document.getElementById('prov-codigo').value = '';
+  document.getElementById('prov-nombre').value = '';
+  document.getElementById('prov-tipo_iva').value = 'NACIONAL';
+  document.getElementById('prov-subasta').checked = false;
+  document.getElementById('prov-notas').value = '';
+  document.getElementById('titulo-form-proveedor').textContent = 'Nuevo proveedor';
+  document.getElementById('btn-cancelar-proveedor').style.display = 'none';
+}
+document.getElementById('btn-cancelar-proveedor').addEventListener('click', limpiarFormularioProveedor);
+document.getElementById('btn-guardar-proveedor').addEventListener('click', async () => {
+  const id = document.getElementById('prov-id').value;
+  const cuerpo = {
+    codigo: document.getElementById('prov-codigo').value.trim(),
+    nombre: document.getElementById('prov-nombre').value.trim(),
+    tipo_iva: document.getElementById('prov-tipo_iva').value,
+    es_subasta_op: document.getElementById('prov-subasta').checked,
+    notas: document.getElementById('prov-notas').value.trim(),
+  };
+  if (!cuerpo.codigo || !cuerpo.nombre) { mostrarMensaje('Proveedor: hace falta código y nombre.', 'error'); return; }
+  const res = await apiFetch(id ? `/proveedores/${id}` : '/proveedores', {
+    method: id ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cuerpo),
+  });
+  const datos = await res.json();
+  if (!res.ok) { mostrarMensaje(`Proveedor: ${datos.error}`, 'error'); return; }
+  mostrarMensaje(`Proveedor "${datos.nombre}" guardado.`, 'ok');
+  limpiarFormularioProveedor();
+  cargarProveedores();
+});
+document.getElementById('filtro-proveedores').addEventListener('input', aplicarFiltroProveedores);
+
+// ---------- ARTICULOS ----------
+let articulos = [];
+async function cargarArticulos() {
+  const res = await apiFetch('/articulos');
+  articulos = await res.json();
+  aplicarFiltroArticulos();
+}
+function aplicarFiltroArticulos() {
+  const t = document.getElementById('filtro-articulos').value.trim().toLowerCase();
+  pintarArticulos(t ? articulos.filter((a) => (a.codigo || '').toLowerCase().includes(t) || (a.descripcion || '').toLowerCase().includes(t)) : articulos);
+}
+function pintarArticulos(lista) {
+  document.querySelector('#tabla-articulos tbody').innerHTML = lista.map((a) => `
+    <tr class="fila-clic" data-id="${a.id}">
+      <td>${a.codigo}</td><td>${a.descripcion || ''}</td><td>${a.tipo || ''}</td>
+      <td class="num">${a.pvp1 != null ? fmtEUR(a.pvp1) : ''}</td><td class="num">${a.pvp2 != null ? fmtEUR(a.pvp2) : ''}</td>
+    </tr>`).join('');
+  document.querySelectorAll('#tabla-articulos tr[data-id]').forEach((tr) => {
+    tr.addEventListener('click', () => cargarArticuloEnFormulario(Number(tr.dataset.id)));
+  });
+}
+// Campos de texto libre que se cargan/limpian igual (sin valor por defecto).
+const CAMPOS_ARTICULO_LIBRES = ['tipo', 'calibre', 'cientifico', 'zona_fao', 'subzona', 'arte_pesca', 'modo_presentacion', 'nombre_frances', 'nombre_italiano'];
+
+function cargarArticuloEnFormulario(id) {
+  const a = articulos.find((x) => x.id === id);
+  if (!a) return;
+  document.getElementById('art-id').value = a.id;
+  document.getElementById('art-codigo').value = a.codigo || '';
+  document.getElementById('art-descripcion').value = a.descripcion || '';
+  document.getElementById('art-pvp1').value = a.pvp1 ?? '';
+  document.getElementById('art-pvp2').value = a.pvp2 ?? '';
+  document.getElementById('art-iva_pct').value = a.iva_pct ?? 10;
+  CAMPOS_ARTICULO_LIBRES.forEach((c) => { document.getElementById(`art-${c}`).value = a[c] || ''; });
+  // Estos dos llevan un valor por defecto en vez de vacío, igual que el HTML actual.
+  document.getElementById('art-barco').value = a.barco || 'VARIOS BARCOS';
+  document.getElementById('art-peso_etiqueta').value = a.peso_etiqueta || 'VER CAJA';
+  document.getElementById('art-forma_obtencion').value = a.forma_obtencion || 'CAPTURADO';
+  document.getElementById('titulo-form-articulo').textContent = `Editando: ${a.descripcion || a.codigo}`;
+  document.getElementById('btn-cancelar-articulo').style.display = '';
+}
+function limpiarFormularioArticulo() {
+  document.getElementById('art-id').value = '';
+  document.getElementById('art-codigo').value = '';
+  document.getElementById('art-descripcion').value = '';
+  document.getElementById('art-pvp1').value = '';
+  document.getElementById('art-pvp2').value = '';
+  document.getElementById('art-iva_pct').value = 10;
+  CAMPOS_ARTICULO_LIBRES.forEach((c) => { document.getElementById(`art-${c}`).value = ''; });
+  document.getElementById('art-barco').value = 'VARIOS BARCOS';
+  document.getElementById('art-peso_etiqueta').value = 'VER CAJA';
+  document.getElementById('art-forma_obtencion').value = 'CAPTURADO';
+  document.getElementById('titulo-form-articulo').textContent = 'Nuevo artículo';
+  document.getElementById('btn-cancelar-articulo').style.display = 'none';
+}
+document.getElementById('btn-cancelar-articulo').addEventListener('click', limpiarFormularioArticulo);
+document.getElementById('btn-guardar-articulo').addEventListener('click', async () => {
+  const id = document.getElementById('art-id').value;
+  const cuerpo = {
+    codigo: document.getElementById('art-codigo').value.trim(),
+    descripcion: document.getElementById('art-descripcion').value.trim(),
+    pvp1: document.getElementById('art-pvp1').value || null,
+    pvp2: document.getElementById('art-pvp2').value || null,
+    iva_pct: document.getElementById('art-iva_pct').value || 10,
+  };
+  CAMPOS_ARTICULO_LIBRES.forEach((c) => { cuerpo[c] = document.getElementById(`art-${c}`).value.trim(); });
+  cuerpo.barco = document.getElementById('art-barco').value.trim() || 'VARIOS BARCOS';
+  cuerpo.peso_etiqueta = document.getElementById('art-peso_etiqueta').value.trim() || 'VER CAJA';
+  cuerpo.forma_obtencion = document.getElementById('art-forma_obtencion').value.trim() || 'CAPTURADO';
+  if (!cuerpo.codigo || !cuerpo.descripcion) { mostrarMensaje('Artículo: hace falta código y descripción.', 'error'); return; }
+  const res = await apiFetch(id ? `/articulos/${id}` : '/articulos', {
+    method: id ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cuerpo),
+  });
+  const datos = await res.json();
+  if (!res.ok) { mostrarMensaje(`Artículo: ${datos.error}`, 'error'); return; }
+  mostrarMensaje(`Artículo "${datos.descripcion}" guardado.`, 'ok');
+  limpiarFormularioArticulo();
+  cargarArticulos();
+});
+document.getElementById('filtro-articulos').addEventListener('input', aplicarFiltroArticulos);
+
+if (usuario) {
+  renderBarraNavegacion(usuario, 'catalogos.html');
+  cargarClientes();
+  cargarProveedores();
+  cargarArticulos();
+}
+</script>
+</body>
+</html>

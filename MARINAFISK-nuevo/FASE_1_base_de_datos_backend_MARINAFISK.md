@@ -32,9 +32,9 @@ Basadas en lo que ya existe en el localStorage del programa actual (confirmar no
 
 | Tabla | Contenido | Notas |
 |---|---|---|
-| `clientes` | Catálogo de clientes | Incluye código, nombre, tipo (pescadería/mayorista), datos de contacto |
+| `clientes` | Catálogo de clientes | Incluye código, nombre, tipo (pescadería/mayorista), datos de contacto. **Debe incluir también la clasificación fiscal del cliente: Nacional / Intracomunitario (misma distinción que proveedores, ver abajo), y por separado si tiene o no Recargo de Equivalencia** (aplicable a clientes nacionales e intracomunitarios) — este campo es indispensable para el futuro módulo de facturación (ver punto 6) |
 | `articulos` | Catálogo de productos | Código, descripción, familia/talla |
-| `proveedores` | Catálogo de proveedores | Debe incluir el campo que marca si es proveedor de subasta/lonja (relevante para el 2% de OP en Fase 2) |
+| `proveedores` | Catálogo de proveedores | Debe incluir el campo que marca si es proveedor de subasta/lonja (relevante para el 2% de OP en Fase 2). **Debe incluir también la clasificación fiscal del proveedor: Nacional / Intracomunitario** (Extra-UE queda fuera de alcance, ver punto 2.1) — esta clasificación determina el tratamiento correcto del IVA en cada compra (ver Fase 0, punto 4) |
 | `compras` | Registros de compra | **Dato sagrado — nunca se modifica una vez creado** (ver Fase 0). Diseñar la tabla para que sea difícil modificar por error, ej. sin UPDATE habilitado desde la API, solo INSERT y lectura |
 | `partidas` | Lotes de coste generados por compras | Relacionado con compras |
 | `pedidos` / `historial` | Albaranes de venta | Incluye origen (`CORU`/`PANC`) y timestamp para desempate de duplicados |
@@ -43,6 +43,20 @@ Basadas en lo que ya existe en el localStorage del programa actual (confirmar no
 | `listas_precios` | Listas Pescaderías/Mayoristas | Independientes entre sí (ver Fase 0, punto 5) |
 
 **Importante:** no inventar campos — extraer la estructura real inspeccionando el JSON del backup y el código del .html (buscar `DB.set(...)` y las claves usadas). Si algo no está claro, preguntar a Víctor antes de asumir.
+
+### 2.1 Clasificación fiscal de proveedores y clientes (importante, afecta al diseño de las tablas)
+
+Esto es nuevo respecto al programa actual y debe quedar bien reflejado en el esquema desde el principio, aunque la lógica de cálculo de IVA/recargos en sí se implemente en la Fase 2:
+
+- **Proveedores** — clasificar en una de estas categorías:
+  - Nacional
+  - Intracomunitario
+  - *(Extra-UE / fuera de Europa queda fuera del alcance del proyecto — Marinafisk no opera con este tipo de proveedores, ver Fase 0 punto 4. No es necesario incluir esta categoría en el esquema, salvo que Víctor decida en el futuro que sí aplica.)*
+- **Clientes** — dos clasificaciones independientes y combinables:
+  - Origen: Nacional / Intracomunitario
+  - Recargo de Equivalencia: Sí / No (aplicable tanto a clientes nacionales como intracomunitarios)
+
+Diseñar los campos de forma flexible (ej. catálogos/enums en vez de texto libre) para que la Fase 2 pueda construir sobre ellos las reglas correctas de IVA sin tener que rehacer el esquema.
 
 ---
 
@@ -69,7 +83,26 @@ Debe incluir también:
 
 ---
 
-## 5. Criterios de cierre de la Fase 1
+## 5. Requisito transversal de agilidad (aplica a todas las fases, no solo a esta)
+
+El Excel `GESTION_CORRECTA` es hoy la referencia de rapidez de uso para la gestión de compras. **El sistema nuevo debe ser igual de ágil o más rápido de usar que ese Excel — nunca más lento ni más tedioso.** Esto condiciona decisiones desde ya en el backend (por ejemplo: respuestas rápidas, no obligar a pasos innecesarios, permitir edición rápida tipo hoja de cálculo donde tenga sentido) y deberá verificarse explícitamente en cada fase siguiente comparando el flujo de trabajo real contra el Excel actual.
+
+Además, el sistema nuevo debe **igualar los modelos de impresión que ya existen** en el programa actual y en el Excel (fichas de envío, etiquetas, listados de compra, Transfrío, etc.) — no basta con que los datos estén bien, la salida impresa/PDF debe mantener el mismo nivel de utilidad práctica que tiene hoy.
+
+---
+
+## 6. Nuevo: módulo de facturación (no existe en el sistema actual)
+
+Marinafisk no emite facturas hoy con este sistema (el HTML actual solo genera albaranes). De cara al futuro, **el sistema nuevo debe incluir desde su diseño de base de datos la posibilidad de añadir un módulo de facturación**, aunque no se implemente por completo en esta fase ni en la siguiente:
+
+- Los campos de clasificación fiscal de clientes y proveedores (ver punto 2.1) son precisamente la base necesaria para que ese futuro módulo pueda aplicar correctamente IVA y Recargo de Equivalencia según corresponda.
+- No es necesario construir el módulo de facturación completo ahora — pero sí dejar el esquema de datos preparado (relación factura-albarán, numeración de facturas independiente de la de albaranes, series si hiciera falta) para no tener que rehacer la base de datos el día que se active.
+- **Nuevo requisito (añadido por Víctor):** el día que se active la facturación, debe ser posible **exportar esa facturación a un programa de contabilidad externo**, o bien **construir dentro del propio sistema una gestión contable básica basada en el Plan General Contable español (PGC)**. No es necesario decidir cuál de las dos opciones ahora, pero el diseño de las tablas de facturación (cuando se construyan, en su fase correspondiente) debe dejar ambas puertas abiertas: campos claros de base imponible, tipo de IVA/recargo aplicado, cliente/proveedor y fecha, que son los datos mínimos que cualquier exportación contable o integración con el PGC necesitaría. Se decidirá con más detalle en la fase en la que se construya el módulo de facturación en sí.
+- Anotar esto como una fase futura a definir con más detalle (candidata a Fase 4 o una fase propia), pero el impacto en el diseño de tablas debe considerarse ya en esta Fase 1.
+
+---
+
+## 7. Criterios de cierre de la Fase 1
 
 No pasar a la Fase 2 hasta que:
 

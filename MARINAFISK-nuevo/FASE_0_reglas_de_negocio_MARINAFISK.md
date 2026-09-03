@@ -90,9 +90,21 @@ Recoge cómo funciona HOY el programa HTML (`CARGA_DE_ALBARANES_MARINAFISK`), pa
 
 ---
 
-## 9. Pendiente de confirmar / decidir en el diseño nuevo
+## 9. Traspasos y Repartos — alcance en estadísticas y contabilidad (confirmado por Víctor, 2026-08-26)
+
+Son dos flujos distintos, con tratamiento opuesto en informes:
+
+- **Traspasos (a Zaragoza)**: fiscalmente son nulos — no son una venta, es mercancía moviéndose entre almacenes propios, sin IVA ni factura de por medio. **Pero sí deben contar en las estadísticas de cantidad/movimiento de producto** (por ejemplo, un listado de "cuánto se vendió de un producto en un día concreto" debe incluir también lo que salió por traspaso a Zaragoza, aunque no sea venta). Hoy el programa actual **no lo hace así** — es un hueco a corregir en el sistema nuevo, no un comportamiento a copiar tal cual.
+- **Reparto Super**: es mercancía que **sí se factura a un cliente** (el cliente es quien encarga hacer el reparto) — ya queda contabilizada como venta normal por esa vía. Por eso Reparto Super **no debe aparecer en ningún listado estadístico ni contable** (ni de ventas, ni de márgenes, ni de movimiento de producto): incluirlo ahí duplicaría datos que ya están contados en el pedido/factura al cliente.
+
+Esto afecta directamente al diseño de los "Listados habituales de gestión" de la Fase 2 (ver `FASE_2_logica_de_negocio_MARINAFISK.md`, punto 5bis): cualquier listado de movimiento/venta por producto o por fecha debe sumar `pedidos` + `traspasos`, y debe excluir siempre `repartos`.
+
+---
+
+## 10. Pendiente de confirmar / decidir en el diseño nuevo
 
 - [x] Tratamiento correcto del IVA en compras a proveedores extranjeros (ver punto 4) — resuelto: intracomunitario = sin IVA; no existen proveedores extracomunitarios, no hace falta tercer caso.
+- [x] Alcance de Traspasos y Repartos Super en estadísticas/contabilidad (ver punto 9) — resuelto: traspasos cuentan en estadísticas de cantidad, repartos no cuentan en ningún informe.
 - [ ] Confirmar con Víctor si hay más proveedores o casos especiales de OP aparte de "subasta/lonja marcados como tal".
 - [ ] Revisar si existen otras reglas de mermas/pérdida de peso además de la ya mencionada en cierre de partidas.
 

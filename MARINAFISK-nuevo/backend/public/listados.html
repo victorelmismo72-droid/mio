@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>MARINAFISK — Listados</title>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<main>
+  <h1>Listados de gestión</h1>
+  <p class="ayuda">Todos filtran por fecha y se pueden exportar a CSV (para Excel) o a PDF.</p>
+
+  <div class="tarjeta">
+    <div class="fila-form">
+      <div>
+        <label for="l-tipo">Listado</label>
+        <select id="l-tipo">
+          <option value="pedidos-detalle">Pedidos (detalle para contabilidad)</option>
+          <option value="ventas-por-cliente">Ventas por cliente</option>
+          <option value="compras-por-proveedor">Compras por proveedor</option>
+          <option value="rentabilidad-partidas">Rentabilidad por partida</option>
+          <option value="margenes-por-articulo">Márgenes por artículo</option>
+          <option value="movimiento-producto">Movimiento de producto (ventas)</option>
+          <option value="stock-actual">Stock actual</option>
+          <option value="clientes-sin-actividad">Clientes sin actividad reciente</option>
+        </select>
+      </div>
+      <div id="campo-desde"><label for="l-desde">Desde</label><input type="date" id="l-desde"></div>
+      <div id="campo-hasta"><label for="l-hasta">Hasta</label><input type="date" id="l-hasta"></div>
+      <div id="campo-dias" style="display:none;"><label for="l-dias">Días sin actividad</label><input type="number" id="l-dias" value="90"></div>
+      <div id="campo-incluir-traspasos" style="display:none;align-items:flex-end;">
+        <label style="font-size:0.85rem;"><input type="checkbox" id="l-incluir-traspasos"> Incluir traspasos a Zaragoza (estadística, no es venta)</label>
+      </div>
+      <div style="display:flex;align-items:flex-end;gap:0.5rem;">
+        <button type="button" class="btn" id="btn-consultar">Consultar</button>
+        <button type="button" class="btn secundario" id="btn-exportar">⬇️ Exportar CSV</button>
+        <button type="button" class="btn secundario" id="btn-exportar-pdf">⬇️ Exportar PDF</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="resultado"></div>
+</main>
+
+<script src="vendor/jspdf.umd.min.js"></script>
+<script src="vendor/jspdf.plugin.autotable.min.js"></script>
+<script src="app.js"></script>
+<script>
+const usuario = protegerPagina();
+
+function usaFecha(tipo) { return tipo !== 'clientes-sin-actividad' && tipo !== 'stock-actual'; }
+
+document.getElementById('l-tipo').addEventListener('change', actualizarCamposFiltro);
+function actualizarCamposFiltro() {
+  const tipo = document.getElementById('l-tipo').value;
+  document.getElementById('campo-desde').style.display = usaFecha(tipo) ? '' : 'none';
+  document.getElementById('campo-hasta').style.display = usaFecha(tipo) ? '' : 'none';
+  document.getElementById('campo-dias').style.display = tipo === 'clientes-sin-actividad' ? '' : 'none';
+  document.getElementById('campo-incluir-traspasos').style.display = tipo === 'movimiento-producto' ? 'flex' : 'none';
+}
+
+function construirQuery(formato) {
+  const tipo = document.getElementById('l-tipo').value;
+  const params = new URLSearchParams();
+  if (usaFecha(tipo)) {
+    if (document.getElementById('l-desde').value) params.set('desde', document.getElementById('l-desde').value);
+    if (document.getElementById('l-hasta').value) params.set('hasta', document.getElementById('l-hasta').value);
+  }
+  if (tipo === 'clientes-sin-actividad') params.set('dias', document.getElementById('l-dias').value || 90);
+  // Por defecto el movimiento de producto es solo ventas reales - los
+  // traspasos a Zaragoza solo se piden si se marca la casilla, y llegan
+  // siempre como categoría aparte, nunca mezclados en el mismo total
+  // (informe de Víctor, 02/09/2026, punto 3).
+  if (tipo === 'movimiento-producto' && document.getElementById('l-incluir-traspasos').checked) {
+    params.set('incluirTraspasos', '1');
+  }
+  if (formato) params.set('formato', formato);
+  return `/listados/${tipo}?${params.toString()}`;
+}
+
+document.getElementById('btn-consultar').addEventListener('click', async () => {
+  const cont = document.getElementById('resultado');
+  cont.innerHTML = '<p class="ayuda">Consultando...</p>';
+  try {
+    const res = await apiFetch(construirQuery());
+    const filas = await res.json();
+    pintarResultado(filas);
+  } catch (e) { cont.innerHTML = `<p class="mensaje error">${e.message}</p>`; }
+});
+
+document.getElementById('btn-exportar').addEventListener('click', () => {
+  // Se abre en pestana nueva con el token en la URL no es seguro; en vez de
+  // eso, se pide el CSV ya autenticado y se ofrece como descarga con un blob.
+  descargarCsv();
+});
+document.getElementById('btn-exportar-pdf').addEventListener('click', () => descargarPdf());
+
+async function descargarCsv() {
+  const res = await apiFetch(construirQuery('csv'));
+  const texto = await res.text();
+  const blob = new Blob([texto], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${document.getElementById('l-tipo').value}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+// Solo se formatean como cantidad (con separador de miles, alineado a la
+// derecha) las columnas que de verdad son una medida - todo lo demas que
+// "parece numero" (codigo de proveedor, telefono, numero de documento,
+// CIF...) es en realidad un identificador y se muestra tal cual, sin tocar.
+// Es mas seguro tener una lista de qué SÍ es cantidad que intentar adivinar
+// qué NO lo es. Se comparte entre la vista en pantalla y la exportación a
+// PDF para que nunca puedan mostrar cosas distintas.
+const PALABRAS_CANTIDAD = ['kilos', 'kg', 'total', 'importe', 'coste', 'base', 'iva', 'margen', 'num_', 'cajas', 'peso', 'rentabilidad', 'vendido', 'facturado', 'disponibles', 'comprados'];
+function esColumnaCantidad(c) { return PALABRAS_CANTIDAD.some((p) => c.includes(p)); }
+function esValorNumerico(c, v) { return esColumnaCantidad(c) && v !== null && v !== '' && !isNaN(Number(v)) && typeof v !== 'boolean'; }
+// La fila de totales se reconoce por `numero === 'TOTAL'` (listado
+// "Pedidos detalle") o, en "Movimiento de producto", por el campo `tipo`
+// empezando por "TOTAL" - ahí puede haber hasta tres (ventas, traspasos y
+// pescado movido), nunca solo una fusionada (punto 3 del informe de
+// Víctor, 02/09/2026).
+function esFilaTotal(f) { return f.numero === 'TOTAL' || (typeof f.tipo === 'string' && f.tipo.startsWith('TOTAL')); }
+function formatearCelda(c, v, esTotal) {
+  if (esTotal && (v === '' || v === null)) return '';
+  if (c === 'fecha' || c.endsWith('_en')) return fmtFecha(v);
+  if (typeof v === 'boolean') return v ? '✅ Sí' : '— No';
+  if (esValorNumerico(c, v)) return Number(v).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return v ?? '';
+}
+
+let ultimasFilas = [];
+function pintarResultado(filas) {
+  ultimasFilas = filas;
+  const cont = document.getElementById('resultado');
+  if (!filas.length) { cont.innerHTML = '<p class="ayuda">Sin resultados para ese filtro.</p>'; return; }
+  const columnas = Object.keys(filas[0]);
+  cont.innerHTML = `<div class="tabla-envoltorio"><table>
+    <thead><tr>${columnas.map((c) => `<th>${c.replace(/_/g, ' ')}</th>`).join('')}</tr></thead>
+    <tbody>${filas.map((f) => {
+      // La fila TOTAL (solo la lleva el listado "Pedidos detalle") se
+      // resalta igual que las filas de totales de Compras/Pedidos.
+      const esTotal = esFilaTotal(f);
+      return `<tr${esTotal ? ' class="fila-totales"' : ''}>${columnas.map((c) => {
+        const clase = esValorNumerico(c, f[c]) ? ' class="num"' : '';
+        return `<td${clase}>${formatearCelda(c, f[c], esTotal)}</td>`;
+      }).join('')}</tr>`;
+    }).join('')}</tbody>
+  </table></div>`;
+}
+
+// Exporta a PDF exactamente lo que se ve en pantalla (mismas columnas, mismo
+// formato de cada celda, misma fila TOTAL resaltada) - se pide el listado
+// autenticado igual que para el CSV (nunca abrir con el token en la URL).
+async function descargarPdf() {
+  const res = await apiFetch(construirQuery());
+  const filas = await res.json();
+  if (!filas.length) { mostrarMensajeListado('Sin resultados para ese filtro - no hay nada que exportar.'); return; }
+
+  const columnas = Object.keys(filas[0]);
+  const tipo = document.getElementById('l-tipo').value;
+  const nombreListado = document.getElementById('l-tipo').selectedOptions[0].textContent;
+  const desde = document.getElementById('l-desde').value;
+  const hasta = document.getElementById('l-hasta').value;
+
+  const doc = new window.jspdf.jsPDF({ unit: 'mm', format: 'a4', orientation: columnas.length > 6 ? 'landscape' : 'portrait' });
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(14);
+  doc.text(`MARINAFISK — ${nombreListado}`, 14, 15);
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
+  if (usaFecha(tipo) && (desde || hasta)) doc.text(`Periodo: ${desde ? fmtFecha(desde) : '—'} a ${hasta ? fmtFecha(hasta) : '—'}`, 14, 21);
+
+  doc.autoTable({
+    startY: 25,
+    head: [columnas.map((c) => c.replace(/_/g, ' '))],
+    body: filas.map((f) => columnas.map((c) => formatearCelda(c, f[c], esFilaTotal(f)))),
+    styles: { fontSize: 8 },
+    headStyles: { fillColor: [31, 78, 121] },
+    columnStyles: Object.fromEntries(columnas.map((c, i) => [i, { halign: esColumnaCantidad(c) ? 'right' : 'left' }])),
+    didParseCell: (data) => {
+      if (data.section === 'body' && esFilaTotal(filas[data.row.index])) {
+        data.cell.styles.fontStyle = 'bold';
+        data.cell.styles.fillColor = [244, 246, 245];
+      }
+    },
+  });
+  doc.save(`${tipo}.pdf`);
+}
+
+function mostrarMensajeListado(texto) {
+  document.getElementById('resultado').insertAdjacentHTML('afterbegin', `<p class="mensaje info">${texto}</p>`);
+}
+
+if (usuario) {
+  renderBarraNavegacion(usuario, 'listados.html');
+  actualizarCamposFiltro();
+  document.getElementById('l-desde').value = '2026-01-01';
+  document.getElementById('l-hasta').value = fechaLocalISO();
+}
+</script>
+</body>
+</html>

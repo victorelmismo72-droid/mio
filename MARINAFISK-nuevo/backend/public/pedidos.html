@@ -1,0 +1,908 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>MARINAFISK — Pedidos</title>
+<link rel="stylesheet" href="app.css">
+<style>
+  #tabla-lineas-ped input, #tabla-lineas-ped select { min-width: 5.5rem; }
+  .fila-totales td { font-weight: 700; background: #f4f6f5; }
+  .celda-partida { white-space: normal; }
+  .celda-partida select { min-width: 11rem; margin-bottom: 0.2rem; }
+  .vista-toggle { display: flex; gap: 0.5rem; margin: 1rem 0; }
+  .vista-toggle button.activo { background: #2f7d64; color: #fff; }
+  #vista-cliente th, #vista-cliente td { }
+</style>
+</head>
+<body>
+<main>
+  <h1>Pedidos / Albaranes</h1>
+  <div id="mensaje"></div>
+
+  <div class="tarjeta">
+    <div class="fila-form">
+      <div>
+        <label for="p-cliente">Cliente</label>
+        <input type="text" id="p-cliente" list="lista-clientes" placeholder="Código o nombre...">
+        <datalist id="lista-clientes"></datalist>
+      </div>
+      <div>
+        <label for="p-fecha">Fecha</label>
+        <input type="date" id="p-fecha">
+      </div>
+    </div>
+    <p id="p-cliente-info" class="ayuda"></p>
+
+    <h2>Líneas</h2>
+    <datalist id="lista-articulos"></datalist>
+    <div class="tabla-envoltorio">
+      <table id="tabla-lineas-ped">
+        <thead><tr><th>Artículo</th><th>Descripción</th><th class="num">Cajas</th><th class="num">Peso (kg)</th><th class="num">Precio/kg</th><th class="num">Dcto %</th><th class="num">Total</th><th>Partida</th><th></th></tr></thead>
+        <tbody></tbody>
+        <tfoot><tr class="fila-totales"><td colspan="2"></td><td class="num" id="tot-cajas">0</td><td class="num" id="tot-peso">0</td><td colspan="2"></td><td class="num" id="tot-total">0,00 €</td><td colspan="2"></td></tr></tfoot>
+      </table>
+    </div>
+    <button type="button" class="btn secundario" id="btn-anadir-linea" style="margin-top:0.7rem;">+ Añadir línea</button>
+
+    <div style="margin-top:1.4rem;">
+      <button type="button" class="btn" id="btn-guardar">Guardar pedido</button>
+      <button type="button" class="btn secundario" id="btn-cancelar-edicion" style="display:none;">Cancelar edición</button>
+      <button type="button" class="btn secundario" id="btn-imprimir-con-precios">🖨️ Con precios</button>
+      <button type="button" class="btn secundario" id="btn-imprimir-sin-precios">🖨️ Sin precios (conductor)</button>
+      <button type="button" class="btn secundario" id="btn-transfrio">🚚 Hoja Transfrío</button>
+      <label style="font-size:0.85rem;margin-left:0.4rem;"><input type="checkbox" id="transfrio-regla"> con regla de calibración</label>
+    </div>
+  </div>
+
+  <div class="vista-toggle">
+    <button type="button" class="btn secundario activo" data-vista="interna">Vista interna (con precios y partida)</button>
+    <button type="button" class="btn secundario" data-vista="cliente">Vista cliente (sin precios ni partida)</button>
+  </div>
+  <div class="tabla-envoltorio" id="vista-previa"></div>
+
+  <h2>Historial de pedidos</h2>
+  <p class="ayuda">Busca por cualquier campo — igual que en el programa actual, no hace falta que el pedido esté entre los últimos.</p>
+  <div class="tarjeta">
+    <div class="fila-form">
+      <div><label for="h-num">Nº</label><input type="text" id="h-num" placeholder="Nº de pedido..."></div>
+      <div><label for="h-cli">Cliente</label><input type="text" id="h-cli" placeholder="Código o nombre..."></div>
+      <div><label for="h-desde">Desde</label><input type="date" id="h-desde"></div>
+      <div><label for="h-hasta">Hasta</label><input type="date" id="h-hasta"></div>
+      <div style="display:flex;align-items:flex-end;"><button type="button" class="btn secundario" id="btn-limpiar-filtro">Limpiar</button></div>
+    </div>
+  </div>
+  <p class="ayuda">Marca varios pedidos con la casilla para dárselos todos juntos al conductor (sin precios, uno detrás de otro en el mismo PDF). Sin marcar ninguno, se usan los que salgan con el filtro de arriba.</p>
+  <div style="margin-bottom:0.5rem;">
+    <button type="button" class="btn secundario" id="btn-imprimir-seleccionados">🖨️ Imprimir juntos (sin precios)</button>
+  </div>
+  <div class="tabla-envoltorio">
+    <table id="tabla-historico">
+      <thead><tr><th><input type="checkbox" id="h-marcar-todos" title="Marcar/desmarcar todos"></th><th>Nº</th><th>Fecha</th><th>Cliente</th><th class="num">Total</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</main>
+
+<script src="vendor/jspdf.umd.min.js"></script>
+<script src="app.js"></script>
+<script>
+const usuario = protegerPagina();
+let clientes = [];
+let articulos = [];
+let lineas = [];
+// Igual que el HTML actual (funcion cargarPedido/grabarPedido): "editar" no
+// es un PATCH parcial, es recargar el pedido entero en el formulario y, al
+// grabar, sustituir cabecera + lineas manteniendo el mismo numero (nunca se
+// pide uno nuevo de la secuencia). null = modo "pedido nuevo".
+let pedidoEnEdicionId = null;
+let pedidoEnEdicionNumero = null;
+
+function lineaVacia() {
+  return { articulo_codigo: '', descripcion: '', cantidad: '', peso: '', precio: '', descuento: 0, partida_numero: null, partida_manual: false, _candidatos: [], _estado: null };
+}
+
+async function cargarClientes() {
+  const res = await apiFetch('/clientes');
+  clientes = await res.json();
+  document.getElementById('lista-clientes').innerHTML = clientes.map((c) => `<option value="${c.codigo} — ${c.nombre}">`).join('');
+}
+
+function clienteSeleccionado() {
+  const codigo = document.getElementById('p-cliente').value.trim().split(' — ')[0].trim();
+  return clientes.find((c) => c.codigo === codigo) || null;
+}
+
+// Autocompletar Artículo (Fase 4: buscar por codigo o descripcion escribiendo
+// una letra o palabra) - mismo mecanismo que Proveedor/Cliente/Producto.
+async function cargarArticulos() {
+  const res = await apiFetch('/articulos');
+  articulos = await res.json();
+  document.getElementById('lista-articulos').innerHTML = articulos.map((a) => `<option value="${a.codigo} — ${a.descripcion || ''}">`).join('');
+}
+
+// El campo puede llevar "codigo — descripcion" pegado por el datalist -
+// aqui se separa el codigo real, igual que ya se hace con Cliente/Proveedor.
+function codigoDeTexto(texto) {
+  return String(texto || '').split(' — ')[0].trim();
+}
+
+function autorrellenarDescripcionArticulo(l, tr) {
+  const codigo = codigoDeTexto(l.articulo_codigo);
+  const art = articulos.find((a) => a.codigo === codigo);
+  if (art && !l.descripcion) {
+    l.descripcion = art.descripcion || '';
+    const inputDesc = tr.querySelector('[data-campo="descripcion"]');
+    if (inputDesc) inputDesc.value = l.descripcion;
+  }
+}
+
+document.getElementById('p-cliente').addEventListener('input', () => {
+  const c = clienteSeleccionado();
+  document.getElementById('p-cliente-info').textContent = c ? `${c.nombre} — ${c.tipo_iva === 'INTRACOMUNITARIO' ? 'Intracomunitario' : 'Nacional'}${c.recargo_equivalencia ? ' con Recargo de Equivalencia' : ''}` : '';
+});
+
+function calcularTotal(l) {
+  const peso = Number(l.peso) || 0;
+  const precio = Number(l.precio) || 0;
+  const dcto = Number(l.descuento) || 0;
+  return peso * precio * (1 - dcto / 100);
+}
+
+async function evaluarPartida(l) {
+  const codigo = codigoDeTexto(l.articulo_codigo);
+  if (!codigo || !(Number(l.peso) > 0) || !(Number(l.precio) > 0)) {
+    l._estado = null; l._candidatos = []; l.partida_numero = null;
+    return;
+  }
+  const res = await apiFetch('/partidas/asignar', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ articulo_codigo: codigo, precio_venta: l.precio }),
+  });
+  const datos = await res.json();
+  l._candidatos = datos.candidatos;
+  l._margenMinimo = datos.margen_minimo;
+  if (!l.partida_manual) {
+    l._estado = datos.estado;
+    l.partida_numero = datos.estado === 'OK' ? datos.partida_numero : null;
+  } else {
+    l._estado = 'MANUAL';
+  }
+}
+
+function celdaPartidaHtml(l, i) {
+  if (!l._candidatos || !l._candidatos.length) {
+    return l.articulo_codigo ? '<span class="ayuda">Sin compras</span>' : '<span class="ayuda">—</span>';
+  }
+  const opciones = l._candidatos.map((c) => {
+    const margen = (Number(l.precio) || 0) - c.coste;
+    const marca = margen >= (l._margenMinimo || 1.3) ? '✅' : '⚠️';
+    const sel = String(c.numero_partida) === String(l.partida_numero) ? ' selected' : '';
+    return `<option value="${c.numero_partida}"${sel}>${c.numero_partida} · ${fmtFecha(c.fecha)} · ${fmtEUR(c.coste)} ${marca}</option>`;
+  }).join('');
+  const pill = l._estado === 'OK'
+    ? '<span class="pill ok">✅ auto</span>'
+    : '<span class="pill warn">⚠️ elige tú</span>';
+  return `<select data-partida="${i}"><option value="">-- elegir --</option>${opciones}</select> ${pill}`;
+}
+
+// Importante para la agilidad (Fase 4 punto 2): los <input> de texto/numero
+// nunca se reconstruyen mientras el usuario escribe o tabula entre campos -
+// eso le haria perder el foco a mitad de teclear. Solo se actualizan en el
+// sitio la celda de total y la celda de partida (que si cambia de contenido,
+// por ejemplo al pasar de "Sin compras" a un desplegable).
+function bindSelectPartida(celdaPartida, l, i, tr) {
+  const sel = celdaPartida.querySelector('[data-partida]');
+  if (!sel) return;
+  sel.addEventListener('change', () => {
+    l.partida_numero = sel.value || null;
+    l.partida_manual = true;
+    celdaPartida.innerHTML = celdaPartidaHtml(l, i);
+    bindSelectPartida(celdaPartida, l, i, tr);
+    actualizarTotalesPed();
+    pintarVistaPrevia();
+  });
+}
+
+async function actualizarFilaPedido(tr, l, i) {
+  await evaluarPartida(l);
+  tr.querySelector('[data-calc=total]').innerHTML = `<strong>${fmtEUR(calcularTotal(l))}</strong>`;
+  const celdaPartida = tr.querySelector('.celda-partida');
+  celdaPartida.innerHTML = celdaPartidaHtml(l, i);
+  bindSelectPartida(celdaPartida, l, i, tr);
+  actualizarTotalesPed();
+}
+
+function actualizarTotalesPed() {
+  let totCajas = 0, totPeso = 0, totTotal = 0;
+  lineas.forEach((l) => { totCajas += Number(l.cantidad) || 0; totPeso += Number(l.peso) || 0; totTotal += calcularTotal(l); });
+  document.getElementById('tot-cajas').textContent = totCajas;
+  document.getElementById('tot-peso').textContent = fmtKg(totPeso);
+  document.getElementById('tot-total').textContent = fmtEUR(totTotal);
+}
+
+function pintarLineas() {
+  const tbody = document.querySelector('#tabla-lineas-ped tbody');
+  tbody.innerHTML = '';
+
+  lineas.forEach((l, i) => {
+    const total = calcularTotal(l);
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><input type="text" data-campo="articulo_codigo" list="lista-articulos" value="${l.articulo_codigo}" style="width:6rem;"></td>
+      <td><input type="text" data-campo="descripcion" value="${l.descripcion}" style="width:11rem;"></td>
+      <td class="num"><input type="number" data-campo="cantidad" value="${l.cantidad}" style="width:4rem;text-align:right;" min="0"></td>
+      <td class="num"><input type="number" step="0.01" data-campo="peso" value="${l.peso}" style="width:5.5rem;text-align:right;"></td>
+      <td class="num"><input type="number" step="0.01" data-campo="precio" value="${l.precio}" style="width:5.5rem;text-align:right;"></td>
+      <td class="num"><input type="number" step="0.1" data-campo="descuento" value="${l.descuento}" style="width:4rem;text-align:right;"></td>
+      <td class="num" data-calc="total"><strong>${fmtEUR(total)}</strong></td>
+      <td class="celda-partida">${celdaPartidaHtml(l, i)}</td>
+      <td><button type="button" class="btn secundario" data-quitar="${i}" style="padding:0.2rem 0.5rem;">✕</button></td>
+    `;
+    // Los campos de texto (articulo/descripcion) se guardan segundo a
+    // segundo con 'input' sin recalcular nada pesado; peso/precio/descuento
+    // recalculan al confirmar el valor ('change', es decir, al salir del
+    // campo), que es cuando de verdad hace falta consultar partidas.
+    tr.querySelectorAll('input').forEach((input) => {
+      input.addEventListener('input', () => {
+        l[input.dataset.campo] = input.value;
+        if (input.dataset.campo === 'articulo_codigo') autorrellenarDescripcionArticulo(l, tr);
+      });
+      input.addEventListener('change', async () => {
+        l[input.dataset.campo] = input.value;
+        if (['articulo_codigo', 'peso', 'precio', 'descuento'].includes(input.dataset.campo)) {
+          await actualizarFilaPedido(tr, l, i);
+          pintarVistaPrevia();
+        } else if (input.dataset.campo === 'cantidad') {
+          actualizarTotalesPed();
+        }
+      });
+    });
+    bindSelectPartida(tr.querySelector('.celda-partida'), l, i, tr);
+    tr.querySelector('[data-quitar]').addEventListener('click', () => { lineas.splice(i, 1); pintarLineas(); pintarVistaPrevia(); });
+    tbody.appendChild(tr);
+  });
+
+  actualizarTotalesPed();
+}
+
+document.getElementById('btn-anadir-linea').addEventListener('click', () => { lineas.push(lineaVacia()); pintarLineas(); pintarVistaPrevia(); });
+
+let vistaActual = 'interna';
+document.querySelectorAll('.vista-toggle button').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    vistaActual = btn.dataset.vista;
+    document.querySelectorAll('.vista-toggle button').forEach((b) => b.classList.toggle('activo', b === btn));
+    pintarVistaPrevia();
+  });
+});
+
+function pintarVistaPrevia() {
+  const cont = document.getElementById('vista-previa');
+  const validas = lineas.filter((l) => l.articulo_codigo && Number(l.peso) > 0);
+  if (!validas.length) { cont.innerHTML = '<p class="ayuda">Añade líneas para ver la vista previa del albarán.</p>'; return; }
+
+  if (vistaActual === 'cliente') {
+    // Vista cliente: NUNCA precio de coste ni numero de partida (Fase 0 punto 3).
+    cont.innerHTML = `<table><thead><tr><th>Artículo</th><th class="num">Cajas</th><th class="num">Peso (kg)</th></tr></thead><tbody>
+      ${validas.map((l) => `<tr><td>${l.descripcion || l.articulo_codigo}</td><td class="num">${l.cantidad || ''}</td><td class="num">${fmtKg(l.peso)}</td></tr>`).join('')}
+    </tbody></table>`;
+  } else {
+    cont.innerHTML = `<table><thead><tr><th>Artículo</th><th class="num">Cajas</th><th class="num">Peso (kg)</th><th class="num">Precio</th><th class="num">Total</th><th>Partida</th></tr></thead><tbody>
+      ${validas.map((l) => `<tr><td>${l.descripcion || l.articulo_codigo}</td><td class="num">${l.cantidad || ''}</td><td class="num">${fmtKg(l.peso)}</td><td class="num">${fmtEUR(l.precio)}</td><td class="num">${fmtEUR(calcularTotal(l))}</td><td>${l.partida_numero || '(sin asignar)'}</td></tr>`).join('')}
+    </tbody></table>`;
+  }
+}
+
+function mostrarMensaje(texto, tipo) {
+  document.getElementById('mensaje').innerHTML = `<div class="mensaje ${tipo}">${texto}</div>`;
+}
+
+function activarModoEdicion(id, numero) {
+  pedidoEnEdicionId = id;
+  pedidoEnEdicionNumero = numero;
+  document.getElementById('btn-guardar').textContent = `Guardar cambios (editando pedido Nº ${numero})`;
+  document.getElementById('btn-cancelar-edicion').style.display = '';
+}
+
+function cancelarEdicionPedido() {
+  pedidoEnEdicionId = null;
+  pedidoEnEdicionNumero = null;
+  document.getElementById('btn-guardar').textContent = 'Guardar pedido';
+  document.getElementById('btn-cancelar-edicion').style.display = 'none';
+  document.getElementById('p-cliente').value = '';
+  document.getElementById('p-cliente-info').textContent = '';
+  document.getElementById('p-fecha').value = fechaLocalISO();
+  lineas = [lineaVacia()];
+  pintarLineas();
+  pintarVistaPrevia();
+}
+document.getElementById('btn-cancelar-edicion').addEventListener('click', cancelarEdicionPedido);
+
+// Carga un pedido ya grabado en el formulario para modificarlo - misma idea
+// que "cargarPedido(num)" del HTML actual: rellena cliente/fecha/lineas y
+// deja el pedido listo para volver a GRABAR.
+async function cargarPedidoParaEditar(id) {
+  const res = await apiFetch(`/pedidos/${id}`);
+  if (!res.ok) { mostrarMensaje('No se pudo cargar el pedido.', 'error'); return; }
+  const ped = await res.json();
+
+  const c = clientes.find((x) => x.codigo === ped.cliente_codigo);
+  document.getElementById('p-cliente').value = `${ped.cliente_codigo}${c ? ' — ' + c.nombre : ''}`;
+  document.getElementById('p-cliente-info').textContent = c
+    ? `${c.nombre} — ${c.tipo_iva === 'INTRACOMUNITARIO' ? 'Intracomunitario' : 'Nacional'}${c.recargo_equivalencia ? ' con Recargo de Equivalencia' : ''}`
+    : '';
+  document.getElementById('p-fecha').value = ped.fecha ? ped.fecha.slice(0, 10) : fechaLocalISO();
+
+  lineas = (ped.lineas || []).map((l) => ({
+    articulo_codigo: l.articulo_codigo || '',
+    descripcion: l.descripcion || '',
+    cantidad: l.cantidad ?? '',
+    peso: l.peso ?? '',
+    precio: l.precio ?? '',
+    descuento: l.descuento ?? 0,
+    partida_numero: l.partida_numero,
+    partida_manual: l.partida_manual,
+    _candidatos: [], _estado: null,
+  }));
+  if (!lineas.length) lineas = [lineaVacia()];
+  // Se reconsulta partidas disponibles para cada linea (respetando
+  // partida_manual, igual que al escribir a mano) antes de pintar, para no
+  // enseñar el desplegable vacio un instante.
+  for (const l of lineas) { await evaluarPartida(l); } // eslint-disable-line no-await-in-loop
+
+  pintarLineas();
+  pintarVistaPrevia();
+  activarModoEdicion(ped.id, ped.numero);
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+  mostrarMensaje(`Pedido ${ped.numero} cargado para editar. Modifica y pulsa "Guardar cambios".`, 'info');
+}
+
+// Fallo real conocido del HTML actual (informe de Víctor, 29/08/2026): un
+// doble clic/doble tap en "Guardar" (o un rebote táctil) puede disparar dos
+// guardados casi simultáneos antes de que termine el primero. Aquí se
+// bloquea el botón nada más pulsar - ANTES de nada más - y no se libera
+// hasta que el guardado (con éxito o error) haya terminado del todo.
+// Cualquier clic mientras `guardandoPedido` es true se ignora sin más.
+let guardandoPedido = false;
+document.getElementById('btn-guardar').addEventListener('click', async () => {
+  if (guardandoPedido) return;
+  guardandoPedido = true;
+  document.getElementById('btn-guardar').disabled = true;
+  try {
+    await intentarGuardarPedido();
+  } finally {
+    guardandoPedido = false;
+    document.getElementById('btn-guardar').disabled = false;
+  }
+});
+
+async function intentarGuardarPedido() {
+  const c = clienteSeleccionado();
+  if (!c) { mostrarMensaje('Elige un cliente válido de la lista.', 'error'); return; }
+  // El Artículo puede llevar "codigo — descripcion" pegado por el datalist -
+  // se guarda solo el codigo (igual que Producto en Compras).
+  const validas = lineas
+    .filter((l) => l.articulo_codigo && Number(l.peso) > 0)
+    .map((l) => ({ ...l, articulo_codigo: codigoDeTexto(l.articulo_codigo) }));
+  if (!validas.length) { mostrarMensaje('Añade al menos una línea con artículo y peso.', 'error'); return; }
+
+  const esEdicion = pedidoEnEdicionId != null;
+  const cuerpo = {
+    cliente_codigo: c.codigo,
+    cliente_nombre_snapshot: c.nombre,
+    cliente_cif_snapshot: c.cif,
+    cliente_dir_snapshot: c.direccion,
+    cliente_pob_snapshot: c.poblacion,
+    cliente_tel_snapshot: c.telefono,
+    fecha: document.getElementById('p-fecha').value || fechaLocalISO(),
+    base: validas.reduce((s, l) => s + calcularTotal(l), 0),
+    lineas: validas.map((l) => ({ ...l, total: calcularTotal(l) })),
+  };
+  // Al editar se mantiene el mismo numero de pedido (igual que el HTML
+  // actual) - si no se manda, el backend lo tomaria como vacio y rompería
+  // la cabecera.
+  if (esEdicion) cuerpo.numero = pedidoEnEdicionNumero;
+
+  try {
+    const res = await apiFetch(esEdicion ? `/pedidos/${pedidoEnEdicionId}` : '/pedidos', {
+      method: esEdicion ? 'PUT' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(cuerpo),
+    });
+    const datos = await res.json();
+    if (!res.ok) { mostrarMensaje(datos.error || 'No se pudo guardar.', 'error'); return; }
+    mostrarMensaje(`Pedido ${esEdicion ? 'actualizado' : 'guardado'} — nº ${datos.numero}, total ${fmtEUR(datos.base)}.`, 'ok');
+    cancelarEdicionPedido();
+    cargarHistorico();
+  } catch (e) { mostrarMensaje(e.message, 'error'); }
+}
+
+// Historial completo, igual que "filtrarHis()" del HTML actual: buscar por
+// numero, cliente, rango de fechas - no solo ver los ultimos. Se trae la
+// lista entera una vez (1057 pedidos no da problema de agilidad) y se
+// filtra en el propio navegador, para que cada tecla de busqueda no tenga
+// que ir al servidor.
+let todosPedidos = [];
+let filasHistoricoActual = []; // lo que se ve ahora mismo en la tabla (tras el filtro/limite de 30)
+
+async function cargarHistorico() {
+  const res = await apiFetch('/pedidos');
+  todosPedidos = await res.json();
+  pintarHistorico();
+}
+
+function pintarHistorico() {
+  const num = document.getElementById('h-num').value.trim();
+  const cli = document.getElementById('h-cli').value.trim().toLowerCase();
+  const desde = document.getElementById('h-desde').value;
+  const hasta = document.getElementById('h-hasta').value;
+  const hayFiltro = num || cli || desde || hasta;
+
+  let filas = todosPedidos;
+  if (num) filas = filas.filter((p) => String(p.numero).includes(num));
+  if (cli) filas = filas.filter((p) => (p.cliente_codigo || '').toLowerCase().includes(cli) || (p.cliente_nombre_snapshot || '').toLowerCase().includes(cli));
+  if (desde) filas = filas.filter((p) => p.fecha >= desde);
+  if (hasta) filas = filas.filter((p) => p.fecha <= hasta);
+  filas = filas.slice().sort((a, b) => b.numero - a.numero);
+  // Sin ningun filtro, para no pintar los 1000+ pedidos de golpe se enseñan
+  // solo los ultimos 30 - en cuanto se busca algo, se enseñan todas las
+  // coincidencias (puede ser un pedido muy antiguo).
+  if (!hayFiltro) filas = filas.slice(0, 30);
+
+  filasHistoricoActual = filas;
+  const tbody = document.querySelector('#tabla-historico tbody');
+  document.getElementById('h-marcar-todos').checked = false;
+  if (!filas.length) { tbody.innerHTML = '<tr><td colspan="6" class="ayuda">Sin pedidos para ese filtro.</td></tr>'; return; }
+  tbody.innerHTML = filas.map((p) => `
+    <tr><td><input type="checkbox" class="h-check-fila" data-id="${p.id}"></td><td>${p.numero}</td><td>${fmtFecha(p.fecha)}</td><td>${p.cliente_nombre_snapshot || p.cliente_codigo}</td><td class="num">${fmtEUR(p.base)}</td>
+    <td>
+      <button type="button" class="btn secundario" data-editar-pedido="${p.id}" style="padding:0.2rem 0.6rem;">✏️ Editar</button>
+      <button type="button" class="btn secundario" data-renumerar-pedido="${p.id}" data-numero-actual="${p.numero}" style="padding:0.2rem 0.6rem;">🔢 Renumerar</button>
+      <button type="button" class="btn secundario" data-etiquetas-pedido="${p.id}" style="padding:0.2rem 0.6rem;">🏷️ Etiquetas</button>
+      <button type="button" class="btn secundario" data-whatsapp-pedido="${p.id}" style="padding:0.2rem 0.6rem;">📱 WhatsApp</button>
+      <button type="button" class="btn secundario" data-email-pedido="${p.id}" style="padding:0.2rem 0.6rem;">✉️ Email</button>
+      <button type="button" class="btn secundario" data-anular-pedido="${p.id}" data-numero-pedido="${p.numero}" style="padding:0.2rem 0.6rem;">🗑️ Anular</button>
+    </td></tr>
+  `).join('');
+  document.querySelectorAll('[data-editar-pedido]').forEach((btn) => {
+    btn.addEventListener('click', () => cargarPedidoParaEditar(btn.dataset.editarPedido));
+  });
+  document.querySelectorAll('[data-renumerar-pedido]').forEach((btn) => {
+    btn.addEventListener('click', () => renumerarPedido(btn.dataset.renumerarPedido, btn.dataset.numeroActual));
+  });
+  document.querySelectorAll('[data-etiquetas-pedido]').forEach((btn) => {
+    btn.addEventListener('click', () => imprimirEtiquetasPedido(btn.dataset.etiquetasPedido));
+  });
+  document.querySelectorAll('[data-whatsapp-pedido]').forEach((btn) => {
+    btn.addEventListener('click', () => enviarAlbaranPorWhatsapp(btn.dataset.whatsappPedido));
+  });
+  document.querySelectorAll('[data-email-pedido]').forEach((btn) => {
+    btn.addEventListener('click', () => enviarAlbaranPorEmail(btn.dataset.emailPedido));
+  });
+  document.querySelectorAll('[data-anular-pedido]').forEach((btn) => {
+    btn.addEventListener('click', () => anularPedido(btn.dataset.anularPedido, btn.dataset.numeroPedido));
+  });
+}
+
+// Igual que en repartos.html: se pide la pagina ya autenticada (nunca con el
+// token en la URL) y se escribe en una ventana nueva, lista para Ctrl+P.
+async function imprimirEtiquetasPedido(id) {
+  try {
+    const res = await apiFetch(`/pedidos/${id}/etiquetas`);
+    if (!res.ok) {
+      const datos = await res.json().catch(() => ({}));
+      mostrarMensaje(datos.error || 'No se pudieron generar las etiquetas.', 'error');
+      return;
+    }
+    const html = await res.text();
+    const ventana = window.open('', '_blank');
+    if (!ventana) { mostrarMensaje('El navegador ha bloqueado la ventana emergente. Permítela e inténtalo de nuevo.', 'error'); return; }
+    ventana.document.open();
+    ventana.document.write(html);
+    ventana.document.close();
+    ventana.onload = () => ventana.print();
+  } catch (e) { mostrarMensaje(e.message, 'error'); }
+}
+['h-num', 'h-cli', 'h-desde', 'h-hasta'].forEach((id) => {
+  document.getElementById(id).addEventListener('input', pintarHistorico);
+});
+document.getElementById('btn-limpiar-filtro').addEventListener('click', () => {
+  ['h-num', 'h-cli', 'h-desde', 'h-hasta'].forEach((id) => { document.getElementById(id).value = ''; });
+  pintarHistorico();
+});
+
+// Anular un pedido - igual que "anularPedido()" del HTML actual: pide
+// confirmacion explicita (no se puede deshacer) y lo borra del todo. Si es
+// el pedido que se estaba editando en el formulario, se vuelve a modo
+// "pedido nuevo" para no dejar el formulario apuntando a algo ya borrado.
+async function anularPedido(id, numero) {
+  if (!confirm(`¿Anular el pedido nº ${numero}? Esta acción no se puede deshacer.`)) return;
+  try {
+    const res = await apiFetch(`/pedidos/${id}`, { method: 'DELETE' });
+    if (!res.ok) { const datos = await res.json().catch(() => ({})); mostrarMensaje(datos.error || 'No se pudo anular.', 'error'); return; }
+    mostrarMensaje(`Pedido nº ${numero} anulado.`, 'ok');
+    if (String(pedidoEnEdicionId) === String(id)) cancelarEdicionPedido();
+    cargarHistorico();
+  } catch (e) { mostrarMensaje(e.message, 'error'); }
+}
+
+// Igual que renumerarPedido() del HTML actual: pide el numero nuevo, y deja
+// que sea la propia base de datos quien rechace un numero ya usado ese
+// mismo ano (no toca nada mas del pedido - ni cabecera ni lineas).
+async function renumerarPedido(id, numeroActual) {
+  const nuevoTexto = prompt(`Nuevo número para el pedido ${numeroActual}:`, '');
+  if (nuevoTexto === null) return;
+  const nuevo = parseInt(nuevoTexto, 10);
+  if (!nuevo || nuevo < 1) { mostrarMensaje('Número no válido.', 'error'); return; }
+  if (!confirm(`¿Cambiar el pedido ${numeroActual} al número ${nuevo}?`)) return;
+  try {
+    const res = await apiFetch(`/pedidos/${id}/numero`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ numero: nuevo }),
+    });
+    const datos = await res.json();
+    if (!res.ok) { mostrarMensaje(datos.error || 'No se pudo renumerar.', 'error'); return; }
+    mostrarMensaje(`Pedido renumerado a ${datos.numero}.`, 'ok');
+    cargarHistorico();
+  } catch (e) { mostrarMensaje(e.message, 'error'); }
+}
+
+// ===== HOJA TRANSFRÍO =====
+// Para imprimir ENCIMA del papel ya impreso del transportista Transfrío -
+// rellena cliente, destino, fecha y totales en las posiciones exactas del
+// papel real. Igual que generarPdfTransfrio()/TRANSFRIO_COORDS_DEFECTO del
+// HTML actual - las coordenadas están en variables con nombre porque Víctor
+// tendrá que calibrarlas él mismo sobre el papel físico en cuanto pueda
+// probarlo (no se puede acertar a la primera desde una foto).
+const TRANSFRIO_COORDS_DEFECTO = {
+  pagina: { ancho: 210, alto: 297 }, // A4 vertical
+  cliente: { x: 80, y: 19 },
+  destino: { x: 80, y: 24 },
+  lugarCarga: { x: 30, y: 141 },
+  fechaDia: { x: 80, y: 141 },
+  fechaMes: { x: 100, y: 141 },
+  fechaAno: { x: 140, y: 141 },
+  kg: { x: 180, y: 91 },
+  bultos: { x: 180, y: 97 },
+  fontSize: 11,
+};
+
+function generarPdfTransfrio(pedTmp, modoRegla) {
+  const c = TRANSFRIO_COORDS_DEFECTO;
+  const doc = new window.jspdf.jsPDF({ unit: 'mm', format: [c.pagina.ancho, c.pagina.alto], orientation: 'portrait' });
+
+  if (modoRegla) {
+    // Rejilla cada 10mm con numeros, para poder decir "mueve el cliente 5mm
+    // a la derecha" mirando la hoja impresa contra el papel real.
+    doc.setDrawColor(200, 200, 255); doc.setLineWidth(0.1);
+    doc.setFontSize(5); doc.setTextColor(150, 150, 220);
+    for (let x = 0; x <= c.pagina.ancho; x += 10) { doc.line(x, 0, x, c.pagina.alto); doc.text(String(x), x + 0.5, 4); }
+    for (let y = 0; y <= c.pagina.alto; y += 10) { doc.line(0, y, c.pagina.ancho, y); doc.text(String(y), 1, y - 0.5); }
+    doc.setTextColor(0, 0, 0);
+  }
+
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(c.fontSize);
+
+  const destinoTexto = pedTmp.clientePob || pedTmp.clienteProv || '';
+  const totalBultos = pedTmp.lineas.reduce((s, l) => s + (Number(l.cantidad) || 0), 0);
+  const totalKg = pedTmp.lineas.reduce((s, l) => s + (Number(l.peso) || 0), 0);
+
+  doc.text(pedTmp.clienteNombre || '', c.cliente.x, c.cliente.y);
+  doc.text(destinoTexto, c.destino.x, c.destino.y);
+
+  const [anio, mes, dia] = (pedTmp.fecha || fechaLocalISO()).split('-').map(Number);
+  const fechaObj = new Date(anio, mes - 1, dia);
+  doc.text('CORUÑA', c.lugarCarga.x, c.lugarCarga.y);
+  doc.text(String(fechaObj.getDate()), c.fechaDia.x, c.fechaDia.y);
+  doc.text(fechaObj.toLocaleDateString('es-ES', { month: 'long' }), c.fechaMes.x, c.fechaMes.y);
+  doc.text(String(fechaObj.getFullYear()), c.fechaAno.x, c.fechaAno.y);
+
+  doc.text(String(totalBultos), c.bultos.x, c.bultos.y);
+  doc.text(totalKg.toFixed(2), c.kg.x, c.kg.y);
+
+  return doc;
+}
+
+document.getElementById('btn-transfrio').addEventListener('click', () => {
+  const c = clienteSeleccionado();
+  if (!c) { mostrarMensaje('Elige un cliente válido de la lista.', 'error'); return; }
+  const pedTmp = {
+    fecha: document.getElementById('p-fecha').value || fechaLocalISO(),
+    clienteNombre: c.nombre,
+    clientePob: c.poblacion,
+    clienteProv: c.provincia,
+    lineas: lineas.filter((l) => l.articulo_codigo && Number(l.peso) > 0),
+  };
+  const modoRegla = document.getElementById('transfrio-regla').checked;
+  const doc = generarPdfTransfrio(pedTmp, modoRegla);
+  window.open(doc.output('bloburl'), '_blank');
+});
+
+// ===== ALBARÁN EN PDF + ENVÍO POR WHATSAPP/EMAIL =====
+// Igual que dibujarAlbaranEnPdf() del HTML actual: cabecera de la empresa,
+// datos del cliente, tabla de líneas (con o sin precios) y totales. La
+// versión "sin precios" (conductor) nunca lleva partida/coste en la traza -
+// eso ya lo exigía la Fase 0 punto 3, y aquí se respeta también en el PDF.
+function construirTrazaLineaPed(l, fechaVal, incluirPartida) {
+  if (!l.articulo_codigo) return '';
+  const art = articulos.find((a) => a.codigo === codigoDeTexto(l.articulo_codigo));
+  if (!art) return '';
+  const lote = fechaVal ? (() => { const [y, m, d] = fechaVal.split('-'); return d + m + y.slice(2); })() : '';
+  const partes = [];
+  if (art.cientifico) partes.push(art.cientifico);
+  if (art.zona_fao) partes.push(art.zona_fao + (art.subzona ? ` (${art.subzona})` : ''));
+  if (lote) partes.push(`Lote ${lote}`);
+  if (incluirPartida && l.partida_numero) partes.push(`Partida ${l.partida_numero}`);
+  if (art.arte_pesca) partes.push(art.arte_pesca);
+  if (art.barco) partes.push(art.barco);
+  return partes.join(' · ');
+}
+
+function dibujarAlbaranEnPdf(doc, ped, conPrecios, yInicial, limiteY) {
+  let y = yInicial;
+  const margenIzq = 15, anchoUtil = 180;
+
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(15);
+  doc.text('MARINAFISK PESCADOS, S.A.', margenIzq, y); y += 6;
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
+  doc.text('Muelle de Linares Rivas, almacén 34-35 — Lonja de Coruña — 15006 A Coruña', margenIzq, y); y += 4.5;
+  doc.text('Tel: 981 282 298 / 659 131 896 | CIF: A-50789742 | Reg. San.: 12.01671/C', margenIzq, y); y += 8;
+
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(13);
+  doc.text(`HOJA DE PEDIDO Nº ${ped.numero}`, margenIzq, y);
+  doc.setFontSize(10);
+  doc.text(`Fecha: ${fmtFecha(ped.fecha)}`, margenIzq + anchoUtil - 45, y);
+  y += 7;
+
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
+  doc.text(`Forma de pago: ${ped.forma_pago || 'CONTADO'}`, margenIzq, y);
+  doc.text(`Agencia: ${ped.agencia || ''}`, margenIzq + 70, y);
+  y += 8;
+
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(10);
+  doc.text(`Cliente: ${ped.cliente_codigo || ''} — ${ped.cliente_nombre_snapshot || ''}`, margenIzq, y); y += 5;
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
+  const dirLinea = (ped.cliente_dir_snapshot || '') + (ped.cliente_pob_snapshot ? `, ${ped.cliente_pob_snapshot}` : '');
+  if (dirLinea.trim()) { doc.text(dirLinea, margenIzq, y); y += 6; } else { y += 2; }
+
+  const colX = conPrecios
+    ? { desc: margenIzq, cant: margenIzq + 95, peso: margenIzq + 112, precio: margenIzq + 130, dcto: margenIzq + 148, iva: margenIzq + 160, total: margenIzq + 172 }
+    : { desc: margenIzq, cant: margenIzq + 140, peso: margenIzq + 160 };
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(8);
+  doc.setFillColor(31, 78, 121); doc.rect(margenIzq, y - 4, anchoUtil, 6, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.text('DESCRIPCIÓN / CALIDAD / TALLA', colX.desc + 1, y);
+  doc.text('CANT.', colX.cant, y);
+  doc.text('PESO', colX.peso, y);
+  if (conPrecios) {
+    doc.text('PRECIO', colX.precio, y);
+    doc.text('DCTO%', colX.dcto, y);
+    doc.text('IVA%', colX.iva, y);
+    doc.text('TOTAL', colX.total, y);
+  }
+  doc.setTextColor(0, 0, 0);
+  y += 5;
+
+  (ped.lineas || []).forEach((l) => {
+    if (!l.articulo_codigo) return;
+    if (y > limiteY) { doc.addPage(); y = 18; }
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(9);
+    const descTexto = l.descripcion_editada || l.descripcion || l.articulo_codigo || '';
+    const descLineas = doc.splitTextToSize(descTexto, conPrecios ? 90 : 130);
+    doc.text(descLineas, colX.desc, y);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
+    doc.text(String(l.cantidad || ''), colX.cant, y);
+    doc.text(String(l.peso || ''), colX.peso, y);
+    if (conPrecios) {
+      doc.text(String(l.precio || ''), colX.precio, y);
+      doc.text(String(l.descuento || 0), colX.dcto, y);
+      doc.text(String(l.iva_pct || 0), colX.iva, y);
+      doc.text(fmtEUR(l.total), colX.total, y);
+    }
+    y += descLineas.length * 4;
+    const traza = construirTrazaLineaPed(l, ped.fecha, conPrecios);
+    if (traza) {
+      doc.setFont('helvetica', 'italic'); doc.setFontSize(7); doc.setTextColor(90, 90, 90);
+      const trazaLineas = doc.splitTextToSize(traza, conPrecios ? 90 : 130);
+      doc.text(trazaLineas, colX.desc, y);
+      doc.setTextColor(0, 0, 0);
+      y += trazaLineas.length * 3.2;
+    }
+    y += 3;
+  });
+
+  y += 3;
+  doc.setDrawColor(31, 78, 121); doc.line(margenIzq, y, margenIzq + anchoUtil, y); y += 6;
+  const totalBultos = (ped.lineas || []).reduce((s, l) => s + (Number(l.cantidad) || 0), 0);
+  const totalKgAlbaran = (ped.lineas || []).reduce((s, l) => s + (Number(l.peso) || 0), 0);
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(10);
+  doc.text(`Total bultos: ${totalBultos}`, margenIzq, y);
+  doc.text(`Total kg: ${totalKgAlbaran.toFixed(2)} kg`, margenIzq + 45, y);
+  if (conPrecios) {
+    doc.text(`Base imponible: ${fmtEUR(ped.base)}`, margenIzq + 95, y); y += 5;
+    doc.text(`IVA: ${fmtEUR(ped.iva)}`, margenIzq + 95, y); y += 5;
+    doc.setFontSize(12);
+    doc.text(`TOTAL: ${fmtEUR(ped.total)}`, margenIzq + 95, y);
+  }
+  return y;
+}
+
+function generarPdfAlbaran(ped, conPrecios = true) {
+  const doc = new window.jspdf.jsPDF({ unit: 'mm', format: 'a4' });
+  dibujarAlbaranEnPdf(doc, ped, conPrecios, 18, 270);
+  return doc;
+}
+
+// Igual que dibujarAlbaranCompletoEnDoc()/generarPdfAlbaranCompleto() del
+// HTML actual: primero se mide si el albarán cabe doblado en media hoja (dos
+// copias en la misma A4, para cortar y quedarse una); si no cabe, cada copia
+// sale entera en su propia hoja. Escribe en un doc ya existente para poder
+// encadenar varios pedidos en el mismo PDF (ver "Imprimir juntos" más abajo).
+function dibujarAlbaranCompletoEnDoc(doc, ped, conPrecios) {
+  const pruebaDoc = new window.jspdf.jsPDF({ unit: 'mm', format: 'a4' });
+  const finalY = dibujarAlbaranEnPdf(pruebaDoc, ped, conPrecios, 18, 9999);
+  const cabeDoblado = finalY <= 140 && pruebaDoc.internal.getNumberOfPages() === 1;
+  if (cabeDoblado) {
+    dibujarAlbaranEnPdf(doc, ped, conPrecios, 18, 140);
+    doc.setDrawColor(180, 180, 180); doc.setLineDashPattern([2, 2], 0);
+    doc.line(15, 149, 195, 149);
+    doc.setLineDashPattern([], 0);
+    dibujarAlbaranEnPdf(doc, ped, conPrecios, 158, 280);
+  } else {
+    dibujarAlbaranEnPdf(doc, ped, conPrecios, 18, 270);
+    doc.addPage();
+    dibujarAlbaranEnPdf(doc, ped, conPrecios, 18, 270);
+  }
+}
+
+function generarPdfAlbaranCompleto(ped, conPrecios = true) {
+  const doc = new window.jspdf.jsPDF({ unit: 'mm', format: 'a4' });
+  dibujarAlbaranCompletoEnDoc(doc, ped, conPrecios);
+  return doc;
+}
+
+// Construye un "pedido temporal" con los datos ya escritos en el formulario
+// (sin necesidad de guardar antes) - igual que construirPedidoTmpDesdeFormulario().
+function pedTmpDesdeFormulario() {
+  const c = clienteSeleccionado();
+  if (!c) return null;
+  const validas = lineas
+    .filter((l) => l.articulo_codigo && Number(l.peso) > 0)
+    .map((l) => ({ ...l, articulo_codigo: codigoDeTexto(l.articulo_codigo) }));
+  return {
+    numero: pedidoEnEdicionNumero || '(sin grabar)',
+    fecha: document.getElementById('p-fecha').value || fechaLocalISO(),
+    cliente_codigo: c.codigo,
+    cliente_nombre_snapshot: c.nombre,
+    cliente_dir_snapshot: c.direccion,
+    cliente_pob_snapshot: c.poblacion,
+    agencia: '',
+    forma_pago: 'CONTADO',
+    lineas: validas.map((l) => ({ ...l, total: calcularTotal(l) })),
+    base: validas.reduce((s, l) => s + calcularTotal(l), 0),
+    iva: 0,
+    total: validas.reduce((s, l) => s + calcularTotal(l), 0),
+  };
+}
+
+document.getElementById('btn-imprimir-con-precios').addEventListener('click', () => {
+  const pedTmp = pedTmpDesdeFormulario();
+  if (!pedTmp) { mostrarMensaje('Elige un cliente válido de la lista.', 'error'); return; }
+  if (!pedTmp.lineas.length) { mostrarMensaje('Añade al menos una línea con artículo y peso.', 'error'); return; }
+  const doc = generarPdfAlbaran(pedTmp, true);
+  window.open(doc.output('bloburl'), '_blank');
+});
+
+document.getElementById('btn-imprimir-sin-precios').addEventListener('click', () => {
+  const pedTmp = pedTmpDesdeFormulario();
+  if (!pedTmp) { mostrarMensaje('Elige un cliente válido de la lista.', 'error'); return; }
+  if (!pedTmp.lineas.length) { mostrarMensaje('Añade al menos una línea con artículo y peso.', 'error'); return; }
+  const doc = generarPdfAlbaranCompleto(pedTmp, false);
+  window.open(doc.output('bloburl'), '_blank');
+});
+
+// Igual que limpiarNumerosTelefono()/enviarWhatsappMultiple() del HTML
+// actual: separa varios números por coma/punto y coma, añade el prefijo de
+// España (34) si no lleva ya uno, y si hay más de un número deja elegir cuál
+// abrir (WhatsApp Web no deja abrir varios de golpe).
+function limpiarNumerosTelefono(numerosStr) {
+  return String(numerosStr || '').split(/[,;]/).map((n) => n.trim()).filter(Boolean).map((n) => {
+    let limpio = n.replace(/[^0-9+]/g, '');
+    if (limpio.indexOf('+') !== 0 && limpio.length <= 9) limpio = `34${limpio}`;
+    return limpio;
+  });
+}
+
+function enviarWhatsappMultiple(numerosStr, mensaje) {
+  const numeros = limpiarNumerosTelefono(numerosStr);
+  if (!numeros.length) return;
+  if (numeros.length === 1) {
+    window.open(`https://wa.me/${numeros[0].replace('+', '')}?text=${encodeURIComponent(mensaje)}`, '_blank');
+    return;
+  }
+  const elegido = prompt(`Este cliente tiene varios teléfonos guardados. Escribe cuál usar:\n${numeros.join(', ')}`, numeros[0]);
+  if (!elegido) return;
+  window.open(`https://wa.me/${elegido.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(mensaje)}`, '_blank');
+}
+
+async function obtenerPedidoCompleto(id) {
+  const res = await apiFetch(`/pedidos/${id}`);
+  if (!res.ok) return null;
+  return res.json();
+}
+
+async function enviarAlbaranPorWhatsapp(id) {
+  const ped = await obtenerPedidoCompleto(id);
+  if (!ped) { mostrarMensaje('No se encontró ese pedido.', 'error'); return; }
+  const cRes = await apiFetch(`/clientes`);
+  const cli = (await cRes.json()).find((x) => x.codigo === ped.cliente_codigo) || {};
+  if (!cli.telefono) { mostrarMensaje('Este cliente no tiene teléfono guardado en su ficha. Añádelo en Catálogos.', 'error'); return; }
+  const doc = generarPdfAlbaran(ped);
+  doc.save(`Albaran_${ped.numero}_${(ped.cliente_nombre_snapshot || '').replace(/[^a-zA-Z0-9]/g, '_').slice(0, 30)}.pdf`);
+  const mensaje = `Hola, le adjuntamos el pedido Nº ${ped.numero} de MARINAFISK PESCADOS, S.A. (fecha ${fmtFecha(ped.fecha)}, total ${fmtEUR(ped.total)}). Un saludo.`;
+  mostrarMensaje('PDF descargado. Se abrirá WhatsApp con el mensaje ya escrito — solo tienes que ADJUNTAR ese PDF y pulsar enviar.', 'info');
+  enviarWhatsappMultiple(cli.telefono, mensaje);
+}
+
+async function enviarAlbaranPorEmail(id) {
+  const ped = await obtenerPedidoCompleto(id);
+  if (!ped) { mostrarMensaje('No se encontró ese pedido.', 'error'); return; }
+  const cRes = await apiFetch(`/clientes`);
+  const cli = (await cRes.json()).find((x) => x.codigo === ped.cliente_codigo) || {};
+  if (!cli.email) { mostrarMensaje('Este cliente no tiene email guardado en su ficha. Añádelo en Catálogos.', 'error'); return; }
+  const doc = generarPdfAlbaran(ped);
+  doc.save(`Albaran_${ped.numero}_${(ped.cliente_nombre_snapshot || '').replace(/[^a-zA-Z0-9]/g, '_').slice(0, 30)}.pdf`);
+  const asunto = `Pedido Nº ${ped.numero} — MARINAFISK PESCADOS, S.A.`;
+  const cuerpo = `Buenos días,\n\nAdjuntamos el pedido Nº ${ped.numero} de fecha ${fmtFecha(ped.fecha)}, por un total de ${fmtEUR(ped.total)}.\n\nUn saludo,\nMARINAFISK PESCADOS, S.A.`;
+  mostrarMensaje('PDF descargado. Se abrirá tu programa de correo con el mensaje ya escrito — solo tienes que ADJUNTAR ese PDF y pulsar enviar.', 'info');
+  window.location.href = `mailto:${encodeURIComponent(cli.email)}?subject=${encodeURIComponent(asunto)}&body=${encodeURIComponent(cuerpo)}`;
+}
+
+// ===== IMPRIMIR VARIOS PEDIDOS JUNTOS (para el conductor) =====
+// Igual que imprimirListadoSinPreciosPorAgencia()/generarPdfListadoSinPreciosPorAgencia()
+// del HTML actual: si hay filas marcadas con la casilla, imprime SOLO esas
+// (para elegir, por ejemplo, un camión concreto); si no hay ninguna marcada,
+// usa lo que esté saliendo ahora mismo con el filtro de arriba. Siempre sin
+// precios (es para el conductor) - cada pedido en su propia copia, doblada
+// en la misma A4 si cabe.
+document.getElementById('h-marcar-todos').addEventListener('change', function () {
+  document.querySelectorAll('.h-check-fila').forEach((cb) => { cb.checked = this.checked; });
+});
+
+document.getElementById('btn-imprimir-seleccionados').addEventListener('click', async () => {
+  const marcados = Array.from(document.querySelectorAll('.h-check-fila:checked')).map((cb) => cb.dataset.id);
+  const idsAImprimir = marcados.length ? marcados : filasHistoricoActual.map((p) => String(p.id));
+  if (!idsAImprimir.length) { mostrarMensaje('No hay pedidos que imprimir.', 'error'); return; }
+  if (!confirm(`¿Imprimir ${idsAImprimir.length} pedido(s) sin precios, uno detrás de otro en el mismo PDF?`)) return;
+
+  mostrarMensaje(`Generando ${idsAImprimir.length} pedido(s)...`, 'info');
+  const pedidos = [];
+  for (const id of idsAImprimir) {
+    // eslint-disable-next-line no-await-in-loop
+    const ped = await obtenerPedidoCompleto(id);
+    if (ped) pedidos.push(ped);
+  }
+  pedidos.sort((a, b) => (a.fecha || '').localeCompare(b.fecha || '') || a.numero - b.numero);
+
+  const doc = new window.jspdf.jsPDF({ unit: 'mm', format: 'a4' });
+  pedidos.forEach((ped, i) => {
+    if (i > 0) doc.addPage();
+    dibujarAlbaranCompletoEnDoc(doc, ped, false);
+  });
+  window.open(doc.output('bloburl'), '_blank');
+  mostrarMensaje(`${pedidos.length} pedido(s) generados en un único PDF, listo para imprimir.`, 'ok');
+});
+
+if (usuario) {
+  renderBarraNavegacion(usuario, 'pedidos.html');
+  document.getElementById('p-fecha').value = fechaLocalISO();
+  lineas = [lineaVacia()];
+  pintarLineas();
+  pintarVistaPrevia();
+  cargarClientes();
+  cargarArticulos();
+  cargarHistorico();
+}
+</script>
+</body>
+</html>

@@ -29,7 +29,8 @@ Esto es lógica nueva que no existe correctamente en el sistema actual — hay q
 
 - **Compras:**
   - Proveedor Nacional → IVA 10% (tipo único del pescado, ver Fase 0).
-  - Proveedor Comunitario / Intracomunitario / Extra-UE → **decidir explícitamente el tratamiento correcto** (por ejemplo, inversión del sujeto pasivo en operaciones intracomunitarias) y no dejarlo en blanco/sin aplicar como hace el sistema actual. Si hay dudas normativas, señalarlo a Víctor antes de dar la fase por cerrada — no asumir.
+  - Proveedor Intracomunitario → **sin IVA repercutido por el proveedor** (confirmado, ver Fase 0 punto 4): aplicar inversión del sujeto pasivo — Marinafisk autorepercute el IVA en su propia contabilidad al registrar la compra. No es un fallo, es el comportamiento correcto y debe implementarse así explícitamente.
+  - Proveedores Extra-UE → **fuera de alcance de esta fase y del proyecto** (ver Fase 0 punto 4) — no implementar ningún tratamiento para este caso.
 - **Ventas (para cuando exista el módulo de facturación, pero la lógica debe quedar lista ya):**
   - Cliente Nacional sin Recargo de Equivalencia → IVA 10% normal.
   - Cliente Nacional con Recargo de Equivalencia → IVA 10% + recargo de equivalencia correspondiente (confirmar porcentaje exacto vigente).
@@ -44,6 +45,13 @@ Esto es lógica nueva que no existe correctamente en el sistema actual — hay q
 - Emparejamiento de partida: coincidencia de prefijo (4+ caracteres) **y** primera palabra de la descripción del catálogo — no usar solo el prefijo (ver Fase 0, punto 3, falsos positivos conocidos como C144/C1444).
 - Margen mínimo de referencia: **1,30 €/kg**. Si no se alcanza con ninguna partida disponible, marcar la línea como excepción para revisión manual (no bloquear ni auto-resolver).
 - Cierre de partidas: manual, con opción de cierre masivo por fecha; una partida puede cerrarse sin llegar a cero kilos (mermas).
+- **Rentabilidad por partida** (nuevo, importante — no existe hoy en el HTML): el sistema debe poder mostrar, para cualquier partida:
+  - **Coste total** de la partida completa (lo que costó la compra que la originó).
+  - **Coste por artículo/línea** dentro de esa partida, cuando una compra se reparte en varios artículos/tallas.
+  - **Total vendido** de esa partida (suma de todas las ventas que se han asignado a ella).
+  - **Vendido por artículo** dentro de esa partida.
+  - A partir de estos datos, la **rentabilidad real** = total vendido − coste total (y también desglosada por artículo), en vez de solo el margen por línea individual que ya existe hoy.
+  - Esta vista debe poder consultarse en cualquier momento de la vida de la partida (abierta o ya cerrada), no solo al cierre.
 - **Las partidas nunca deben mostrarse en documentos de cliente** — solo en la versión interna con precios.
 - Compras siguen siendo inmutables (ver Fase 1) — el cálculo de margen se hace leyendo la compra original, nunca modificándola.
 
@@ -63,13 +71,31 @@ Sigue aplicando aquí: cada flujo de esta fase (registrar compra, asignar partid
 
 ---
 
+## 5bis. Listados habituales de gestión (nuevo, no cubierto en el HTML actual)
+
+El HTML actual cubre los documentos operativos del día a día (albaranes, traspasos, Reparto Super), pero le faltan listados de gestión típicos de este tipo de programas. Añadir, como mínimo:
+
+- **Listado de ventas por cliente** (por rango de fechas): qué se le ha vendido a un cliente, cuánto, y a qué precio.
+- **Listado de compras por proveedor** (por rango de fechas).
+- **Listado de rentabilidad por partida** (usa los datos del punto 3 de esta fase) — todas las partidas de un periodo con su coste, ventas y rentabilidad.
+- **Listado de existencias/stock actual** (qué partidas siguen abiertas y cuánto kg queda en cada una).
+- **Listado de márgenes por artículo** (qué artículos dan más o menos margen en un periodo).
+- **Listado de clientes sin actividad reciente** (relacionado con el panel ya existente "Clientes a Contactar Hoy", pero como informe exportable por rango de fechas, no solo el aviso diario).
+- **Regla obligatoria de alcance (confirmada por Víctor, ver Fase 0 punto 9):** cualquier listado de movimiento/venta de producto (por artículo, por cliente, por fecha, márgenes) debe sumar **pedidos + traspasos** — los traspasos a Zaragoza no son venta fiscalmente, pero sí cuentan como movimiento real de producto — y debe **excluir siempre Reparto Super**, porque esa mercancía ya se factura al cliente que encarga el reparto y aparece contabilizada por esa vía; incluirla también aquí duplicaría el dato. Esto es un fallo conocido del HTML actual (no suma traspasos) que el sistema nuevo debe corregir, no reproducir.
+- Todos los listados deben poder **filtrarse por fecha** y **exportarse** (como mínimo a PDF o Excel/CSV, coherente con el requisito de igualar o mejorar el Excel actual, ver punto 5).
+- Antes de dar esta sección por cerrada, revisar con Víctor si hace falta algún listado adicional específico del negocio del pescado que no esté en esta lista — esta es una base mínima, no necesariamente completa.
+
+---
+
 ## 6. Verificación de esta fase
 
 No pasar a la Fase 3 hasta que:
 
 - [ ] Se ha tomado un conjunto de datos reales (un día completo de compras y ventas, por ejemplo) y se ha comparado el resultado del sistema nuevo contra el HTML actual: mismo coste real, mismas partidas asignadas, mismo margen.
-- [ ] El tratamiento de IVA/Recargo de Equivalencia está implementado y documentado para las cuatro clasificaciones fiscales de proveedores y las combinaciones de clientes — con las dudas normativas señaladas explícitamente a Víctor, no asumidas.
+- [ ] El tratamiento de IVA/Recargo de Equivalencia está implementado y documentado para Nacional e Intracomunitario, en proveedores y clientes (Extra-UE queda fuera de alcance, no se implementa).
 - [ ] El caso conocido de falsos positivos en emparejamiento de partidas (ej. C144 vs C1444) se ha probado explícitamente y no reaparece.
+- [ ] La rentabilidad por partida (coste total, coste por artículo, vendido total, vendido por artículo) se puede consultar correctamente en partidas de prueba, tanto abiertas como cerradas.
+- [ ] Los listados mínimos del punto 5bis existen, filtran por fecha y se pueden exportar (PDF o Excel/CSV).
 - [ ] Las partidas no aparecen en ningún documento de cliente generado por el sistema nuevo.
 - [ ] Comparación de agilidad frente al Excel realizada y documentada (ver punto 5).
 - [ ] El HTML/programa actual sigue intacto y en uso normal, en paralelo.

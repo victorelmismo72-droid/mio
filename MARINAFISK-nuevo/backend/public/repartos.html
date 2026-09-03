@@ -1,0 +1,393 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>MARINAFISK — Reparto Super</title>
+<link rel="stylesheet" href="app.css">
+<style>
+  #tabla-lineas-rep input { min-width: 5rem; }
+  .fila-totales td { font-weight: 700; background: #f4f6f5; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Registrar Reparto Super</h1>
+  <p class="ayuda">Reparto a supermercados (Alcampo, Ecomora...). Para envíos internos entre almacenes usa <a href="traspasos.html">Traspasos</a>.</p>
+  <div id="mensaje"></div>
+
+  <div class="tarjeta">
+    <div class="fila-form">
+      <div><label for="r-fecha">Fecha</label><input type="date" id="r-fecha"></div>
+      <div>
+        <label for="r-destinatario">Destinatario</label>
+        <select id="r-destinatario">
+          <option value="ALCAMPO ZARAGOZA">ALCAMPO ZARAGOZA</option>
+          <option value="ALCAMPO MADRID">ALCAMPO MADRID</option>
+          <option value="ALCAMPO VILLANUBLA">ALCAMPO VILLANUBLA</option>
+          <option value="ALCAMPO BARCELONA">ALCAMPO BARCELONA</option>
+          <option value="ALCAMPO MIRANDA">ALCAMPO MIRANDA</option>
+          <option value="ALCAMPO VIGO">ALCAMPO VIGO</option>
+          <option value="ALCAMPO ASTURIAS">ALCAMPO ASTURIAS</option>
+          <option value="ECOMORA">ECOMORA</option>
+          <option value="AHORRAMAS">AHORRAMAS</option>
+          <option value="TORIODIS LEON">TORIODIS LEON</option>
+          <option value="MARINA FISK CORUÑA">MARINA FISK CORUÑA</option>
+          <option value="OTRO">OTRO (escribir abajo)</option>
+        </select>
+      </div>
+      <div><label for="r-conductor">Conductor</label><input type="text" id="r-conductor" placeholder="Nombre del conductor"></div>
+    </div>
+    <div class="fila-form" id="r-destinatario-otro-fila" style="display:none;">
+      <div style="flex:1;"><label for="r-destinatario-otro">Destinatario (texto libre)</label><input type="text" id="r-destinatario-otro" placeholder="Nombre del destinatario"></div>
+    </div>
+
+    <h2>Líneas</h2>
+    <datalist id="lista-articulos"></datalist>
+    <div class="tabla-envoltorio">
+      <table id="tabla-lineas-rep">
+        <thead><tr><th>Artículo</th><th>Lote</th><th>Barco</th><th>Subzona</th><th>Arte de pesca</th><th class="num">Cajas</th><th class="num">Kg aprox.</th><th class="num">Peso etiqueta</th><th></th></tr></thead>
+        <tbody></tbody>
+        <tfoot><tr class="fila-totales"><td></td><td colspan="3"></td><td class="num" id="tot-cajas">0</td><td class="num" id="tot-kg">0</td><td colspan="2"></td></tr></tfoot>
+      </table>
+    </div>
+    <p class="ayuda">Peso etiqueta en blanco = la etiqueta pondrá "VER CAJA"; con un número, imprimirá ese peso exacto.</p>
+    <button type="button" class="btn secundario" id="btn-anadir-linea" style="margin-top:0.7rem;">+ Añadir línea</button>
+
+    <div style="margin-top:1.4rem;">
+      <button type="button" class="btn" id="btn-guardar">Guardar reparto</button>
+      <button type="button" class="btn secundario" id="btn-cancelar-edicion" style="display:none;">Cancelar edición</button>
+    </div>
+  </div>
+
+  <h2>Historial de repartos</h2>
+  <p class="ayuda">Busca por número, destinatario o rango de fechas.</p>
+  <div class="tarjeta">
+    <div class="fila-form">
+      <div><label for="h-num">Nº</label><input type="text" id="h-num" placeholder="Nº de reparto..."></div>
+      <div><label for="h-dest">Destinatario</label><input type="text" id="h-dest" placeholder="Buscar..."></div>
+      <div><label for="h-desde">Desde</label><input type="date" id="h-desde"></div>
+      <div><label for="h-hasta">Hasta</label><input type="date" id="h-hasta"></div>
+      <div style="display:flex;align-items:flex-end;"><button type="button" class="btn secundario" id="btn-limpiar-filtro">Limpiar</button></div>
+    </div>
+  </div>
+  <div class="tabla-envoltorio">
+    <table id="tabla-historico">
+      <thead><tr><th>Nº</th><th>Fecha</th><th>Destinatario</th><th>Conductor</th><th class="num">Cajas</th><th class="num">Kg</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</main>
+
+<script src="app.js"></script>
+<script>
+const usuario = protegerPagina();
+let articulos = [];
+let lineas = [];
+let repartoEnEdicionId = null;
+let repartoEnEdicionNumero = null;
+let todosRepartos = [];
+
+function lineaVacia() {
+  return { producto: '', descripcion: '', lote: '', barco: '', subzona: '', arte_pesca: '', cajas: '', kg: '', peso_etiqueta: '' };
+}
+
+async function cargarArticulos() {
+  const res = await apiFetch('/articulos');
+  articulos = await res.json();
+  document.getElementById('lista-articulos').innerHTML = articulos.map((a) => `<option value="${a.codigo} — ${a.descripcion || ''}">`).join('');
+}
+
+function codigoDeTexto(texto) {
+  return String(texto || '').split(' — ')[0].trim();
+}
+
+// Al elegir un articulo se autorrellenan barco/subzona/arte de pesca desde
+// el catalogo si estan vacios en la linea - igual que "elegirArtReparto()"
+// del HTML actual.
+function autorrellenarDesdeArticulo(l, tr) {
+  const codigo = codigoDeTexto(l.producto);
+  const art = articulos.find((a) => a.codigo === codigo);
+  if (!art) return;
+  if (!l.descripcion) l.descripcion = art.descripcion || '';
+  if (!l.barco && art.barco) l.barco = art.barco;
+  if (!l.subzona && art.subzona) l.subzona = art.subzona;
+  if (!l.arte_pesca && art.arte_pesca) l.arte_pesca = art.arte_pesca;
+  ['descripcion', 'barco', 'subzona', 'arte_pesca'].forEach((campo) => {
+    const input = tr.querySelector(`[data-campo="${campo}"]`);
+    if (input) input.value = l[campo];
+  });
+}
+
+document.getElementById('r-destinatario').addEventListener('change', function () {
+  document.getElementById('r-destinatario-otro-fila').style.display = this.value === 'OTRO' ? '' : 'none';
+});
+
+// Igual que "dividirDestinatario()" del HTML actual: separa "ALCAMPO
+// ZARAGOZA" en nombre de cadena ("ALCAMPO") + ciudad ("ZARAGOZA"), para que
+// las etiquetas/ficha de envio muestren cada dato en su sitio.
+function dividirDestinatario(texto) {
+  texto = (texto || '').trim();
+  const cadenas = ['ALCAMPO'];
+  for (const cadena of cadenas) {
+    if (texto.toUpperCase().indexOf(cadena) === 0) {
+      return { nombre: cadena, ciudad: texto.substring(cadena.length).trim() || texto };
+    }
+  }
+  return { nombre: texto, ciudad: texto };
+}
+
+function destinatarioDelFormulario() {
+  const sel = document.getElementById('r-destinatario').value;
+  const texto = sel === 'OTRO' ? document.getElementById('r-destinatario-otro').value.trim() : sel;
+  return dividirDestinatario(texto);
+}
+
+function actualizarTotales() {
+  let totCajas = 0, totKg = 0;
+  lineas.forEach((l) => { totCajas += Number(l.cajas) || 0; totKg += Number(l.kg) || 0; });
+  document.getElementById('tot-cajas').textContent = totCajas;
+  document.getElementById('tot-kg').textContent = fmtKg(totKg);
+}
+
+// Igual que las demas pantallas (Fase 4 punto 2): nunca se reconstruyen los
+// <input> mientras se escribe.
+function pintarLineas() {
+  const tbody = document.querySelector('#tabla-lineas-rep tbody');
+  tbody.innerHTML = '';
+
+  lineas.forEach((l, i) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><input type="text" data-campo="producto" list="lista-articulos" value="${l.producto}" style="width:6rem;"></td>
+      <td><input type="text" data-campo="lote" value="${l.lote}" placeholder="Nº lote" style="width:5rem;"></td>
+      <td><input type="text" data-campo="barco" value="${l.barco}" placeholder="VARIOS BARCOS" style="width:7rem;"></td>
+      <td><input type="text" data-campo="subzona" value="${l.subzona}" placeholder="ej. VIIIc" style="width:5rem;"></td>
+      <td><input type="text" data-campo="arte_pesca" value="${l.arte_pesca}" placeholder="ej. ARRASTRE" style="width:6rem;"></td>
+      <td class="num"><input type="number" data-campo="cajas" value="${l.cajas}" style="width:4rem;text-align:right;"></td>
+      <td class="num"><input type="number" step="0.01" data-campo="kg" value="${l.kg}" style="width:5rem;text-align:right;"></td>
+      <td class="num"><input type="number" step="0.01" data-campo="peso_etiqueta" value="${l.peso_etiqueta}" placeholder="VER CAJA" title="En blanco = VER CAJA" style="width:5.5rem;text-align:right;"></td>
+      <td><button type="button" class="btn secundario" data-quitar="${i}" style="padding:0.2rem 0.5rem;">✕</button></td>
+    `;
+    tr.querySelectorAll('input').forEach((input) => {
+      input.addEventListener('input', () => {
+        l[input.dataset.campo] = input.value;
+        if (input.dataset.campo === 'producto') autorrellenarDesdeArticulo(l, tr);
+        actualizarTotales();
+      });
+    });
+    tr.querySelector('[data-quitar]').addEventListener('click', () => { lineas.splice(i, 1); pintarLineas(); });
+    tbody.appendChild(tr);
+  });
+
+  actualizarTotales();
+}
+
+document.getElementById('btn-anadir-linea').addEventListener('click', () => { lineas.push(lineaVacia()); pintarLineas(); });
+
+function mostrarMensaje(texto, tipo) {
+  document.getElementById('mensaje').innerHTML = `<div class="mensaje ${tipo}">${texto}</div>`;
+}
+
+function activarModoEdicion(id, numero) {
+  repartoEnEdicionId = id;
+  repartoEnEdicionNumero = numero;
+  document.getElementById('btn-guardar').textContent = `Guardar cambios (editando reparto Nº ${numero})`;
+  document.getElementById('btn-cancelar-edicion').style.display = '';
+}
+
+function cancelarEdicionReparto() {
+  repartoEnEdicionId = null;
+  repartoEnEdicionNumero = null;
+  document.getElementById('btn-guardar').textContent = 'Guardar reparto';
+  document.getElementById('btn-cancelar-edicion').style.display = 'none';
+  document.getElementById('r-fecha').value = fechaLocalISO();
+  document.getElementById('r-destinatario').value = 'ALCAMPO ZARAGOZA';
+  document.getElementById('r-destinatario-otro').value = '';
+  document.getElementById('r-destinatario-otro-fila').style.display = 'none';
+  document.getElementById('r-conductor').value = '';
+  lineas = [lineaVacia()];
+  pintarLineas();
+}
+document.getElementById('btn-cancelar-edicion').addEventListener('click', cancelarEdicionReparto);
+
+async function cargarRepartoParaEditar(id) {
+  const res = await apiFetch(`/repartos/${id}`);
+  if (!res.ok) { mostrarMensaje('No se pudo cargar el reparto.', 'error'); return; }
+  const r = await res.json();
+  document.getElementById('r-fecha').value = r.fecha ? r.fecha.slice(0, 10) : fechaLocalISO();
+  const destinatarioCompleto = `${r.destinatario_nombre || ''} ${r.destinatario_ciudad || ''}`.trim();
+  const sel = document.getElementById('r-destinatario');
+  const opcionExiste = Array.from(sel.options).some((o) => o.value === destinatarioCompleto);
+  if (opcionExiste) {
+    sel.value = destinatarioCompleto;
+    document.getElementById('r-destinatario-otro-fila').style.display = 'none';
+  } else {
+    sel.value = 'OTRO';
+    document.getElementById('r-destinatario-otro').value = destinatarioCompleto;
+    document.getElementById('r-destinatario-otro-fila').style.display = '';
+  }
+  document.getElementById('r-conductor').value = r.conductor || '';
+  lineas = (r.lineas || []).map((l) => ({
+    producto: l.producto || '', descripcion: l.descripcion || '', lote: l.lote || '',
+    barco: l.barco || '', subzona: l.subzona || '', arte_pesca: l.arte_pesca || '',
+    cajas: l.cajas ?? '', kg: l.kg ?? '', peso_etiqueta: l.peso_etiqueta ?? '',
+  }));
+  if (!lineas.length) lineas = [lineaVacia()];
+  pintarLineas();
+  activarModoEdicion(r.id, r.numero);
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+  mostrarMensaje(`Reparto ${r.numero} cargado para editar. Modifica y pulsa "Guardar cambios".`, 'info');
+}
+
+let guardandoReparto = false;
+document.getElementById('btn-guardar').addEventListener('click', async () => {
+  if (guardandoReparto) return;
+  guardandoReparto = true;
+  document.getElementById('btn-guardar').disabled = true;
+  try {
+    await intentarGuardarReparto();
+  } finally {
+    guardandoReparto = false;
+    document.getElementById('btn-guardar').disabled = false;
+  }
+});
+
+async function intentarGuardarReparto() {
+  const destinatario = destinatarioDelFormulario();
+  if (!destinatario.nombre) { mostrarMensaje('Indica el destinatario.', 'error'); return; }
+  const validas = lineas
+    .filter((l) => l.producto && Number(l.cajas) > 0)
+    .map((l) => ({ ...l, producto: codigoDeTexto(l.producto) }));
+  if (!validas.length) { mostrarMensaje('Añade al menos un producto con cajas.', 'error'); return; }
+
+  const esEdicion = repartoEnEdicionId != null;
+  const cuerpo = {
+    fecha: document.getElementById('r-fecha').value || fechaLocalISO(),
+    destinatario_nombre: destinatario.nombre,
+    destinatario_ciudad: destinatario.ciudad,
+    conductor: document.getElementById('r-conductor').value.trim(),
+    total_cajas: validas.reduce((s, l) => s + (Number(l.cajas) || 0), 0),
+    total_kg: validas.reduce((s, l) => s + (Number(l.kg) || 0), 0),
+    lineas: validas,
+  };
+  if (esEdicion) cuerpo.numero = repartoEnEdicionNumero;
+
+  try {
+    const res = await apiFetch(esEdicion ? `/repartos/${repartoEnEdicionId}` : '/repartos', {
+      method: esEdicion ? 'PUT' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(cuerpo),
+    });
+    const datos = await res.json();
+    if (!res.ok) { mostrarMensaje(datos.error || 'No se pudo guardar.', 'error'); return; }
+    mostrarMensaje(`Reparto ${esEdicion ? 'actualizado' : 'guardado'} — nº ${datos.numero}, ${fmtKg(datos.total_kg)}.`, 'ok');
+    cancelarEdicionReparto();
+    cargarHistorico();
+  } catch (e) { mostrarMensaje(e.message, 'error'); }
+}
+
+async function anularReparto(id, numero) {
+  if (!confirm(`¿Anular el reparto nº ${numero}? Esta acción no se puede deshacer.`)) return;
+  try {
+    const res = await apiFetch(`/repartos/${id}`, { method: 'DELETE' });
+    if (!res.ok) { const datos = await res.json().catch(() => ({})); mostrarMensaje(datos.error || 'No se pudo anular.', 'error'); return; }
+    mostrarMensaje(`Reparto nº ${numero} anulado.`, 'ok');
+    if (String(repartoEnEdicionId) === String(id)) cancelarEdicionReparto();
+    cargarHistorico();
+  } catch (e) { mostrarMensaje(e.message, 'error'); }
+}
+
+async function cargarHistorico() {
+  const res = await apiFetch('/repartos');
+  todosRepartos = await res.json();
+  pintarHistorico();
+}
+
+function pintarHistorico() {
+  const num = document.getElementById('h-num').value.trim();
+  const dest = document.getElementById('h-dest').value.trim().toLowerCase();
+  const desde = document.getElementById('h-desde').value;
+  const hasta = document.getElementById('h-hasta').value;
+  const hayFiltro = num || dest || desde || hasta;
+
+  let filas = todosRepartos;
+  if (num) filas = filas.filter((r) => String(r.numero).includes(num));
+  if (dest) filas = filas.filter((r) => `${r.destinatario_nombre || ''} ${r.destinatario_ciudad || ''}`.toLowerCase().includes(dest));
+  if (desde) filas = filas.filter((r) => r.fecha >= desde);
+  if (hasta) filas = filas.filter((r) => r.fecha <= hasta);
+  filas = filas.slice().sort((a, b) => b.numero - a.numero);
+  if (!hayFiltro) filas = filas.slice(0, 30);
+
+  const tbody = document.querySelector('#tabla-historico tbody');
+  if (!filas.length) { tbody.innerHTML = '<tr><td colspan="7" class="ayuda">Sin repartos para ese filtro.</td></tr>'; return; }
+  tbody.innerHTML = filas.map((r) => `
+    <tr><td>${r.numero}</td><td>${fmtFecha(r.fecha)}</td><td>${r.destinatario_nombre || ''} ${r.destinatario_ciudad || ''}</td><td>${r.conductor || ''}</td>
+    <td class="num">${r.total_cajas ?? ''}</td><td class="num">${fmtKg(r.total_kg)}</td>
+    <td>
+      <button type="button" class="btn secundario" data-editar="${r.id}" style="padding:0.2rem 0.6rem;">✏️ Editar</button>
+      <button type="button" class="btn secundario" data-etiquetas="${r.id}" style="padding:0.2rem 0.6rem;">🏷️ Etiquetas</button>
+      <button type="button" class="btn secundario" data-ficha="${r.id}" style="padding:0.2rem 0.6rem;">📄 Ficha envío</button>
+      <button type="button" class="btn secundario" data-ruta="${r.id}" style="padding:0.2rem 0.6rem;">🚚 Hoja de ruta</button>
+      <button type="button" class="btn secundario" data-anular="${r.id}" data-numero="${r.numero}" style="padding:0.2rem 0.6rem;">🗑️ Anular</button>
+    </td></tr>
+  `).join('');
+  document.querySelectorAll('[data-editar]').forEach((btn) => {
+    btn.addEventListener('click', () => cargarRepartoParaEditar(btn.dataset.editar));
+  });
+  document.querySelectorAll('[data-etiquetas]').forEach((btn) => {
+    btn.addEventListener('click', () => imprimirEtiquetas(btn.dataset.etiquetas));
+  });
+  document.querySelectorAll('[data-ficha]').forEach((btn) => {
+    btn.addEventListener('click', () => imprimirFichaEnvio(btn.dataset.ficha));
+  });
+  document.querySelectorAll('[data-ruta]').forEach((btn) => {
+    btn.addEventListener('click', () => imprimirHojaRuta(btn.dataset.ruta));
+  });
+  document.querySelectorAll('[data-anular]').forEach((btn) => {
+    btn.addEventListener('click', () => anularReparto(btn.dataset.anular, btn.dataset.numero));
+  });
+}
+
+// Abrir en una pestaña nueva con el token en la URL no es seguro (igual que ya
+// se decidió para exportar CSV en listados.html) - en vez de eso se pide la
+// página ya autenticada y se escribe directamente en una ventana nueva, lista
+// para imprimir con Ctrl+P (o el diálogo de imprimir que abre solo).
+async function abrirVentanaImpresion(ruta) {
+  try {
+    const res = await apiFetch(ruta);
+    if (!res.ok) {
+      const datos = await res.json().catch(() => ({}));
+      mostrarMensaje(datos.error || 'No se pudo generar el documento.', 'error');
+      return;
+    }
+    const html = await res.text();
+    const ventana = window.open('', '_blank');
+    if (!ventana) { mostrarMensaje('El navegador ha bloqueado la ventana emergente. Permítela e inténtalo de nuevo.', 'error'); return; }
+    ventana.document.open();
+    ventana.document.write(html);
+    ventana.document.close();
+    ventana.onload = () => ventana.print();
+  } catch (e) { mostrarMensaje(e.message, 'error'); }
+}
+function imprimirEtiquetas(id) { abrirVentanaImpresion(`/repartos/${id}/etiquetas`); }
+function imprimirFichaEnvio(id) { abrirVentanaImpresion(`/repartos/${id}/ficha-envio`); }
+function imprimirHojaRuta(id) { abrirVentanaImpresion(`/repartos/${id}/ficha-envio?rutas=1`); }
+['h-num', 'h-dest', 'h-desde', 'h-hasta'].forEach((id) => {
+  document.getElementById(id).addEventListener('input', pintarHistorico);
+});
+document.getElementById('btn-limpiar-filtro').addEventListener('click', () => {
+  ['h-num', 'h-dest', 'h-desde', 'h-hasta'].forEach((id) => { document.getElementById(id).value = ''; });
+  pintarHistorico();
+});
+
+if (usuario) {
+  renderBarraNavegacion(usuario, 'repartos.html');
+  document.getElementById('r-fecha').value = fechaLocalISO();
+  lineas = [lineaVacia()];
+  pintarLineas();
+  cargarArticulos();
+  cargarHistorico();
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>MARINAFISK — Clasificación fiscal</title>
+<style>
+  body { font-family: system-ui, sans-serif; margin: 2rem; color: #1a1a1a; background: #fafafa; }
+  h1 { font-size: 1.4rem; }
+  p.ayuda { color: #555; max-width: 60rem; }
+  input[type=text], input[type=password] { padding: 0.4rem 0.6rem; font-size: 1rem; width: 20rem; margin-bottom: 1rem; }
+  table { border-collapse: collapse; width: 100%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+  th, td { padding: 0.5rem 0.7rem; border-bottom: 1px solid #eee; text-align: left; font-size: 0.92rem; }
+  th { background: #f0f0f0; position: sticky; top: 0; }
+  select, input[type=checkbox] { font-size: 0.92rem; }
+  tr.guardando td { opacity: 0.5; }
+  tr.guardado-ok { background: #eaffea; transition: background 2s; }
+  tr.guardado-error { background: #ffeaea; }
+  .estado { font-size: 0.85rem; color: #2a7a2a; }
+  .estado.error { color: #a02020; }
+  section { margin-bottom: 3rem; }
+  .contador { color: #777; font-size: 0.85rem; margin-bottom: 0.5rem; }
+
+  #cabecera-sesion { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
+  #cabecera-sesion button { padding: 0.35rem 0.8rem; cursor: pointer; }
+  #contenido { display: none; }
+
+  #pantalla-login { max-width: 22rem; margin: 4rem auto; background: #fff; padding: 2rem; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+  #pantalla-login h1 { margin-top: 0; }
+  #pantalla-login label { display: block; font-size: 0.85rem; color: #555; margin-bottom: 0.2rem; }
+  #pantalla-login input { width: 100%; box-sizing: border-box; }
+  #pantalla-login button { width: 100%; padding: 0.6rem; font-size: 1rem; cursor: pointer; }
+  #login-error { color: #a02020; font-size: 0.88rem; min-height: 1.2em; }
+</style>
+</head>
+<body>
+
+<div id="pantalla-login">
+  <h1>MARINAFISK</h1>
+  <p class="ayuda">Entra con tu usuario y contraseña.</p>
+  <form id="form-login">
+    <label for="login-usuario">Usuario</label>
+    <input type="text" id="login-usuario" autocomplete="username" required>
+    <label for="login-password">Contraseña</label>
+    <input type="password" id="login-password" autocomplete="current-password" required>
+    <div id="login-error"></div>
+    <button type="submit">Entrar</button>
+  </form>
+</div>
+
+<div id="contenido">
+  <div id="cabecera-sesion">
+    <h1 style="margin:0;">MARINAFISK — Clasificación fiscal de proveedores y clientes</h1>
+    <div>
+      <span id="nombre-usuario" style="margin-right:0.8rem;color:#555;font-size:0.9rem;"></span>
+      <button id="btn-logout">Salir</button>
+    </div>
+  </div>
+  <p class="ayuda">
+    Cada cambio se guarda solo, en cuanto lo tocas — no hace falta ningún botón de "Guardar".
+    Un fondo verde momentáneo confirma que se ha guardado bien; si algo falla, se queda en rojo con el motivo.
+  </p>
+
+  <section>
+    <h2>Proveedores</h2>
+    <p class="ayuda">Marca "Intracomunitario" solo si el proveedor es de otro país de la Unión Europea. Todo lo demás (España) es "Nacional".</p>
+    <input type="text" id="filtroProveedores" placeholder="Buscar por código o nombre...">
+    <div class="contador" id="contadorProveedores"></div>
+    <table id="tablaProveedores">
+      <thead><tr><th>Código</th><th>Nombre</th><th>Subasta/Lonja (2% OP)</th><th>Clasificación fiscal</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>Clientes</h2>
+    <p class="ayuda">Recargo de Equivalencia y Nacional/Intracomunitario son dos cosas independientes: un cliente puede ser, por ejemplo, Nacional con Recargo, o Intracomunitario sin Recargo.</p>
+    <input type="text" id="filtroClientes" placeholder="Buscar por código o nombre...">
+    <div class="contador" id="contadorClientes"></div>
+    <table id="tablaClientes">
+      <thead><tr><th>Código</th><th>Nombre</th><th>Clasificación fiscal</th><th>Recargo de Equivalencia</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </section>
+</div>
+
+<script>
+const API = '/api';
+
+// --- sesion ---
+function tokenGuardado() { return sessionStorage.getItem('marinafisk_token'); }
+function guardarSesion(token, usuario) {
+  sessionStorage.setItem('marinafisk_token', token);
+  sessionStorage.setItem('marinafisk_usuario', JSON.stringify(usuario));
+}
+function cerrarSesionLocal() {
+  sessionStorage.removeItem('marinafisk_token');
+  sessionStorage.removeItem('marinafisk_usuario');
+}
+
+// fetch autenticado: anade el token, y si el servidor dice que la sesion no
+// vale (401), vuelve a la pantalla de login en vez de fallar en silencio.
+async function apiFetch(ruta, opciones = {}) {
+  const res = await fetch(`${API}${ruta}`, {
+    ...opciones,
+    headers: { ...(opciones.headers || {}), Authorization: `Bearer ${tokenGuardado()}` },
+  });
+  if (res.status === 401) {
+    cerrarSesionLocal();
+    mostrarLogin('Tu sesión ha caducado. Vuelve a entrar.');
+    throw new Error('Sesion caducada');
+  }
+  return res;
+}
+
+function mostrarLogin(mensaje) {
+  document.getElementById('contenido').style.display = 'none';
+  document.getElementById('pantalla-login').style.display = 'block';
+  document.getElementById('login-error').textContent = mensaje || '';
+}
+
+async function mostrarContenido() {
+  document.getElementById('pantalla-login').style.display = 'none';
+  document.getElementById('contenido').style.display = 'block';
+  const usuario = JSON.parse(sessionStorage.getItem('marinafisk_usuario') || '{}');
+  document.getElementById('nombre-usuario').textContent = `${usuario.nombre || usuario.usuario} (${usuario.rol === 'ADMINISTRADOR' ? 'Administrador' : 'Usuario'})`;
+  await cargarYPintarTodo();
+}
+
+document.getElementById('form-login').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const usuario = document.getElementById('login-usuario').value.trim();
+  const password = document.getElementById('login-password').value;
+  document.getElementById('login-error').textContent = '';
+  try {
+    const res = await fetch(`${API}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ usuario, password }),
+    });
+    const datos = await res.json();
+    if (!res.ok) { document.getElementById('login-error').textContent = datos.error || 'No se pudo entrar.'; return; }
+    guardarSesion(datos.token, datos.usuario);
+    document.getElementById('login-password').value = '';
+    await mostrarContenido();
+  } catch (err) {
+    document.getElementById('login-error').textContent = 'No se pudo conectar con el servidor.';
+  }
+});
+
+document.getElementById('btn-logout').addEventListener('click', async () => {
+  try { await apiFetch('/auth/logout', { method: 'POST' }); } catch (e) { /* ya deslogueado */ }
+  cerrarSesionLocal();
+  mostrarLogin();
+});
+
+// --- datos ---
+async function cargarProveedores() {
+  const res = await apiFetch('/proveedores');
+  return res.json();
+}
+async function cargarClientes() {
+  const res = await apiFetch('/clientes');
+  return res.json();
+}
+
+function marcarFila(tr, estado, mensaje) {
+  tr.classList.remove('guardando', 'guardado-ok', 'guardado-error');
+  const celdaEstado = tr.querySelector('.estado');
+  if (estado === 'guardando') {
+    tr.classList.add('guardando');
+    celdaEstado.textContent = 'Guardando...';
+    celdaEstado.className = 'estado';
+  } else if (estado === 'ok') {
+    tr.classList.add('guardado-ok');
+    celdaEstado.textContent = 'Guardado';
+    celdaEstado.className = 'estado';
+    setTimeout(() => tr.classList.remove('guardado-ok'), 2000);
+  } else {
+    tr.classList.add('guardado-error');
+    celdaEstado.textContent = mensaje || 'Error al guardar';
+    celdaEstado.className = 'estado error';
+  }
+}
+
+async function guardar(tabla, tr, registro, cambios) {
+  marcarFila(tr, 'guardando');
+  try {
+    const cuerpo = { ...registro, ...cambios };
+    const res = await apiFetch(`/${tabla}/${registro.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(cuerpo),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      marcarFila(tr, 'error', err.error || `Error ${res.status}`);
+      return;
+    }
+    Object.assign(registro, cambios);
+    marcarFila(tr, 'ok');
+  } catch (e) {
+    marcarFila(tr, 'error', e.message);
+  }
+}
+
+function pintarProveedores(lista) {
+  const tbody = document.querySelector('#tablaProveedores tbody');
+  tbody.innerHTML = '';
+  for (const p of lista) {
+    const tr = document.createElement('tr');
+
+    const tdCodigo = document.createElement('td');
+    tdCodigo.textContent = p.codigo;
+    const tdNombre = document.createElement('td');
+    tdNombre.textContent = p.nombre || '';
+
+    const tdSubasta = document.createElement('td');
+    const chkSubasta = document.createElement('input');
+    chkSubasta.type = 'checkbox';
+    chkSubasta.checked = !!p.es_subasta_op;
+    chkSubasta.addEventListener('change', () => guardar('proveedores', tr, p, { es_subasta_op: chkSubasta.checked }));
+    tdSubasta.appendChild(chkSubasta);
+
+    const tdFiscal = document.createElement('td');
+    const sel = document.createElement('select');
+    for (const valor of ['NACIONAL', 'INTRACOMUNITARIO']) {
+      const opt = document.createElement('option');
+      opt.value = valor;
+      opt.textContent = valor === 'NACIONAL' ? 'Nacional' : 'Intracomunitario';
+      if (p.tipo_iva === valor) opt.selected = true;
+      sel.appendChild(opt);
+    }
+    sel.addEventListener('change', () => guardar('proveedores', tr, p, { tipo_iva: sel.value }));
+    tdFiscal.appendChild(sel);
+
+    const tdEstado = document.createElement('td');
+    tdEstado.className = 'estado';
+
+    tr.append(tdCodigo, tdNombre, tdSubasta, tdFiscal, tdEstado);
+    tbody.appendChild(tr);
+  }
+  document.getElementById('contadorProveedores').textContent = `${lista.length} proveedores`;
+}
+
+function pintarClientes(lista) {
+  const tbody = document.querySelector('#tablaClientes tbody');
+  tbody.innerHTML = '';
+  for (const c of lista) {
+    const tr = document.createElement('tr');
+
+    const tdCodigo = document.createElement('td');
+    tdCodigo.textContent = c.codigo;
+    const tdNombre = document.createElement('td');
+    tdNombre.textContent = c.nombre || '';
+
+    const tdFiscal = document.createElement('td');
+    const sel = document.createElement('select');
+    for (const valor of ['NACIONAL', 'INTRACOMUNITARIO']) {
+      const opt = document.createElement('option');
+      opt.value = valor;
+      opt.textContent = valor === 'NACIONAL' ? 'Nacional' : 'Intracomunitario';
+      if (c.tipo_iva === valor) opt.selected = true;
+      sel.appendChild(opt);
+    }
+    sel.addEventListener('change', () => guardar('clientes', tr, c, { tipo_iva: sel.value }));
+    tdFiscal.appendChild(sel);
+
+    const tdRE = document.createElement('td');
+    const chkRE = document.createElement('input');
+    chkRE.type = 'checkbox';
+    chkRE.checked = !!c.recargo_equivalencia;
+    chkRE.addEventListener('change', () => guardar('clientes', tr, c, { recargo_equivalencia: chkRE.checked }));
+    tdRE.appendChild(chkRE);
+
+    const tdEstado = document.createElement('td');
+    tdEstado.className = 'estado';
+
+    tr.append(tdCodigo, tdNombre, tdFiscal, tdRE, tdEstado);
+    tbody.appendChild(tr);
+  }
+  document.getElementById('contadorClientes').textContent = `${lista.length} clientes`;
+}
+
+function filtrar(lista, texto) {
+  const t = texto.trim().toLowerCase();
+  if (!t) return lista;
+  return lista.filter((x) => (x.codigo || '').toLowerCase().includes(t) || (x.nombre || '').toLowerCase().includes(t));
+}
+
+async function cargarYPintarTodo() {
+  const proveedores = await cargarProveedores();
+  const clientes = await cargarClientes();
+
+  pintarProveedores(proveedores);
+  pintarClientes(clientes);
+
+  document.getElementById('filtroProveedores').addEventListener('input', (e) => {
+    pintarProveedores(filtrar(proveedores, e.target.value));
+  });
+  document.getElementById('filtroClientes').addEventListener('input', (e) => {
+    pintarClientes(filtrar(clientes, e.target.value));
+  });
+}
+
+(async () => {
+  if (tokenGuardado()) {
+    try { await mostrarContenido(); return; } catch (e) { /* mostrarLogin ya se llamo dentro de apiFetch */ }
+  }
+  mostrarLogin();
+})();
+</script>
+</body>
+</html>

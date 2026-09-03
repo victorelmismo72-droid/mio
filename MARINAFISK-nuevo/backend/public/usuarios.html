@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>MARINAFISK — Usuarios</title>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<main>
+  <h1>Usuarios y cierre de año</h1>
+  <p class="ayuda">Estas dos cosas son exclusivas del rol Administrador — el resto del trabajo diario lo puede hacer cualquier usuario.</p>
+  <div id="mensaje"></div>
+
+  <div id="solo-admin">
+    <div class="tarjeta">
+      <h2 style="margin-top:0;">Usuarios</h2>
+      <div class="tabla-envoltorio">
+        <table id="tabla-usuarios">
+          <thead><tr><th>Usuario</th><th>Nombre</th><th>Rol</th><th>Activo</th><th></th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <h2>Dar de alta un usuario nuevo</h2>
+      <div class="fila-form">
+        <div><label for="nu-usuario">Usuario</label><input type="text" id="nu-usuario"></div>
+        <div><label for="nu-nombre">Nombre</label><input type="text" id="nu-nombre"></div>
+        <div><label for="nu-password">Contraseña</label><input type="password" id="nu-password"></div>
+        <div>
+          <label for="nu-rol">Rol</label>
+          <select id="nu-rol"><option value="ESTANDAR">Estándar</option><option value="ADMINISTRADOR">Administrador</option></select>
+        </div>
+        <div style="display:flex;align-items:flex-end;"><button type="button" class="btn" id="btn-crear-usuario">Crear</button></div>
+      </div>
+    </div>
+
+    <div class="tarjeta">
+      <h2 style="margin-top:0;">Cierre de año</h2>
+      <p class="ayuda">Reinicia la numeración de pedidos, partidas, traspasos y repartos hacia adelante. <strong>No borra ni modifica ningún dato de años anteriores.</strong></p>
+      <button type="button" class="btn secundario" id="btn-vista-previa-cierre">Ver qué va a pasar</button>
+      <div id="vista-previa-cierre"></div>
+    </div>
+  </div>
+</main>
+
+<script src="app.js"></script>
+<script>
+const usuario = protegerPagina();
+
+function mostrarMensaje(texto, tipo) {
+  document.getElementById('mensaje').innerHTML = `<div class="mensaje ${tipo}">${texto}</div>`;
+}
+
+async function cargarUsuarios() {
+  const res = await apiFetch('/usuarios');
+  const usuarios = await res.json();
+  document.querySelector('#tabla-usuarios tbody').innerHTML = usuarios.map((u) => `
+    <tr>
+      <td>${u.usuario}</td><td>${u.nombre}</td><td>${u.rol === 'ADMINISTRADOR' ? 'Administrador' : 'Estándar'}</td>
+      <td>${u.activo ? '✅ Sí' : '— No'}</td>
+      <td><button type="button" class="btn secundario" data-toggle="${u.id}" data-activo="${u.activo}">${u.activo ? 'Desactivar' : 'Reactivar'}</button></td>
+    </tr>
+  `).join('');
+  document.querySelectorAll('[data-toggle]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      await apiFetch(`/usuarios/${btn.dataset.toggle}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ activo: btn.dataset.activo !== 'true' }),
+      });
+      cargarUsuarios();
+    });
+  });
+}
+
+document.getElementById('btn-crear-usuario').addEventListener('click', async () => {
+  const cuerpo = {
+    usuario: document.getElementById('nu-usuario').value.trim(),
+    nombre: document.getElementById('nu-nombre').value.trim(),
+    password: document.getElementById('nu-password').value,
+    rol: document.getElementById('nu-rol').value,
+  };
+  if (!cuerpo.usuario || !cuerpo.nombre || !cuerpo.password) { mostrarMensaje('Rellena usuario, nombre y contraseña.', 'error'); return; }
+  const res = await apiFetch('/usuarios', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cuerpo) });
+  const datos = await res.json();
+  if (!res.ok) { mostrarMensaje(datos.error, 'error'); return; }
+  mostrarMensaje(`Usuario "${datos.usuario}" creado.`, 'ok');
+  document.getElementById('nu-usuario').value = '';
+  document.getElementById('nu-nombre').value = '';
+  document.getElementById('nu-password').value = '';
+  cargarUsuarios();
+});
+
+document.getElementById('btn-vista-previa-cierre').addEventListener('click', async () => {
+  const res = await apiFetch('/cierre-anual/vista-previa');
+  const datos = await res.json();
+  const cont = document.getElementById('vista-previa-cierre');
+  cont.innerHTML = `
+    <p class="ayuda">${datos.aviso}</p>
+    <div class="tabla-envoltorio"><table>
+      <thead><tr><th>Contador</th><th class="num">Ahora</th><th class="num">Tras el cierre</th></tr></thead>
+      <tbody>
+        <tr><td>Pedidos</td><td class="num">${datos.contadores_actuales.pedido}</td><td class="num">${datos.contadores_tras_el_cierre.pedido}</td></tr>
+        <tr><td>Partidas</td><td class="num">${datos.contadores_actuales.partida}</td><td class="num">${datos.contadores_tras_el_cierre.partida}</td></tr>
+        <tr><td>Traspasos</td><td class="num">${datos.contadores_actuales.traspaso}</td><td class="num">${datos.contadores_tras_el_cierre.traspaso}</td></tr>
+        <tr><td>Repartos</td><td class="num">${datos.contadores_actuales.reparto}</td><td class="num">${datos.contadores_tras_el_cierre.reparto}</td></tr>
+      </tbody>
+    </table></div>
+    <button type="button" class="btn peligro" id="btn-confirmar-cierre" style="margin-top:1rem;">Confirmar cierre de año (no se puede deshacer)</button>
+  `;
+  document.getElementById('btn-confirmar-cierre').addEventListener('click', async () => {
+    if (!confirm('¿Seguro? Esto reinicia la numeración hacia adelante y no se puede deshacer.')) return;
+    const r = await apiFetch('/cierre-anual', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ confirmacion: true }) });
+    const d = await r.json();
+    if (!r.ok) { mostrarMensaje(d.error, 'error'); return; }
+    mostrarMensaje('Cierre de año ejecutado correctamente.', 'ok');
+    cont.innerHTML = '';
+  });
+});
+
+if (usuario) {
+  renderBarraNavegacion(usuario, 'usuarios.html');
+  if (usuario.rol !== 'ADMINISTRADOR') {
+    document.getElementById('solo-admin').style.display = 'none';
+    mostrarMensaje('Esta pantalla es solo para el Administrador.', 'error');
+  } else {
+    cargarUsuarios();
+  }
+}
+</script>
+</body>
+</html>
