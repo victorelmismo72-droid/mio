@@ -12,7 +12,8 @@
   .fila-manual input[data-campo="descripcion"] { flex: 2; }
   .fila-manual input[data-campo="precio"] { flex: 1; }
   .fila-manual input[data-campo="coste"], .fila-manual input[data-campo="existencias"] { flex: 1; background: #fff8e1; }
-  .margen-fila { flex: 0 0 80px; font-size: 0.8rem; text-align: right; }
+  .margen-fila { flex: 0 0 110px; font-size: 0.8rem; text-align: right; }
+  .fila-manual input.en-perdida { border: 2px solid #b00000; background: #fdeaea; }
   #contenedor-canvas canvas { max-width: 100%; border: 1px solid #ddd; border-radius: 6px; margin-top: 0.7rem; }
 </style>
 </head>
@@ -170,15 +171,31 @@ function pintarFilasManual() {
       <input type="text" data-campo="descripcion" placeholder="Producto (ej. Merluza)" value="${f.descripcion}">
       <input type="number" step="0.01" min="0" data-campo="precio" placeholder="Precio €/kg" value="${f.precio}">
       <input type="number" step="0.01" min="0" data-campo="coste" placeholder="Coste (solo tú)" title="Solo para tu referencia — no sale en la imagen que ve el cliente" value="${f.coste}">
-      <input type="number" step="1" min="0" data-campo="existencias" placeholder="Existencias cajas (solo tú)" title="Solo para tu referencia — no sale en la imagen que ve el cliente" value="${f.existencias}">
+      <input type="text" data-campo="existencias" placeholder="Existencias: nº de cajas o texto (AGOTADO, POCAS...)" title="Solo para tu referencia — no sale en la imagen que ve el cliente. Admite un número de cajas o texto libre." value="${f.existencias}">
       <span class="margen-fila"></span>
       <button type="button" class="btn secundario" data-quitar="${i}" style="padding:0.2rem 0.5rem;">✕</button>
     `;
+    const inputPrecio = div.querySelector('[data-campo="precio"]');
+    const inputCoste = div.querySelector('[data-campo="coste"]');
     div.querySelectorAll('input').forEach((input) => {
       input.addEventListener('input', () => {
         f[input.dataset.campo] = input.value;
         actualizarMargenFila(div, f);
         guardarBorradorManualDebounced();
+      });
+    });
+    // Aviso de pérdida en 3 niveles (informe de Víctor, 02/09/2026, punto 4):
+    // 1) en vivo mientras se escribe (ya lo hace actualizarMargenFila,
+    // aplicando .en-perdida al precio), 2) un aviso emergente al salir del
+    // campo, y 3) una confirmación explícita antes de generar la imagen
+    // final (ver el listener de btn-generar).
+    [inputPrecio, inputCoste].forEach((input) => {
+      input.addEventListener('blur', () => {
+        const precio = Number(f.precio), coste = Number(f.coste);
+        if (precio > 0 && coste > 0 && precio < coste) {
+          const perdida = coste - precio;
+          alert(`⚠️ ¡PÉRDIDA!\n\n${f.descripcion.trim() || '(producto sin nombre)'}\nPrecio: ${fmtEUR(precio)}/kg\nCoste: ${fmtEUR(coste)}/kg\nEstás perdiendo ${fmtEUR(perdida)}/kg.`);
+        }
       });
     });
     div.querySelector('[data-quitar]').addEventListener('click', () => { filasManual.splice(i, 1); pintarFilasManual(); guardarBorradorManual(); });
@@ -189,14 +206,18 @@ function pintarFilasManual() {
 
 function actualizarMargenFila(div, f) {
   const span = div.querySelector('.margen-fila');
+  const inputPrecio = div.querySelector('[data-campo="precio"]');
   const precio = Number(f.precio), coste = Number(f.coste);
+  const enPerdida = precio > 0 && coste > 0 && precio < coste;
   if (precio > 0 && coste > 0) {
     const margen = precio - coste;
-    span.textContent = `margen: ${margen.toFixed(2)}€`;
+    span.textContent = enPerdida ? `⚠️ ¡PÉRDIDA! ${margen.toFixed(2)}€` : `margen: ${margen.toFixed(2)}€`;
     span.style.color = margen >= 0 ? '#1a7a1a' : '#b00000';
+    span.style.fontWeight = enPerdida ? '700' : '400';
   } else {
     span.textContent = '';
   }
+  inputPrecio.classList.toggle('en-perdida', enPerdida);
 }
 
 document.getElementById('btn-anadir-fila').addEventListener('click', () => {
@@ -343,8 +364,15 @@ async function dibujarCanvasInterno(productos) {
       ctx.fillText('(sin coste)', xCoste, yFilaTop + 27);
     }
     if (p.existencias !== null) {
+      // Admite un número de cajas o texto libre (informe de Víctor,
+      // 02/09/2026, punto 5): "12" se enseña como "12 cajas", "AGOTADO" se
+      // enseña tal cual, en mayúsculas.
+      const numExistencias = Number(p.existencias);
+      const textoExistencias = (p.existencias !== '' && !isNaN(numExistencias) && numExistencias >= 0)
+        ? `${Math.round(numExistencias)} cajas`
+        : String(p.existencias).toUpperCase();
       ctx.fillStyle = '#555555'; ctx.font = '16px Arial';
-      ctx.fillText(Math.round(p.existencias) + ' cajas', xExistencias, yFilaTop + 27);
+      ctx.fillText(textoExistencias, xExistencias, yFilaTop + 27);
     } else {
       ctx.fillStyle = '#999999'; ctx.font = 'italic 14px Arial';
       ctx.fillText('(s/d)', xExistencias, yFilaTop + 27);
@@ -366,10 +394,22 @@ document.getElementById('btn-generar').addEventListener('click', async () => {
   } else {
     const validas = filasManual.filter((f) => f.descripcion.trim() && Number(f.precio) > 0);
     if (!validas.length) { mostrarMensaje('Escribe al menos un producto con su precio.', 'error'); return; }
+
+    // Nivel 3 del aviso de pérdida (informe de Víctor, 02/09/2026, punto 4):
+    // no bloquea (puede ser intencionado), pero exige confirmación explícita
+    // si sigue habiendo algún producto por debajo de coste al generar.
+    const enPerdida = validas.filter((f) => Number(f.precio) > 0 && Number(f.coste) > 0 && Number(f.precio) < Number(f.coste));
+    if (enPerdida.length) {
+      const detalle = enPerdida.map((f) => `- ${f.descripcion.trim()}: precio ${fmtEUR(Number(f.precio))}, coste ${fmtEUR(Number(f.coste))} (pierdes ${fmtEUR(Number(f.coste) - Number(f.precio))}/kg)`).join('\n');
+      const seguir = confirm(`⚠️ Hay ${enPerdida.length} producto(s) con precio por debajo del coste:\n\n${detalle}\n\n¿Generar la imagen igualmente?`);
+      if (!seguir) { mostrarMensaje('Imagen no generada — revisa los precios en pérdida.', 'info'); return; }
+    }
+
     productosPublico = validas.map((f) => ({ desc: f.descripcion.trim().toUpperCase(), precio: Number(f.precio) }));
-    const hayCosteOExistencias = validas.some((f) => Number(f.coste) > 0 || Number(f.existencias) > 0);
+    const existeTexto = (v) => v !== null && v !== undefined && String(v).trim() !== '';
+    const hayCosteOExistencias = validas.some((f) => Number(f.coste) > 0 || existeTexto(f.existencias));
     productosInterno = hayCosteOExistencias
-      ? validas.map((f) => ({ desc: f.descripcion.trim().toUpperCase(), precio: Number(f.precio), coste: Number(f.coste) > 0 ? Number(f.coste) : null, existencias: Number(f.existencias) > 0 ? Number(f.existencias) : null }))
+      ? validas.map((f) => ({ desc: f.descripcion.trim().toUpperCase(), precio: Number(f.precio), coste: Number(f.coste) > 0 ? Number(f.coste) : null, existencias: existeTexto(f.existencias) ? String(f.existencias).trim() : null }))
       : null;
   }
 

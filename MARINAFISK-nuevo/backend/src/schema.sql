@@ -318,6 +318,10 @@ CREATE TABLE listas_precio (
 -- catalogo de articulos - asi es como ya funciona en el HTML actual (Lista de
 -- precios en modo manual). `coste`/`existencias` son "solo para ti", nunca
 -- salen en la imagen que se manda al cliente (ver src/negocio/listasPrecio.js).
+-- `existencias` es TEXT (no NUMERIC) a proposito: ademas de una cantidad
+-- exacta admite texto libre como "AGOTADO" o "POCAS" (informe de Víctor,
+-- 02/09/2026, punto 5) - se muestra "X cajas" si es un numero, o tal cual
+-- (en mayusculas) si es texto.
 CREATE TABLE lista_precio_lineas (
   id               SERIAL PRIMARY KEY,
   lista_precio_id  INTEGER NOT NULL REFERENCES listas_precio(id),
@@ -325,7 +329,7 @@ CREATE TABLE lista_precio_lineas (
   descripcion      TEXT,
   precio           NUMERIC,
   coste            NUMERIC,
-  existencias      NUMERIC
+  existencias      TEXT
 );
 
 -- ---------------------------------------------------------------------------

@@ -145,7 +145,22 @@ Probado disparando 8 peticiones de guardado idénticas del mismo usuario en para
 
 Probado contra datos reales (agosto 2026): sin la casilla, el listado no trae ni una fila de traspaso; con la casilla, 35.954,45 kg / 150.122,17 € de ventas reales + 3.638,55 kg traspasados = 39.593,00 kg de pescado movido en total — la suma cuadra exactamente. `npm run verify` tras las pruebas: 0 discrepancias.
 
-## 10. Qué falta para cerrar la Fase 4 del todo
+## 10. Segunda entrega del informe de Víctor (02/09/2026): aviso de pérdida y existencias en texto libre
+
+El mismo informe llegó ampliado con dos puntos más (los tres anteriores ya estaban resueltos, ver punto 9):
+
+**4. Aviso cuando el precio de venta queda por debajo del coste** (lista de precios manual). Implementado en `listasprecio.html`, en los tres niveles que pide el informe:
+1. *En vivo*: en cuanto Precio y Coste están rellenos y Precio < Coste, el campo Precio se marca con borde rojo (`.en-perdida`) y la columna de margen pasa a "⚠️ ¡PÉRDIDA! -X,XX€" en rojo.
+2. *Al salir del campo*: un aviso emergente (`alert`) nombra el producto, el precio, el coste y cuánto se pierde por kilo.
+3. *Antes de generar la imagen final*: si sigue habiendo algún producto en pérdida, se listan todos con su importe de pérdida y se pide confirmación explícita (`confirm`) antes de continuar — no bloquea, pero obliga a confirmarlo a propósito, igual que el HTML actual.
+
+**Alcance de esta corrección, explicado con honestidad**: el informe pide idealmente comparar contra "el coste real de la partida asignada", no solo un coste tecleado a mano. En el modo Automático eso ya es así (el precio sale siempre del coste medio real de las compras de hoy + margen, nunca puede dar pérdida). Pero en el modo Manual las líneas son texto libre sin vincular a ningún artículo del catálogo ni partida concreta — así es como ya funciona el HTML actual y así se decidió deliberadamente al construir esta pantalla (ver Fase 1, `lista_precio_lineas`), porque Víctor a veces escribe productos que no están en el catálogo. Por eso la comparación en modo Manual usa el coste que Víctor escribe a mano, igual que el HTML actual — vincular cada línea manual a una partida real sería un cambio de diseño mayor, no pedido aquí, y se señala como posible mejora futura si algún día interesa.
+
+**5. Existencias admite texto libre.** La columna `lista_precio_lineas.existencias` era `NUMERIC` — se ha cambiado a `TEXT` (migración aplicada también a la base de datos real, sin pérdida de los datos existentes). El campo del formulario pasa de `type="number"` a `type="text"`; en la imagen interna, un valor numérico se sigue mostrando como "X cajas" y cualquier otro texto se muestra tal cual, en mayúsculas (ej. "AGOTADO", "POCAS").
+
+Probado con Playwright contra un caso real con los tres casos a la vez (un producto con existencias numéricas, uno "AGOTADO" y uno "POCAS", y uno de los tres deliberadamente en pérdida): captura de los tres niveles de aviso confirmada (borde rojo + texto en vivo, `alert` al salir del campo citando el producto/precio/coste/pérdida exactos, `confirm` antes de generar listando el producto en pérdida), y la imagen interna generada muestra "12 cajas", "AGOTADO" y "POCAS" correctamente. Datos de prueba borrados después; `npm run verify`: 0 discrepancias.
+
+## 11. Qué falta para cerrar la Fase 4 del todo
 
 - **Víctor debe usar personalmente cada pantalla con datos reales** y confirmar que el resultado es idéntico al del programa actual — este es el requisito de cierre más importante de esta fase (punto 4 de la Fase 4) y no lo puede hacer nadie más.
 - Comparación explícita de agilidad frente al HTML/Excel actuales, pantalla por pantalla (más allá de la corrección de foco del punto 2, que era un defecto claro).
