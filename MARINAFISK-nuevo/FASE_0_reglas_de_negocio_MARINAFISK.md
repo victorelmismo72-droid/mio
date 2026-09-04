@@ -3,7 +3,7 @@
 Documento de referencia para el desarrollo del nuevo sistema con base de datos.
 Recoge cómo funciona HOY el programa HTML (`CARGA_DE_ALBARANES_MARINAFISK`), para que el sistema nuevo reproduzca exactamente el mismo comportamiento antes de añadir nada.
 
-Última versión de referencia del programa actual: **2026-08-21-I**
+Última versión de referencia del programa actual: **2026-09-02-CORREGIDO_4** (sustituye a la anterior, 2026-08-21-I, que se conserva en el repo como histórico).
 Última versión corregida del Excel GESTION_CORRECTA: ver notas al final.
 
 ---
@@ -74,6 +74,8 @@ Recoge cómo funciona HOY el programa HTML (`CARGA_DE_ALBARANES_MARINAFISK`), pa
   - Los contadores correlativos (nextPedido, nextPartida, nextReparto, nextTrp) deben ser siempre consistentes entre puestos — un contador desincronizado puede causar números de albarán duplicados (ya ocurrió: 667 duplicados en un incidente de 5 minutos el 28/07/2026).
   - Los backups deben **siempre** leer el estado real y completo de ambos puestos, sin usar cachés/atajos de rendimiento — un fallo pasado hizo que backups se generaran con datos "congelados" y omitieran cientos de pedidos de un puesto.
   - Las altas nuevas de clientes/artículos/proveedores en un puesto deben propagarse siempre al otro (no solo las actualizaciones de registros ya existentes).
+  - **Doble/triple grabación por clic repetido (fallo real, 01/09/2026):** un mismo clic en "GRABAR" (Pedidos) repetido mientras el guardado tardaba en confirmarse generó el mismo pedido 3 veces con 3 números distintos. Corregido en el HTML bloqueando el botón (deshabilitado + texto "⏳ Grabando...") mientras la grabación está en curso, en Pedidos, Traspasos y Repartos. **El sistema nuevo debe garantizar esto de forma estructural** (idempotencia en el backend / transacción única por documento), no solo con un botón deshabilitado en el frontend — un botón deshabilitado no protege contra reintentos de red, doble pestaña, etc.
+  - **Refresco incompleto de la carpeta antes de grabar (fallo relacionado, 01–02/09/2026):** los contadores podían desincronizarse entre puestos porque la carpeta compartida no se había refrescado del todo antes de grabar un documento. Corregido en el HTML con un refresco automático completo (no solo de Pedidos) la primera vez que se abre el programa cada día, con límite de 90s y aviso explícito si no llega a tiempo. El sistema nuevo elimina esta clase de fallo de raíz al no depender de archivos JSON en carpeta compartida (ver `02_ESQUEMA_BASE_DATOS_PROPUESTO.md`), pero conviene registrar el caso como prueba de regresión.
 
 ---
 
@@ -90,7 +92,19 @@ Recoge cómo funciona HOY el programa HTML (`CARGA_DE_ALBARANES_MARINAFISK`), pa
 
 ---
 
-## 9. Pendiente de confirmar / decidir en el diseño nuevo
+## 9. Correcciones incorporadas en la versión 2026-09-02-CORREGIDO_4
+
+Cambios reales de negocio respecto a la versión de referencia anterior (2026-08-21-I), a preservar en el sistema nuevo:
+
+- **Traspasos internos ≠ ventas, pero deben poder verse juntos como estadística de kg.** En el listado "Buscar artículo" ahora hay una casilla opcional "Incluir también los traspasos internos a Zaragoza" — al marcarla, los traspasos aparecen en la tabla claramente diferenciados (fila atenuada, sin precio ni importe, texto "TRASPASO A ZARAGOZA (interno, no es venta)"), y el total se desglosa en tres líneas: **VENTAS REALES** (kg + importe, como antes), **Traspasado a Zaragoza (no es venta)** (solo kg) y **TOTAL PESCADO MOVIDO** (suma de ambos, solo a efectos estadísticos). Por defecto (casilla sin marcar) el comportamiento es idéntico al de siempre. Regla para el sistema nuevo: cualquier informe agregado de "ventas" debe excluir traspasos del importe económico por defecto, pero debe ser posible incluirlos aparte para ver el movimiento físico total de kg.
+- **IVA/Recargo real por cliente en el Excel de listado de pedidos.** El Excel que genera el listado de pedidos (hoja con fórmulas) calculaba el IVA de la columna de totales con un 10% fijo. Ahora se calcula con el tipo real de cada pedido según la clasificación fiscal del cliente (NORMAL / RECARGO_EQUIVALENCIA / INTRACOMUNITARIO, ver Fase 2 punto 2), usando la misma función `calcularIvaPedido` que el resto del programa. También se añadió una fila de TOTALES (suma de kg, base, IVA y total de todos los albaranes del listado).
+- **Corrección de fecha en el Excel exportado.** Antes se dejaba que la librería XLSX convirtiera un objeto `Date` de JavaScript a fecha de Excel, lo que en ciertos días podía desplazar la fecha un día (fallo conocido de esa conversión con el horario de verano). Ahora se calcula a mano el número de serie de fecha de Excel a partir del ISO (YYYY-MM-DD), todo en UTC de principio a fin, sin pasar por conversiones intermedias. Relacionado con la regla ya existente del punto 7 (fecha local, nunca UTC "de paso") — aquí el cuidado es el inverso (hacer *todo* el cálculo interno en UTC de forma consistente, sin mezclarlo con el huso local a mitad de camino).
+- **Aviso de venta por debajo de coste en listas de precio manuales.** Al escribir precio y coste de un producto en la tabla manual de listas de precio, si el margen sale negativo se marca en rojo fuerte junto al campo ("⚠️ ¡PÉRDIDA! X€", con el input de precio resaltado) y, al salir del campo, aparece además un aviso emergente central. Antes de generar la imagen para el cliente, si queda algún producto con precio por debajo de coste, se pide confirmación explícita con el detalle de cada caso (no bloquea, pero obliga a confirmarlo). Fallo humano real detectado el 02/09/2026 (poner sin querer el precio de venta por debajo del coste) — el sistema nuevo debe incluir esta misma protección (visual + confirmación), no solo un cálculo silencioso de margen.
+- **Campo "Existencias (solo tú)" admite texto libre**, no solo número de cajas — por ejemplo "AGOTADO" o "POCAS", además de cifras. Sigue siendo un campo de uso interno que nunca aparece en la imagen que ve el cliente.
+
+---
+
+## 10. Pendiente de confirmar / decidir en el diseño nuevo
 
 - [x] Tratamiento correcto del IVA en compras a proveedores extranjeros (ver punto 4) — resuelto: intracomunitario = sin IVA; no existen proveedores extracomunitarios, no hace falta tercer caso.
 - [ ] Confirmar con Víctor si hay más proveedores o casos especiales de OP aparte de "subasta/lonja marcados como tal".
