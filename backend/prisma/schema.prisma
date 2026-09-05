@@ -1,0 +1,345 @@
+// Esquema de base de datos - Fase 1 de MARINAFISK.
+//
+// Alcance de esta fase (ver FASE_1_base_de_datos_backend_MARINAFISK.md):
+// solo tablas y acceso a datos, SIN logica de negocio (eso es la Fase 2) y
+// SIN facturas/pagos todavia (eso es la Fase 4, que depende de que esta fase
+// y la Fase 2 esten terminadas). El detalle de cada tabla esta explicado en
+// MARINAFISK-nuevo/02_ESQUEMA_BASE_DATOS_PROPUESTO.md - este fichero es la
+// version tecnica (Prisma) de ese borrador ya aprobado por Victor.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------
+// Clientes / Proveedores / Articulos (catalogos maestros)
+// ---------------------------------------------------------------------
+
+enum TipoIvaCliente {
+  NORMAL
+  INTRACOMUNITARIO
+  RECARGO_EQUIVALENCIA
+}
+
+model Cliente {
+  id              Int            @id @default(autoincrement())
+  codigo          String         @unique
+  nombre          String
+  cif             String?
+  direccion       String?
+  cp              String?
+  poblacion       String?
+  provincia       String?
+  telefono        String?
+  email           String?
+  formaPago       String?        @map("forma_pago")
+  agencia         String?
+  tipoIva         TipoIvaCliente @map("tipo_iva")
+  formatoEtiqueta String?        @map("formato_etiqueta")
+  creadoEn        DateTime       @default(now()) @map("creado_en")
+  modificadoEn    DateTime       @updatedAt @map("modificado_en")
+
+  pedidos Pedido[]
+
+  @@map("clientes")
+}
+
+enum TipoIvaProveedor {
+  NACIONAL
+  INTRACOMUNITARIO
+}
+
+model Proveedor {
+  id           Int              @id @default(autoincrement())
+  codigo       String           @unique
+  nombre       String
+  esSubastaOp  Boolean          @default(false) @map("es_subasta_op")
+  tipoIva      TipoIvaProveedor @map("tipo_iva")
+  notas        String?
+  creadoEn     DateTime         @default(now()) @map("creado_en")
+  modificadoEn DateTime         @updatedAt @map("modificado_en")
+
+  compras Compra[]
+
+  @@map("proveedores")
+}
+
+model Articulo {
+  id                 Int      @id @default(autoincrement())
+  codigo             String   @unique
+  descripcion        String
+  tipo               String?
+  pvp1               Decimal? @db.Decimal(10, 2)
+  pvp2               Decimal? @db.Decimal(10, 2)
+  ivaPct             Decimal  @default(10) @db.Decimal(5, 2) @map("iva_pct")
+  familiaPrefijo     String?  @map("familia_prefijo")
+  primeraPalabraDesc String?  @map("primera_palabra_desc")
+  cientifico         String?
+  zonaFao            String?  @map("zona_fao")
+  subzona            String?
+  artePesca          String?  @map("arte_pesca")
+  barco              String?
+  pesoEtiqueta       String?  @map("peso_etiqueta")
+  calibre            String?
+  modoPresentacion   String?  @map("modo_presentacion")
+  formaObtencion     String?  @map("forma_obtencion")
+  nombreFrances      String?  @map("nombre_frances")
+  nombreItaliano     String?  @map("nombre_italiano")
+  creadoEn           DateTime @default(now()) @map("creado_en")
+  modificadoEn       DateTime @updatedAt @map("modificado_en")
+
+  compraLineas      CompraLinea[]
+  pedidoLineas      PedidoLinea[]
+  traspasoLineas    TraspasoLinea[]
+  repartoLineas     RepartoLinea[]
+  listaPrecioLineas ListaPrecioLinea[]
+
+  @@map("articulos")
+}
+
+// ---------------------------------------------------------------------
+// Compras y Partidas - "dato sagrado": sin UPDATE/DELETE desde la API
+// (ver Fase 0 punto 3 y Fase 1 punto 3). El propio backend (src/routes)
+// solo expone POST y GET para estas dos tablas, nunca PUT ni DELETE.
+// ---------------------------------------------------------------------
+
+// numeroPartida NO es unique aqui: leyendo grabarCompra() en el HTML actual,
+// varias compras (albaranes) del MISMO proveedor en el MISMO dia comparten
+// el mismo numero de partida - la partida agrupa compras, no es 1:1 con una.
+// Ver 02_ESQUEMA_BASE_DATOS_PROPUESTO.md, tabla `compras`, para el detalle
+// de esta correccion (05/09/2026) sobre la primera version de este esquema.
+model Compra {
+  id                      Int      @id @default(autoincrement())
+  numeroPartida           Int      @map("numero_partida")
+  fecha                   DateTime @db.Date
+  albaranProveedor        String?  @map("albaran_proveedor")
+  proveedorId             Int      @map("proveedor_id")
+  proveedor               Proveedor @relation(fields: [proveedorId], references: [id])
+  proveedorNombreSnapshot String   @map("proveedor_nombre_snapshot")
+  totalKilos              Decimal  @db.Decimal(10, 2) @map("total_kilos")
+  totalBaseZgz            Decimal  @db.Decimal(10, 2) @map("total_base_zgz")
+  totalBaseReal           Decimal  @db.Decimal(10, 2) @map("total_base_real")
+  totalIva                Decimal  @db.Decimal(10, 2) @map("total_iva")
+  totalFactura            Decimal  @db.Decimal(10, 2) @map("total_factura")
+  puestoOrigen            String   @map("puesto_origen")
+  creadoEn                DateTime @default(now()) @map("creado_en")
+
+  lineas CompraLinea[]
+
+  @@index([numeroPartida])
+  @@map("compras")
+}
+
+model CompraLinea {
+  id             Int      @id @default(autoincrement())
+  compraId       Int      @map("compra_id")
+  compra         Compra   @relation(fields: [compraId], references: [id])
+  articuloId     Int      @map("articulo_id")
+  articulo       Articulo @relation(fields: [articuloId], references: [id])
+  cajas          Int?
+  kilos          Decimal  @db.Decimal(10, 2)
+  precioKg       Decimal  @db.Decimal(10, 4) @map("precio_kg")
+  baseZgz        Decimal  @db.Decimal(10, 2) @map("base_zgz")
+  baseZgzConIva  Decimal  @default(0) @db.Decimal(10, 2) @map("base_zgz_con_iva")
+  op2Importe     Decimal  @default(0) @db.Decimal(10, 2) @map("op2_importe")
+  baseReal       Decimal  @db.Decimal(10, 2) @map("base_real")
+  ivaImporte     Decimal  @db.Decimal(10, 2) @map("iva_importe")
+  totalFactura   Decimal  @db.Decimal(10, 2) @map("total_factura")
+  control        Boolean  @default(false)
+  creadoEn       DateTime @default(now()) @map("creado_en")
+
+  @@map("compra_lineas")
+}
+
+// partidas: NO es 1:1 con una compra (ver nota en el modelo Compra) - agrupa
+// por numero_partida, que puede corresponder a varias filas de `compras`.
+// kilos_disponibles NO se guarda como columna (se calcula en Fase 2 sumando
+// todas las compras de ese numero_partida); aqui solo se guarda el estado
+// real de cierre manual, que es lo unico que no se puede derivar de otra
+// tabla. Equivale a `localStorage['partidas_cerradas_manual']` de hoy.
+model Partida {
+  id            Int       @id @default(autoincrement())
+  numeroPartida Int       @unique @map("numero_partida")
+  cerradaManual Boolean   @default(false) @map("cerrada_manual")
+  cerradaEn     DateTime? @map("cerrada_en")
+  cerradaPor    String?   @map("cerrada_por")
+  creadoEn      DateTime  @default(now()) @map("creado_en")
+
+  @@map("partidas")
+}
+
+// ---------------------------------------------------------------------
+// Pedidos (albaranes de venta)
+// ---------------------------------------------------------------------
+
+model Pedido {
+  id              Int      @id @default(autoincrement())
+  numero          Int      @unique
+  fecha           DateTime @db.Date
+  clienteId       Int      @map("cliente_id")
+  cliente         Cliente  @relation(fields: [clienteId], references: [id])
+  // "Foto" de los datos del cliente en el momento del pedido (el HTML actual
+  // guarda clienteNombre/clienteCif/clienteDir/clientePob/clienteTel en cada
+  // pedido, ademas del codigo) - si el cliente cambia despues, el albaran ya
+  // impreso no debe cambiar retroactivamente.
+  clienteNombreSnapshot String  @map("cliente_nombre_snapshot")
+  clienteCifSnapshot    String? @map("cliente_cif_snapshot")
+  clienteDirSnapshot    String? @map("cliente_dir_snapshot")
+  clientePobSnapshot    String? @map("cliente_pob_snapshot")
+  clienteTelSnapshot    String? @map("cliente_tel_snapshot")
+  agencia         String?
+  formaPago       String?  @map("forma_pago")
+  tipoIvaAplicado String   @map("tipo_iva_aplicado")
+  baseImponible   Decimal  @db.Decimal(10, 2) @map("base_imponible")
+  iva             Decimal  @db.Decimal(10, 2)
+  total           Decimal  @db.Decimal(10, 2)
+  puestoOrigen    String   @map("puesto_origen")
+  creadoEn        DateTime @default(now()) @map("creado_en")
+  modificadoEn    DateTime @updatedAt @map("modificado_en")
+
+  lineas PedidoLinea[]
+
+  @@map("pedidos")
+}
+
+model PedidoLinea {
+  id                 Int      @id @default(autoincrement())
+  pedidoId           Int      @map("pedido_id")
+  pedido             Pedido   @relation(fields: [pedidoId], references: [id])
+  articuloId         Int      @map("articulo_id")
+  articulo           Articulo @relation(fields: [articuloId], references: [id])
+  descripcionEditada String?  @map("descripcion_editada")
+  cantidad           Decimal? @db.Decimal(10, 2)
+  peso               Decimal  @db.Decimal(10, 2)
+  precio             Decimal  @db.Decimal(10, 4)
+  descuento          Decimal  @default(0) @db.Decimal(5, 2)
+  ivaPct             Decimal  @db.Decimal(5, 2) @map("iva_pct")
+  total              Decimal  @db.Decimal(10, 2)
+  // Numero de partida asignado a esta linea (vacio/null = pendiente de
+  // asignar, reemplaza a la "pantalla de excepciones" actual: es un filtro
+  // sobre esta misma tabla). NO es una FK a `partidas` - esa tabla solo
+  // guarda cierres manuales, no existe una fila por cada numero de partida.
+  partidaNumero      Int?     @map("partida_numero")
+
+  @@map("pedido_lineas")
+}
+
+// ---------------------------------------------------------------------
+// Traspasos internos y Repartos
+// ---------------------------------------------------------------------
+
+model Traspaso {
+  id           Int      @id @default(autoincrement())
+  numero       Int      @unique
+  fecha        DateTime @db.Date
+  totalKg      Decimal  @db.Decimal(10, 2) @map("total_kg")
+  base         Decimal  @db.Decimal(10, 2)
+  total        Decimal  @db.Decimal(10, 2)
+  puestoOrigen String   @map("puesto_origen")
+  creadoEn     DateTime @default(now()) @map("creado_en")
+
+  lineas TraspasoLinea[]
+
+  @@map("traspasos")
+}
+
+model TraspasoLinea {
+  id         Int      @id @default(autoincrement())
+  traspasoId Int      @map("traspaso_id")
+  traspaso   Traspaso @relation(fields: [traspasoId], references: [id])
+  articuloId Int      @map("articulo_id")
+  articulo   Articulo @relation(fields: [articuloId], references: [id])
+  cantidad   Decimal? @db.Decimal(10, 2)
+  peso       Decimal  @db.Decimal(10, 2)
+  partidaId  Int?     @map("partida_id")
+
+  @@map("traspaso_lineas")
+}
+
+model Reparto {
+  id                 Int      @id @default(autoincrement())
+  numero             Int      @unique
+  fecha              DateTime @db.Date
+  destinatarioNombre String?  @map("destinatario_nombre")
+  destinatarioCiudad String?  @map("destinatario_ciudad")
+  conductor          String?
+  totalCajas         Int?     @map("total_cajas")
+  totalKg            Decimal  @db.Decimal(10, 2) @map("total_kg")
+  puestoOrigen       String   @map("puesto_origen")
+  creadoEn           DateTime @default(now()) @map("creado_en")
+
+  lineas RepartoLinea[]
+
+  @@map("repartos")
+}
+
+model RepartoLinea {
+  id         Int      @id @default(autoincrement())
+  repartoId  Int      @map("reparto_id")
+  reparto    Reparto  @relation(fields: [repartoId], references: [id])
+  articuloId Int      @map("articulo_id")
+  articulo   Articulo @relation(fields: [articuloId], references: [id])
+  cantidad   Decimal? @db.Decimal(10, 2)
+  peso       Decimal  @db.Decimal(10, 2)
+
+  @@map("reparto_lineas")
+}
+
+// ---------------------------------------------------------------------
+// Listas de precio (Pescaderias / Mayoristas) - independientes entre si
+// ---------------------------------------------------------------------
+
+enum TipoListaPrecio {
+  MAYORISTA
+  PESCADERIA
+}
+
+enum ModoListaPrecio {
+  AUTO
+  MANUAL
+}
+
+model ListaPrecio {
+  id       Int             @id @default(autoincrement())
+  tipo     TipoListaPrecio
+  fecha    DateTime        @db.Date
+  modo     ModoListaPrecio
+  creadoEn DateTime        @default(now()) @map("creado_en")
+
+  lineas ListaPrecioLinea[]
+
+  @@unique([tipo, fecha])
+  @@map("listas_precio")
+}
+
+model ListaPrecioLinea {
+  id            Int         @id @default(autoincrement())
+  listaPrecioId Int         @map("lista_precio_id")
+  listaPrecio   ListaPrecio @relation(fields: [listaPrecioId], references: [id])
+  articuloId    Int         @map("articulo_id")
+  articulo      Articulo    @relation(fields: [articuloId], references: [id])
+  precio        Decimal     @db.Decimal(10, 2)
+
+  @@map("lista_precio_lineas")
+}
+
+// ---------------------------------------------------------------------
+// Log basico de escrituras (Fase 1 punto 3: util para depurar
+// problemas de sincronizacion mas adelante, en la Fase 3).
+// ---------------------------------------------------------------------
+
+model LogEscritura {
+  id           Int      @id @default(autoincrement())
+  tabla        String
+  operacion    String
+  registroId   Int?     @map("registro_id")
+  puestoOrigen String?  @map("puesto_origen")
+  creadoEn     DateTime @default(now()) @map("creado_en")
+
+  @@map("log_escrituras")
+}
