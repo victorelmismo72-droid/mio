@@ -10,13 +10,18 @@ Petición de Víctor (05/09/2026): el programa debe generar **facturas agrupando
 
 ## 1. Qué es una factura en este sistema
 
-- Una factura agrupa **varios albaranes (pedidos) de un mismo cliente**, dentro de un rango de fechas elegido (ej. facturación quincenal o mensual — a confirmar la periodicidad habitual con Víctor).
+- Una factura agrupa **varios albaranes (pedidos) de un mismo cliente**, dentro de un rango de fechas elegido **libremente cada vez** — **decidido (05/09/2026): sin periodicidad fija.** No hay una regla de "quincenal" o "mensual" obligatoria; se elige el rango de fechas que se quiera facturar en cada momento, para ese cliente. La pantalla de generación de factura debe permitir elegir cualquier fecha de inicio y fin (mostrando qué albaranes de ese cliente, dentro de ese rango, siguen pendientes de facturar).
 - **Un albarán solo puede facturarse una vez.** Al generar una factura, los pedidos incluidos quedan marcados/vinculados a ella (`factura_id`) y dejan de aparecer como "pendientes de facturar" para ese cliente. Desde el propio albarán debe poder verse si ya está facturado y en qué factura.
 - **Numeración propia**: serie de facturas independiente de la de pedidos, con contador correlativo consistente entre los dos puestos (CORU/PANC) — mismo mecanismo de contador consistente ya exigido para pedidos/partidas (ver Fase 0 punto 6 y `02_ESQUEMA_BASE_DATOS_PROPUESTO.md`). Un contador de facturas desincronizado sería tan grave como el ya conocido para pedidos.
 - **Cabecera de factura**: cliente, fecha de emisión, rango de fechas cubierto, lista de números de albarán incluidos.
 - **Líneas de factura**: **decidido (05/09/2026) — las dos modalidades**, seleccionable al generar/imprimir cada factura (ver punto 5).
 - **IVA/Recargo**: se calcula sobre la base total de la factura con el tipo fiscal del cliente, reutilizando `calcularIvaPedido` (ya existe y es correcto para ventas, ver corrección aplicada en Fase 2 punto 2). Como todos los albaranes de una factura son del mismo cliente, el tipo fiscal es siempre uno solo por factura.
-- **Inmutabilidad**: una factura ya emitida no debería poder borrarse ni editarse — cualquier corrección debe hacerse con una **factura rectificativa** enlazada a la original, no sobrescribiendo (igual que las compras son "dato sagrado", ver Fase 0 punto 3). El procedimiento exacto de rectificación es mejor confirmarlo con la asesoría de Víctor antes de cerrar esta fase — no asumir un formato.
+- **Inmutabilidad**: una factura ya emitida no se puede borrar ni editar — cualquier corrección se hace con una **factura rectificativa** enlazada a la original, no sobrescribiendo (igual que las compras son "dato sagrado", ver Fase 0 punto 3).
+  **Procedimiento de rectificación — decidido (05/09/2026): el estándar legal**, sin variantes propias:
+  - La rectificativa referencia explícitamente el número y fecha de la factura original que corrige, e indica el motivo (error en datos, devolución, descuento posterior, etc.).
+  - Ajusta base e IVA/Recargo respecto a la original — en positivo o en negativo según corrija de más o de menos — nunca sustituye ni borra los importes originales.
+  - Numeración propia y diferenciada de las facturas normales (serie de rectificativas, o mismo correlativo con marca de tipo "R" — detalle técnico a definir en el diseño de la tabla, pero legalmente debe distinguirse de una factura normal).
+  - No hace falta preguntar más a la asesoría sobre esto: es el procedimiento estándar (Reglamento de Facturación, RD 1619/2012) y así se implementa.
 
 ---
 
@@ -80,8 +85,9 @@ No dar la fase por cerrada hasta que:
 - [ ] El export para la gestoría se ha probado con un caso real y Víctor confirma que su asesoría puede trabajar con ese formato.
 - [ ] Envío de factura por WhatsApp/Email probado igual que ya funciona hoy para albaranes.
 - [ ] Numeración de facturas consistente entre CORU y PANC, probada bajo el mismo tipo de estrés que causó el incidente de contadores duplicados en pedidos (ver Fase 0 punto 6).
-- [ ] El procedimiento de rectificación de una factura ya emitida está confirmado con la asesoría, no asumido.
+- [x] Procedimiento de rectificación de una factura ya emitida — decidido: se sigue el estándar legal (RD 1619/2012), sin variantes propias (ver punto 1).
+- [ ] Una factura rectificativa de prueba se ha generado y verificado (referencia a la original, numeración diferenciada, ajuste correcto de base/IVA).
 
 ---
 
-*Preparado como continuación de FASE_0/1/2_MARINAFISK.md, a partir de la petición de Víctor de un módulo de facturación (05/09/2026). Los puntos 4 y 5 quedaron confirmados el mismo día — pendiente ya solo de implementar y verificar contra los criterios de cierre (punto 7).*
+*Preparado como continuación de FASE_0/1/2_MARINAFISK.md, a partir de la petición de Víctor de un módulo de facturación (05/09/2026). Todos los puntos abiertos (nivel de gestión contable, formato de líneas, periodicidad de facturación, procedimiento de rectificativa) quedaron confirmados el mismo día — no hay ya ninguna decisión de negocio pendiente para esta fase, solo implementar y verificar contra los criterios de cierre (punto 7).*
