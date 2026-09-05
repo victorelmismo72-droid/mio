@@ -2,7 +2,8 @@
 
 Basado en:
 - `FASE_0_reglas_de_negocio_MARINAFISK.md` (reglas de negocio confirmadas por Víctor)
-- Análisis del código real de `CARGA_DE_ALBARANES_MARINAFISK_20260821I.html`
+- `FASE_4_facturacion_MARINAFISK.md` (facturas, pagos y facturación por lotes — reglas ya confirmadas por Víctor)
+- Análisis del código real de `CARGA_DE_ALBARANES_MARINAFISK_20260902CORREGIDO_4.html`
 
 Este documento es un borrador de discusión, no una migración definitiva. Objetivo: reproducir el comportamiento actual con una base de datos real (en vez de JSON sueltos en carpeta compartida), preservando las garantías ya conocidas (compras inmutables, contadores consistentes, fecha local, etc.).
 
@@ -122,6 +123,38 @@ id, tipo (MAYORISTA|PESCADERIA), fecha, modo (AUTO|MANUAL), creado_en
 id, lista_precio_id (FK), articulo_id (FK), precio
 ```
 Con `UNIQUE(tipo, fecha)` por lista, y lógica de aplicación: si `modo=AUTO`, las líneas se generan/recalculan desde las compras del día; si `MANUAL`, entrada libre pero cada lista (mayorista/pescadería) guarda de forma independiente — sin pisarse entre sí, solo se copian como plantilla inicial la primera vez que una lista está vacía en el día.
+
+---
+
+### `facturas`
+```
+id, numero (unique dentro de su serie), serie (NORMAL|RECTIFICATIVA),
+cliente_id (FK), fecha_emision, fecha_desde, fecha_hasta,
+tipo_iva_aplicado, base_imponible, iva, recargo_equivalencia, total,
+factura_original_id (FK nullable, solo si serie=RECTIFICATIVA),
+motivo_rectificacion (nullable, solo si serie=RECTIFICATIVA),
+fecha_vencimiento, forma_pago, lote_id (nullable, agrupa las facturas generadas juntas en una misma tanda por lotes),
+puesto_origen, creado_en
+-- SIN modificado_en / SIN UPDATE permitido tras creación (mismo criterio que `compras`, ver Fase 0 punto 3 y Fase 4 punto 1)
+```
+Basado en `FASE_4_facturacion_MARINAFISK.md`. Dos series de numeración independientes y correlativas (NORMAL / RECTIFICATIVA), cada una consistente entre puestos con el mismo mecanismo de secuencias/transacciones de BD ya descrito en "Convenciones generales" para `numero_partida`/pedidos — un contador de facturas desincronizado sería tan grave como el ya conocido para pedidos (Fase 0 punto 6).
+Una factura RECTIFICATIVA siempre referencia su `factura_original_id` y no se puede crear si esa factura no existe. `fecha_desde`/`fecha_hasta` es el rango de fechas de albaranes que cubre (elegido libremente cada vez, sin periodicidad fija — Fase 4 punto 1). `lote_id` es opcional y solo sirve para poder ver juntas, después, las facturas que se generaron en una misma ejecución de facturación por lotes (Fase 4 punto 2) — no cambia ninguna regla de la factura en sí.
+
+**Estado de cobro — no es una columna, es un valor calculado** (mismo criterio que `partidas.kilos_disponibles`, ver más abajo): `PENDIENTE` si no hay pagos, `PARCIAL` si `SUM(pagos_factura.importe) < total`, `COBRADA` si `SUM(pagos_factura.importe) >= total`, y `VENCIDA` si además `fecha_vencimiento < hoy` y no está `COBRADA`. Así nunca puede quedar "marcada a mano" sin que cuadre el importe (Fase 4 punto 5).
+
+### `factura_pedidos`
+```
+id, factura_id (FK), pedido_id (FK, UNIQUE)
+```
+Tabla de vínculo entre una factura y los albaranes (pedidos) que agrupa. El `UNIQUE` en `pedido_id` es lo que garantiza a nivel de base de datos que **un mismo albarán no puede quedar incluido en dos facturas** (Fase 4 punto 1) — no basta con controlarlo solo en el código de la aplicación.
+**No existe una tabla `factura_lineas` separada**: las líneas de la factura (en modo detalle o en modo resumen por albarán) se derivan siempre de `pedido_lineas` a través de `factura_pedidos → pedidos → pedido_lineas`, igual que `partidas` se modela como vista sobre `compras` para no duplicar la fuente de verdad. El formato detalle/resumen (Fase 4 punto 6) es una consulta distinta sobre los mismos datos, no dos formas distintas de guardarlos.
+**Bloqueo tras facturar**: una vez que un `pedido` aparece en `factura_pedidos`, ese pedido y sus `pedido_lineas` pasan a ser inmutables (mismo mecanismo que `compras`) — si se pudiera seguir editando un albarán ya facturado, la factura impresa dejaría de coincidir con lo que se cobró.
+
+### `pagos_factura`
+```
+id, factura_id (FK), fecha, importe, forma_pago, notas, creado_en
+```
+Un pago parcial o total contra una factura (Fase 4 punto 5). Se permite más de un pago por factura. Solo INSERT — un pago registrado por error no se borra, se corrige con un pago negativo/de ajuste explícito, para mantener el mismo historial fiable que exige la regla de "dato sagrado".
 
 ---
 
