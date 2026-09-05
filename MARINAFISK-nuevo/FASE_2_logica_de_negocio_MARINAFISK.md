@@ -25,15 +25,16 @@ Al final de la Fase 2 debe poder demostrarse que, dado el mismo dato de entrada,
 
 ## 2. IVA y Recargo de Equivalencia (usa la clasificación fiscal creada en Fase 1)
 
-Esto es lógica nueva que no existe correctamente en el sistema actual — hay que construirla bien desde cero, no copiar el comportamiento actual tal cual, porque el HTML tiene un fallo conocido aquí (ver Fase 0, punto 4).
+**Corrección (2026-09-05):** el párrafo original de este punto decía que "el IVA es lógica nueva que no existe correctamente en el sistema actual" y citaba el fallo de Fase 0 punto 4 — eso era impreciso. El fallo de Fase 0 punto 4 es solo del lado de **compras** (proveedores). El lado de **ventas** ya funciona en el HTML actual: la función `calcularIvaPedido(base, tipoIva)` calcula correctamente IVA 10% (NORMAL), IVA 10%+1,4% (RECARGO_EQUIVALENCIA) e IVA 0% (INTRACOMUNITARIO) según el tipo fiscal del cliente, y se usa ya en pedidos, PDFs y (desde la versión 2026-09-02-CORREGIDO_4) también en el Excel de listado. El sistema nuevo debe **reproducir ese cálculo tal cual**, no rediseñarlo desde cero.
+Lo que sí falta de verdad es el lado de compras:
 
 - **Compras:**
   - Proveedor Nacional → IVA 10% (tipo único del pescado, ver Fase 0).
-  - Proveedor Comunitario / Intracomunitario / Extra-UE → **decidir explícitamente el tratamiento correcto** (por ejemplo, inversión del sujeto pasivo en operaciones intracomunitarias) y no dejarlo en blanco/sin aplicar como hace el sistema actual. Si hay dudas normativas, señalarlo a Víctor antes de dar la fase por cerrada — no asumir.
-- **Ventas (para cuando exista el módulo de facturación, pero la lógica debe quedar lista ya):**
+  - Proveedor Intracomunitario → sin IVA, por inversión del sujeto pasivo — **este es el hueco real**: el HTML actual aplica 10% siempre en el cálculo de líneas de compra, sin mirar el tipo de proveedor (ver Fase 0, punto 4). El sistema nuevo debe corregirlo aquí, no reproducir el fallo.
+- **Ventas** (ya funciona en el HTML, replicar el mismo comportamiento):
   - Cliente Nacional sin Recargo de Equivalencia → IVA 10% normal.
-  - Cliente Nacional con Recargo de Equivalencia → IVA 10% + recargo de equivalencia correspondiente (confirmar porcentaje exacto vigente).
-  - Cliente Intracomunitario → tratamiento de operación intracomunitaria (a confirmar con Víctor/asesoría si hace falta).
+  - Cliente Nacional con Recargo de Equivalencia → IVA 10% + 1,4% de recargo de equivalencia.
+  - Cliente Intracomunitario → IVA 0%.
 - Documentar en el código, con comentarios claros en español, qué regla se aplica y por qué, para que Víctor pueda entenderlo sin ser programador.
 
 ---
