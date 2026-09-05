@@ -73,12 +73,12 @@ Debe incluir también:
 
 No pasar a la Fase 2 hasta que:
 
-- [ ] Todas las tablas existen y corresponden a la estructura real del programa actual.
-- [ ] El backend permite leer y escribir cada tabla correctamente.
-- [ ] El backup de prueba está migrado y verificado sin discrepancias.
-- [ ] `compras` no tiene forma de modificarse por error desde el backend.
-- [ ] El HTML/programa actual sigue funcionando exactamente igual, sin tocar, en paralelo.
-- [ ] Víctor ha revisado y entendido (en términos sencillos, no técnicos) qué se ha construido, antes de seguir.
+- [x] Todas las tablas existen y corresponden a la estructura real del programa actual — creadas con PostgreSQL + Prisma (ver `backend/prisma/schema.prisma`), reflejando `02_ESQUEMA_BASE_DATOS_PROPUESTO.md`.
+- [x] El backend permite leer y escribir cada tabla correctamente — probado a mano (crear proveedor, cliente, artículo, compra con líneas, pedido con líneas, listado, exportación) el 05/09/2026, todo correcto.
+- [ ] El backup de prueba está migrado y verificado sin discrepancias — **pendiente de que Víctor aporte el backup JSON más reciente**; sin ese fichero no se puede escribir ni ejecutar el script de migración.
+- [x] `compras` no tiene forma de modificarse por error desde el backend — verificado: `PUT /compras/:id` y `DELETE /compras/:id` devuelven 404 (esas rutas no existen), solo hay `GET` y `POST`.
+- [x] El HTML/programa actual sigue funcionando exactamente igual, sin tocar, en paralelo — no se ha modificado ningún `.html` del repositorio en esta fase.
+- [ ] Víctor ha revisado y entendido (en términos sencillos, no técnicos) qué se ha construido, antes de seguir — ver `backend/README.md`, pensado para eso.
 
 ---
 

@@ -1,0 +1,23 @@
+{
+  "name": "marinafisk-backend",
+  "version": "0.1.0",
+  "description": "Backend minimo de MARINAFISK (Fase 1) - solo almacenamiento y acceso a datos, sin logica de negocio.",
+  "private": true,
+  "main": "src/index.js",
+  "scripts": {
+    "dev": "node src/index.js",
+    "start": "node src/index.js",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:studio": "prisma studio"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.20.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.0"
+  },
+  "devDependencies": {
+    "prisma": "^5.20.0"
+  }
+}
