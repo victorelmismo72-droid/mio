@@ -5,9 +5,6 @@ CREATE TYPE "TipoIvaCliente" AS ENUM ('NORMAL', 'INTRACOMUNITARIO', 'RECARGO_EQU
 CREATE TYPE "TipoIvaProveedor" AS ENUM ('NACIONAL', 'INTRACOMUNITARIO');
 
 -- CreateEnum
-CREATE TYPE "EstadoAsignacion" AS ENUM ('OK', 'AVISO_MARGEN', 'PENDIENTE_MANUAL');
-
--- CreateEnum
 CREATE TYPE "TipoListaPrecio" AS ENUM ('MAYORISTA', 'PESCADERIA');
 
 -- CreateEnum
@@ -84,6 +81,7 @@ CREATE TABLE "compras" (
     "fecha" DATE NOT NULL,
     "albaran_proveedor" TEXT,
     "proveedor_id" INTEGER NOT NULL,
+    "proveedor_nombre_snapshot" TEXT NOT NULL,
     "total_kilos" DECIMAL(10,2) NOT NULL,
     "total_base_zgz" DECIMAL(10,2) NOT NULL,
     "total_base_real" DECIMAL(10,2) NOT NULL,
@@ -104,11 +102,12 @@ CREATE TABLE "compra_lineas" (
     "kilos" DECIMAL(10,2) NOT NULL,
     "precio_kg" DECIMAL(10,4) NOT NULL,
     "base_zgz" DECIMAL(10,2) NOT NULL,
+    "base_zgz_con_iva" DECIMAL(10,2) NOT NULL DEFAULT 0,
     "op2_importe" DECIMAL(10,2) NOT NULL DEFAULT 0,
     "base_real" DECIMAL(10,2) NOT NULL,
     "iva_importe" DECIMAL(10,2) NOT NULL,
     "total_factura" DECIMAL(10,2) NOT NULL,
-    "control" TEXT,
+    "control" BOOLEAN NOT NULL DEFAULT false,
     "creado_en" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "compra_lineas_pkey" PRIMARY KEY ("id")
@@ -117,7 +116,7 @@ CREATE TABLE "compra_lineas" (
 -- CreateTable
 CREATE TABLE "partidas" (
     "id" SERIAL NOT NULL,
-    "compra_id" INTEGER NOT NULL,
+    "numero_partida" INTEGER NOT NULL,
     "cerrada_manual" BOOLEAN NOT NULL DEFAULT false,
     "cerrada_en" TIMESTAMP(3),
     "cerrada_por" TEXT,
@@ -132,6 +131,13 @@ CREATE TABLE "pedidos" (
     "numero" INTEGER NOT NULL,
     "fecha" DATE NOT NULL,
     "cliente_id" INTEGER NOT NULL,
+    "cliente_nombre_snapshot" TEXT NOT NULL,
+    "cliente_cif_snapshot" TEXT,
+    "cliente_dir_snapshot" TEXT,
+    "cliente_pob_snapshot" TEXT,
+    "cliente_tel_snapshot" TEXT,
+    "agencia" TEXT,
+    "forma_pago" TEXT,
     "tipo_iva_aplicado" TEXT NOT NULL,
     "base_imponible" DECIMAL(10,2) NOT NULL,
     "iva" DECIMAL(10,2) NOT NULL,
@@ -155,8 +161,7 @@ CREATE TABLE "pedido_lineas" (
     "descuento" DECIMAL(5,2) NOT NULL DEFAULT 0,
     "iva_pct" DECIMAL(5,2) NOT NULL,
     "total" DECIMAL(10,2) NOT NULL,
-    "partida_id" INTEGER,
-    "estado_asignacion" "EstadoAsignacion" NOT NULL DEFAULT 'PENDIENTE_MANUAL',
+    "partida_numero" INTEGER,
 
     CONSTRAINT "pedido_lineas_pkey" PRIMARY KEY ("id")
 );
@@ -257,10 +262,10 @@ CREATE UNIQUE INDEX "proveedores_codigo_key" ON "proveedores"("codigo");
 CREATE UNIQUE INDEX "articulos_codigo_key" ON "articulos"("codigo");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "compras_numero_partida_key" ON "compras"("numero_partida");
+CREATE INDEX "compras_numero_partida_idx" ON "compras"("numero_partida");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "partidas_compra_id_key" ON "partidas"("compra_id");
+CREATE UNIQUE INDEX "partidas_numero_partida_key" ON "partidas"("numero_partida");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "pedidos_numero_key" ON "pedidos"("numero");
@@ -282,9 +287,6 @@ ALTER TABLE "compra_lineas" ADD CONSTRAINT "compra_lineas_compra_id_fkey" FOREIG
 
 -- AddForeignKey
 ALTER TABLE "compra_lineas" ADD CONSTRAINT "compra_lineas_articulo_id_fkey" FOREIGN KEY ("articulo_id") REFERENCES "articulos"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "partidas" ADD CONSTRAINT "partidas_compra_id_fkey" FOREIGN KEY ("compra_id") REFERENCES "compras"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "pedidos" ADD CONSTRAINT "pedidos_cliente_id_fkey" FOREIGN KEY ("cliente_id") REFERENCES "clientes"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

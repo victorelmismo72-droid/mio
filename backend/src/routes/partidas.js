@@ -3,27 +3,35 @@
 // estado real de cierre manual. Por eso no hay una ruta PUT generica -
 // solo una ruta especifica para "cerrar", que es la unica escritura que
 // tiene sentido hacer aqui.
+//
+// Importante (ver prisma/schema.prisma): una partida NO es 1:1 con una
+// compra - un numero_partida puede agrupar varias filas de `compras` (mismo
+// proveedor, mismo dia). Por eso aqui se buscan las compras relacionadas por
+// numeroPartida, no por una relacion directa.
 const express = require('express');
 const { prisma } = require('../db');
 const { registrarEscritura } = require('../logEscritura');
 
 const router = express.Router();
 
-router.get('/', async (req, res) => {
-  const partidas = await prisma.partida.findMany({
-    include: { compra: true },
-    orderBy: { id: 'asc' },
+async function conComprasRelacionadas(partida) {
+  const compras = await prisma.compra.findMany({
+    where: { numeroPartida: partida.numeroPartida },
+    include: { lineas: true },
   });
-  res.json(partidas);
+  return { ...partida, compras };
+}
+
+router.get('/', async (req, res) => {
+  const partidas = await prisma.partida.findMany({ orderBy: { id: 'asc' } });
+  const conCompras = await Promise.all(partidas.map(conComprasRelacionadas));
+  res.json(conCompras);
 });
 
 router.get('/:id', async (req, res) => {
-  const partida = await prisma.partida.findUnique({
-    where: { id: Number(req.params.id) },
-    include: { compra: true },
-  });
+  const partida = await prisma.partida.findUnique({ where: { id: Number(req.params.id) } });
   if (!partida) return res.status(404).json({ error: 'No existe esa partida' });
-  res.json(partida);
+  res.json(await conComprasRelacionadas(partida));
 });
 
 router.post('/', async (req, res) => {
