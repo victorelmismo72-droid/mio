@@ -343,3 +343,20 @@ model LogEscritura {
 
   @@map("log_escrituras")
 }
+
+// ---------------------------------------------------------------------
+// Copia de seguridad automatica antes de cada importacion masiva de Excel
+// (mismo mecanismo que el HTML actual guarda como `compras_backup_previo`
+// en localStorage antes de reimportar el Excel de COMPRAS). No sustituye a
+// un backup real de la base de datos - es solo la foto de "que compras
+// afecto esta importacion" por si hay que revertir algo a mano.
+// ---------------------------------------------------------------------
+
+model ImportacionBackup {
+  id         Int      @id @default(autoincrement())
+  tipo       String   // ej. "compras_excel"
+  contenido  Json     // snapshot de los registros afectados ANTES de la importacion
+  creadoEn   DateTime @default(now()) @map("creado_en")
+
+  @@map("importaciones_backup")
+}

@@ -80,6 +80,31 @@ sin tener que usar la API ni SQL.
 - `/partidas` — crear y leer, más `POST /partidas/:id/cerrar` para el cierre
   manual. Todavía no calcula kilos disponibles ni margen (eso es Fase 2).
 - `/pedidos`, `/traspasos`, `/repartos`, `/listas-precio` — CRUD completo.
+- `POST /importar/compras-excel` — importar el Excel de compras (equivalente
+  al botón "📥 IMPORTAR COMPRAS EXCEL" del programa actual). Sube el fichero
+  como `archivo` (multipart/form-data), opcionalmente `puestoOrigen`. Busca
+  una hoja llamada "COMPRAS" con las columnas N PARTIDA/FECHA/COD PROV/COD
+  PROD/KILOS/EUR-KG (y opcionalmente ALB PROV/CAJAS/CONTROL), agrupa filas
+  por partida+albarán+proveedor igual que hoy, y calcula cada línea con la
+  misma fórmula de siempre — **con una corrección deliberada**: el IVA de
+  compras ya tiene en cuenta si el proveedor es intracomunitario (0%) en vez
+  del 10% fijo que usa el HTML actual (ver Fase 0 punto 4 / Fase 2 punto 2).
+  Si el Excel trae un producto que no existe en el catálogo, se crea
+  automáticamente (con la descripción provisional = su código) en vez de
+  perder esa compra. **Decisión de Víctor (05/09/2026):** si se reimporta el
+  mismo Excel y una compra ya existente cambió, se sobrescribe en su sitio
+  — igual que hace hoy el programa — guardando antes una copia de lo que
+  había en `importaciones_backup`. Esta es la única vía por la que una
+  compra puede cambiar tras crearse; el resto de la API la sigue tratando
+  como "dato sagrado" (sin `PUT`/`DELETE`).
+
+### Nota de seguridad sobre la lectura de Excel
+
+Se usa la librería `exceljs`, no `xlsx` (SheetJS): la versión de `xlsx`
+publicada en el registro de npm tiene una vulnerabilidad de severidad alta
+sin parche disponible ahí (los propios autores solo la corrigen en su CDN
+propio, no accesible desde este entorno de desarrollo). `exceljs` no tiene
+ese aviso abierto.
 
 ## 5. Lo que falta para cerrar la Fase 1 (ver el documento de la fase)
 

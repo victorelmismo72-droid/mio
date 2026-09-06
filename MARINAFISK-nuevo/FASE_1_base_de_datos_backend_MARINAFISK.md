@@ -54,6 +54,8 @@ Debe incluir también:
 - Un endpoint de **exportación** que genere un JSON con la misma estructura que el backup actual, para poder comparar fácilmente contra el original durante la verificación.
 - Un log básico de qué se ha escrito y cuándo (útil para depurar problemas de sincronización más adelante, en la Fase 3).
 
+**Añadido el 06/09/2026** (adelantado, mientras se espera el backup JSON real para la migración del punto 4): `POST /importar/compras-excel`, equivalente al botón "📥 IMPORTAR COMPRAS EXCEL" que ya existe en el programa actual — permite ir cargando compras reales antes de tener el script de migración del backup completo. Ver `backend/README.md` para el detalle y la decisión tomada sobre qué pasa al reimportar una compra que cambió (Víctor, 05/09/2026: se sobrescribe en su sitio, igual que hoy, con copia de seguridad previa — no se trata como una excepción a "compras = dato sagrado" para el resto de la API).
+
 ---
 
 ## 4. Migración del backup de prueba

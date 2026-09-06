@@ -252,6 +252,16 @@ CREATE TABLE "log_escrituras" (
     CONSTRAINT "log_escrituras_pkey" PRIMARY KEY ("id")
 );
 
+-- CreateTable
+CREATE TABLE "importaciones_backup" (
+    "id" SERIAL NOT NULL,
+    "tipo" TEXT NOT NULL,
+    "contenido" JSONB NOT NULL,
+    "creado_en" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "importaciones_backup_pkey" PRIMARY KEY ("id")
+);
+
 -- CreateIndex
 CREATE UNIQUE INDEX "clientes_codigo_key" ON "clientes"("codigo");
 
