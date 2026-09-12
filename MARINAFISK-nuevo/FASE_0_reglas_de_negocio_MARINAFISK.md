@@ -115,6 +115,17 @@ Petición de Víctor, comparando el programa con el Excel `GESTION_CORRECTA_prec
 
 Probado en navegador real (no solo revisado el código): navegación Tab/Enter completa fila a fila, escritura de una expresión sin perder el foco carácter a carácter, cálculo correcto de Base/2% OP/IVA/Total, aviso visual ante una expresión inválida, y grabado final con el kilos numérico correcto sin el texto de la fórmula.
 
+**Revisado también el HISTORIAL de Compras** (petición de Víctor, misma fecha), donde se corrigen líneas ya grabadas sin tener que reabrir la compra:
+
+- **Enter en Cajas/Kilos/€-Kg guarda la línea** (mismo efecto que pulsar 💾) — antes no hacía nada, había que ir al ratón.
+- **Base/2% OP/IVA/Total se recalculan en vivo** mientras se corrige, igual que en la pantalla de alta — antes solo se veía el resultado después de guardar.
+- **Kilos admite la misma suma de cifras** (`12+13.5`) que en la pantalla de alta, por coherencia — antes solo aceptaba un número suelto.
+- Si la expresión de Kilos no es válida, **se bloquea el guardado con un aviso claro** (no se deja grabar un valor sin sentido) — antes se habría guardado tal cual la escribiera el usuario, sin ninguna validación.
+
+Probado igual en navegador real: previsualización en vivo sin perder el foco, expresión inválida bloqueando el guardado con aviso, y guardado final con Enter dejando el kilos numérico correcto en el registro.
+
+**Hallazgo relacionado, no resuelto aquí — necesita tu confirmación:** revisando el historial se ve que el HTML actual sí permite corregir/mover/anular compras ya grabadas (`guardarLineaCompra`, `cambiarProveedorLineaCompra`, `cambiarArticuloLineaCompra`, `anularCompra`), lo cual está en tensión con la regla "compras = dato sagrado, nunca se modifican" del punto 3 — la misma tensión que ya salió con la reimportación del Excel de compras (ver la decisión de Víctor al respecto en `backend/README.md`, sección del endpoint de importación). No se toca nada de esto ahora (son funciones ya existentes y usadas por Víctor); queda anotado para cuando se diseñe cómo la Fase 1/2 del sistema nuevo debe tratar las correcciones a compras ya grabadas — probablemente con el mismo patrón de "registro de ajuste enlazado" en vez de sobrescribir en silencio, pero eso lo debe confirmar Víctor antes de construirlo.
+
 ---
 
 ## 11. Pendiente de confirmar / decidir en el diseño nuevo

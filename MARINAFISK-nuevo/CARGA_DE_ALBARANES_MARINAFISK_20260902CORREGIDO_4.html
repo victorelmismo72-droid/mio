@@ -11153,23 +11153,26 @@ function filtrarCompras() {
   var lineasParaTotales = [];
   h.sort(function(a,b){ return b.partida-a.partida; }).forEach(function(c){
     var etiquetaRemoto = c._remoto ? ' <span style="background:#e0e0ff;color:#333;border-radius:3px;padding:1px 5px;font-size:11px;white-space:nowrap;">otro puesto</span>' : '';
+    var tieneOp2 = proveedorTieneOp2Compra(c.proveedorCod); // igual para todas las líneas de esta compra
     (c.lineas||[]).forEach(function(l, li){
       if(textoProducto && (l.producto||'').toLowerCase().indexOf(textoProducto)===-1 && (l.descripcion||'').toLowerCase().indexOf(textoProducto)===-1) return;
       lineasParaTotales.push(l);
       var controlOk = !!l.control;
       var colorAlbProv = controlOk ? '#d4edda' : '#fff3cd'; // verde si esta comprobado, amarillo si no
+      var evK = "previewLineaCompraHistorial('"+c._uid+"',"+li+","+(tieneOp2?'true':'false')+")";
+      var evT = "guardarLineaCompraTecla(event,'"+c._uid+"',"+li+")";
       filas.push('<tr>' +
         '<td style="white-space:nowrap;"><strong>'+c.partida+'</strong>'+etiquetaRemoto+'</td>' +
         '<td style="white-space:nowrap;">'+fmtFecha(c.fecha)+'</td>' +
         '<td style="white-space:nowrap;background:'+colorAlbProv+';">'+(c.albProveedor||'')+'</td>' +
         '<td style="white-space:nowrap;">'+c.proveedorCod+'</td>' +
         '<td style="white-space:nowrap;">'+(c.proveedorNombre||'')+' <button class="btn btn-secondary btn-icon-sm" title="Cambiar proveedor SOLO de este producto" onclick="cambiarProveedorLineaCompra(\''+c._uid+'\','+li+')" style="padding:1px 5px;font-size:10px;">✏️</button></td>' +
-        '<td style="text-align:center;white-space:nowrap;">'+(proveedorTieneOp2Compra(c.proveedorCod)?'SÍ':'NO')+'</td>' +
+        '<td style="text-align:center;white-space:nowrap;">'+(tieneOp2?'SÍ':'NO')+'</td>' +
         '<td style="white-space:nowrap;">'+(l.producto||'')+'</td>' +
         '<td style="white-space:nowrap;">'+(l.descripcion||'')+' <button class="btn btn-secondary btn-icon-sm" title="Cambiar artículo de esta línea" onclick="cambiarArticuloLineaCompra(\''+c._uid+'\','+li+')" style="padding:1px 5px;font-size:10px;">✏️</button></td>' +
-        '<td><input class="li" type="number" style="width:55px;" id="cph_caj_'+c._uid+'_'+li+'" value="'+(l.cajas||'')+'" min="0"></td>' +
-        '<td><input class="li" type="number" style="width:70px;" id="cph_kg_'+c._uid+'_'+li+'" value="'+(l.kilos||'')+'" step="0.01" min="0"></td>' +
-        '<td><input class="li" type="number" style="width:65px;" id="cph_pr_'+c._uid+'_'+li+'" value="'+(l.precioKg||'')+'" step="0.001" min="0"></td>' +
+        '<td><input class="li" type="number" style="width:55px;" id="cph_caj_'+c._uid+'_'+li+'" value="'+(l.cajas||'')+'" min="0" oninput="'+evK+'" onkeydown="'+evT+'"></td>' +
+        '<td><input class="li" type="text" inputmode="decimal" style="width:70px;" id="cph_kg_'+c._uid+'_'+li+'" value="'+(l.kilos||'')+'" placeholder="ej. 12+13.5" title="Puedes sumar varias cajas, igual que en el Excel: 12+13.5" oninput="'+evK+'" onkeydown="'+evT+'"></td>' +
+        '<td><input class="li" type="number" style="width:65px;" id="cph_pr_'+c._uid+'_'+li+'" value="'+(l.precioKg||'')+'" step="0.001" min="0" oninput="'+evK+'" onkeydown="'+evT+'"></td>' +
         '<td style="text-align:right;white-space:nowrap;" id="cph_bz_'+c._uid+'_'+li+'">'+fmt(l.baseZgz)+'</td>' +
         '<td style="text-align:right;white-space:nowrap;" id="cph_bzi_'+c._uid+'_'+li+'">'+fmt(l.baseZgzIva)+'</td>' +
         '<td style="text-align:right;white-space:nowrap;" id="cph_op_'+c._uid+'_'+li+'">'+fmt(l.op2)+'</td>' +
@@ -11178,7 +11181,7 @@ function filtrarCompras() {
         '<td style="text-align:right;font-weight:700;white-space:nowrap;" id="cph_tot_'+c._uid+'_'+li+'">'+fmt(l.totalFact)+'</td>' +
         '<td style="text-align:center;white-space:nowrap;"><input type="checkbox" '+(controlOk?'checked':'')+' onchange="toggleControlLineaCompra(\''+c._uid+'\','+li+',this.checked)" title="Marca cuando esté comprobado"></td>' +
         '<td><div class="acciones-compactas">' +
-          '<button class="btn btn-success btn-icon-sm" title="Guardar cambios de esta línea" onclick="guardarLineaCompra(\''+c._uid+'\','+li+')">💾</button>' +
+          '<button class="btn btn-success btn-icon-sm" title="Guardar cambios de esta línea (o pulsa Enter en cualquier campo)" onclick="guardarLineaCompra(\''+c._uid+'\','+li+')">💾</button>' +
           '<button class="btn btn-danger btn-icon-sm" title="Anular toda la compra de esta partida/albarán" onclick="anularCompra(\''+c._uid+'\')">🗑️</button>' +
         '</div></td></tr>');
     });
@@ -11223,6 +11226,38 @@ function toggleControlLineaCompra(uid, li, marcado) {
   filtrarCompras();
 }
 
+// Previsualiza en vivo (Base/2%OP/IVA/Total) mientras se corrige Cajas/Kilos/€-Kg en el
+// listado, sin guardar nada todavía — igual que ya se ve al teclear en "Registrar compra".
+// Solo toca las celdas de esta fila (no vuelve a montar toda la tabla), para no perder el
+// foco al escribir, y admite la misma suma de cifras en Kilos que la pantalla de alta
+// ("12+13.5"), marcando en rojo si lo escrito no es una suma válida.
+function previewLineaCompraHistorial(uid, li, tieneOp2) {
+  var kgTexto = document.getElementById('cph_kg_'+uid+'_'+li).value;
+  var l = {
+    kilos: kgTexto,
+    precioKg: document.getElementById('cph_pr_'+uid+'_'+li).value,
+  };
+  calcLineaCompra(l, tieneOp2);
+  document.getElementById('cph_bz_'+uid+'_'+li).textContent = fmt(l.baseZgz);
+  document.getElementById('cph_bzi_'+uid+'_'+li).textContent = fmt(l.baseZgzIva);
+  document.getElementById('cph_op_'+uid+'_'+li).textContent = fmt(l.op2);
+  document.getElementById('cph_br_'+uid+'_'+li).textContent = fmt(l.baseReal);
+  document.getElementById('cph_iva_'+uid+'_'+li).textContent = fmt(l.iva);
+  document.getElementById('cph_tot_'+uid+'_'+li).textContent = fmt(l.totalFact);
+  var ck = document.getElementById('cph_kg_'+uid+'_'+li);
+  var valido = !isNaN(evaluarExpresionKilos(kgTexto));
+  ck.style.border = valido ? '' : '2px solid #B00000';
+  ck.style.background = valido ? '' : '#ffe5e5';
+}
+
+// Enter en Cajas/Kilos/€-Kg del listado guarda la línea, igual que pulsar 💾 — para no tener
+// que soltar el teclado al corregir una compra ya grabada.
+function guardarLineaCompraTecla(e, uid, li) {
+  if(e.key!=='Enter') return;
+  e.preventDefault();
+  guardarLineaCompra(uid, li);
+}
+
 // Guarda los cambios de kilos/cajas/precio hechos directamente en el listado, sin tener que
 // reabrir la compra — recalcula esa línea y los totales de la compra, y vuelve a sincronizar.
 function guardarLineaCompra(uid, li) {
@@ -11233,10 +11268,12 @@ function guardarLineaCompra(uid, li) {
   if(!c) { alert('No se encontró esa compra.'); return; }
 
   var caj = document.getElementById('cph_caj_'+uid+'_'+li).value;
-  var kg = document.getElementById('cph_kg_'+uid+'_'+li).value;
+  var kgTexto = document.getElementById('cph_kg_'+uid+'_'+li).value;
   var pr = document.getElementById('cph_pr_'+uid+'_'+li).value;
+  var kgEvaluado = evaluarExpresionKilos(kgTexto);
+  if(isNaN(kgEvaluado)) { alert('⚠️ El valor de Kilos no es válido ("'+kgTexto+'"). Corrígelo antes de guardar (puedes escribir una suma, ej. 12+13.5).'); return; }
   var l = c.lineas[li];
-  l.cajas = caj; l.kilos = kg; l.precioKg = pr;
+  l.cajas = caj; l.kilos = kgEvaluado; l.precioKg = pr;
   var prov = obtenerProveedoresCombinado().proveedores.find(function(p){ return p.codigo===c.proveedorCod; });
   calcLineaCompra(l, prov && prov.op2==='S');
 
