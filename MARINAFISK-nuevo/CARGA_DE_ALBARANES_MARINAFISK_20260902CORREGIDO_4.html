@@ -10709,8 +10709,22 @@ function initCompras() {
   renderLineasCompra();
 }
 
+// Admite sumar varias cifras en el campo Kilos, igual que se hacía a mano en el Excel
+// GESTION_CORRECTA al pesar cajas por separado (ej. escribir "12+13.5" en vez de sumarlo antes
+// con calculadora aparte). Solo suma/resta números — no es una calculadora general a propósito,
+// para no arriesgarse a fórmulas raras escritas sin querer.
+function evaluarExpresionKilos(valorTexto) {
+  var texto = String(valorTexto==null?'':valorTexto).trim();
+  if(texto==='') return 0;
+  if(!/^[0-9.,+\-\s]+$/.test(texto)) return NaN;
+  var tokens = texto.replace(/,/g,'.').replace(/\s+/g,'').match(/[+-]?[0-9]*\.?[0-9]+/g);
+  if(!tokens || !tokens.length) return NaN;
+  return tokens.reduce(function(s,t){ return s+parseFloat(t); },0);
+}
+
 function calcLineaCompra(l, proveedorTieneOp2) {
-  var kilos = parseFloat(l.kilos)||0, precio = parseFloat(l.precioKg)||0;
+  var kilos = evaluarExpresionKilos(l.kilos); if(isNaN(kilos)) kilos = 0;
+  var precio = parseFloat(l.precioKg)||0;
   l.baseZgz = kilos*precio;
   l.baseZgzIva = l.baseZgz*1.1;
   l.op2 = proveedorTieneOp2 ? l.baseZgz*0.02 : 0;
@@ -10739,15 +10753,15 @@ function renderLineasCompra() {
         '<input class="li" type="text" id="cpa_'+i+'" placeholder="Código o nombre..." value="'+artVal+'" oninput="buscarArtCompra('+i+',this.value)" autocomplete="off">' +
         '<div id="cpa_dd_'+i+'" class="sugerencias" style="min-width:280px;"></div>' +
       '</td>' +
-      '<td><input class="li" type="number" value="'+(l.cajas||'')+'" onchange="updLineaCompra('+i+',\'cajas\',this.value)" min="0"></td>' +
-      '<td><input class="li" type="number" value="'+(l.kilos||'')+'" onchange="updLineaCompra('+i+',\'kilos\',this.value)" step="0.01" min="0"></td>' +
-      '<td><input class="li" type="number" value="'+(l.precioKg||'')+'" onchange="updLineaCompra('+i+',\'precioKg\',this.value)" step="0.001" min="0"></td>' +
-      '<td style="text-align:right;">'+fmt(l.baseZgz)+'</td>' +
-      '<td style="text-align:right;">'+fmt(l.baseZgzIva)+'</td>' +
-      '<td style="text-align:right;">'+fmt(l.op2)+'</td>' +
-      '<td style="text-align:right;">'+fmt(l.baseReal)+'</td>' +
-      '<td style="text-align:right;">'+fmt(l.iva)+'</td>' +
-      '<td style="text-align:right;font-weight:700;">'+fmt(l.totalFact)+'</td>' +
+      '<td><input class="li" type="number" id="cq_'+i+'" value="'+(l.cajas||'')+'" oninput="updLineaCompra('+i+',\'cajas\',this.value)" onkeydown="navCompra(event,'+i+',\'cajas\')" min="0"></td>' +
+      '<td><input class="li" type="text" inputmode="decimal" id="ck_'+i+'" value="'+(l._kilosTexto!=null?l._kilosTexto:(l.kilos||''))+'" placeholder="ej. 12+13.5" oninput="updLineaCompra('+i+',\'kilos\',this.value)" onkeydown="navCompra(event,'+i+',\'kilos\')" title="Puedes sumar varias cajas, igual que en el Excel: 12+13.5"></td>' +
+      '<td><input class="li" type="number" id="cr_'+i+'" value="'+(l.precioKg||'')+'" oninput="updLineaCompra('+i+',\'precioKg\',this.value)" onkeydown="navCompra(event,'+i+',\'precioKg\')" step="0.001" min="0"></td>' +
+      '<td style="text-align:right;" id="czgz_'+i+'">'+fmt(l.baseZgz)+'</td>' +
+      '<td style="text-align:right;" id="czgziva_'+i+'">'+fmt(l.baseZgzIva)+'</td>' +
+      '<td style="text-align:right;" id="cop2_'+i+'">'+fmt(l.op2)+'</td>' +
+      '<td style="text-align:right;" id="cbreal_'+i+'">'+fmt(l.baseReal)+'</td>' +
+      '<td style="text-align:right;" id="civa_'+i+'">'+fmt(l.iva)+'</td>' +
+      '<td style="text-align:right;font-weight:700;" id="ctot_'+i+'">'+fmt(l.totalFact)+'</td>' +
       '<td><button class="btn btn-danger btn-sm" onclick="removeLineaCompra('+i+')" style="padding:2px 6px;">✕</button></td>';
     tbody.appendChild(tr);
   }
@@ -10775,11 +10789,54 @@ function elegirArtCompra(i, cod) {
   var dd = document.getElementById('cpa_dd_'+i); if(dd) dd.style.display='none';
   if(i===lineasCompra.length-1) lineasCompra.push({producto:'',descripcion:'',cajas:'',kilos:'',precioKg:'',baseZgz:0,baseZgzIva:0,op2:0,baseReal:0,iva:0,totalFact:0});
   renderLineasCompra();
+  setTimeout(function(){ var el=document.getElementById('cq_'+i); if(el) el.focus(); }, 30);
 }
 
+// Actualiza solo esta línea y las celdas calculadas de su fila (sin volver a dibujar toda la
+// tabla) — así se puede escribir del tirón en Cajas/Kilos/€-Kg sin que el cursor salte, igual
+// de fluido que ya funciona en Pedidos.
 function updLineaCompra(i, campo, val) {
-  lineasCompra[i][campo] = val;
-  renderLineasCompra();
+  var l = lineasCompra[i];
+  if(campo==='kilos') {
+    // Guardamos aparte lo que se está escribiendo ahora mismo (puede ser una expresión a
+    // medias, ej. "12+"), pero SOLO actualizamos l.kilos (el número real que se usa en todo
+    // el programa y que se graba) cuando la expresión ya es válida — así l.kilos nunca queda
+    // como texto ("12+13.5"), que rompería cualquier parseFloat(l.kilos) del resto del código.
+    l._kilosTexto = val;
+    var evaluado = evaluarExpresionKilos(val);
+    if(!isNaN(evaluado)) l.kilos = evaluado;
+  } else {
+    l[campo] = val;
+  }
+  calcLineaCompra(l, proveedorActualTieneOp2());
+  var zgz=document.getElementById('czgz_'+i); if(zgz) zgz.textContent=fmt(l.baseZgz);
+  var zgziva=document.getElementById('czgziva_'+i); if(zgziva) zgziva.textContent=fmt(l.baseZgzIva);
+  var op2=document.getElementById('cop2_'+i); if(op2) op2.textContent=fmt(l.op2);
+  var breal=document.getElementById('cbreal_'+i); if(breal) breal.textContent=fmt(l.baseReal);
+  var iva=document.getElementById('civa_'+i); if(iva) iva.textContent=fmt(l.iva);
+  var tot=document.getElementById('ctot_'+i); if(tot) tot.textContent=fmt(l.totalFact);
+  if(campo==='kilos') {
+    var ck = document.getElementById('ck_'+i);
+    var valido = !isNaN(evaluarExpresionKilos(val));
+    if(ck) { ck.style.border = valido ? '' : '2px solid #B00000'; ck.style.background = valido ? '' : '#ffe5e5'; }
+  }
+}
+
+// Tab/Enter para moverse de campo en campo en la línea de compra, igual que ya funciona en
+// Pedidos (navPed) — así se puede teclear del tirón como en el Excel, sin soltar el teclado.
+function navCompra(e, i, field) {
+  if(e.key!=='Enter'&&e.key!=='Tab') return;
+  e.preventDefault();
+  var order = ['cajas','kilos','precioKg'];
+  var prefijo = {cajas:'cq_', kilos:'ck_', precioKg:'cr_'};
+  var idx = order.indexOf(field);
+  if(idx<order.length-1) {
+    var next = document.getElementById(prefijo[order[idx+1]]+i);
+    if(next) next.focus();
+  } else {
+    if(i<lineasCompra.length-1) { var n=document.getElementById('cq_'+(i+1)); if(n) n.focus(); }
+    else addLineaCompra();
+  }
 }
 
 function addLineaCompra() {
@@ -10867,7 +10924,7 @@ function grabarCompra() {
   var compra = {
     partida: partida, fecha: fecha, albProveedor: albProveedor,
     proveedorCod: proveedorCod, proveedorNombre: prov ? prov.nombre : '',
-    lineas: JSON.parse(JSON.stringify(lv)),
+    lineas: JSON.parse(JSON.stringify(lv)).map(function(l){ delete l._kilosTexto; return l; }),
     totalKilos: lv.reduce(function(s,l){ return s+(parseFloat(l.kilos)||0); },0),
     totalBaseZgz: lv.reduce(function(s,l){ return s+l.baseZgz; },0),
     totalBaseReal: lv.reduce(function(s,l){ return s+l.baseReal; },0),

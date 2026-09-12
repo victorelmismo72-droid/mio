@@ -3,8 +3,8 @@
 Documento de referencia para el desarrollo del nuevo sistema con base de datos.
 Recoge cómo funciona HOY el programa HTML (`CARGA_DE_ALBARANES_MARINAFISK`), para que el sistema nuevo reproduzca exactamente el mismo comportamiento antes de añadir nada.
 
-Última versión de referencia del programa actual: **2026-09-02-CORREGIDO_4** (sustituye a la anterior, 2026-08-21-I, que se conserva en el repo como histórico).
-Última versión corregida del Excel GESTION_CORRECTA: ver notas al final.
+Última versión de referencia del programa actual: **2026-09-02-CORREGIDO_4**, con la mejora de agilidad en Compras del 12/09/2026 (ver punto 10) aplicada encima (sustituye a la anterior, 2026-08-21-I, que se conserva en el repo como histórico).
+Última versión corregida del Excel GESTION_CORRECTA: **`GESTION_CORRECTA_precio_medio_arreglado_4.xlsx`** (guardado en este repo el 12/09/2026) — hoja `COMPRAS` (una línea por compra) y hoja `PANEL COMPRAS` (dashboard: top proveedores/productos por kilos e importe, filtrable por fecha). Es la referencia de agilidad usada para el punto 10.
 
 ---
 
@@ -104,7 +104,20 @@ Cambios reales de negocio respecto a la versión de referencia anterior (2026-08
 
 ---
 
-## 10. Pendiente de confirmar / decidir en el diseño nuevo
+## 10. Mejora de agilidad en Compras (12/09/2026)
+
+Petición de Víctor, comparando el programa con el Excel `GESTION_CORRECTA_precio_medio_arreglado_4.xlsx`: quería que la pantalla de Compras fuera igual de clara, concisa y rápida de teclear que ese Excel, con las mismas teclas para pasar de un campo al siguiente. Comparando la hoja `COMPRAS` de ese Excel (fila = una línea de compra: N PARTIDA/FECHA/COD PROV/COD PROD/CAJAS/KILOS/EUR-KG, el resto calculado) con el panel de Compras del programa, se encontró que **Compras no tenía la navegación por teclado que Pedidos ya tiene** (`navPed`) — había que usar el ratón para moverse entre Cajas/Kilos/€-Kg. Corregido:
+
+- **Tab/Enter entre campos de la línea de compra** (`navCompra`, mismo patrón que `navPed` en Pedidos): Cajas → Kilos → €/Kg → Cajas de la siguiente línea, añadiendo una línea nueva automáticamente igual que en Pedidos.
+- **Al elegir un artículo, el foco salta solo a Cajas** (antes había que hacer clic).
+- **El campo Kilos admite sumar varias cifras**, igual que ya se hacía a mano en el Excel `GESTION_CORRECTA` al pesar cajas por separado (ej. escribir `12+13.5` en vez de sumarlo antes con calculadora aparte — en el Excel real esto aparece como fórmula en la columna KILOS). Si lo escrito no es una suma válida, se marca en rojo (mismo tipo de aviso ya usado en listas de precio para margen negativo) sin bloquear ni corromper el resto de la línea.
+- **Corrección técnica importante para que esto no se rompiera**: al escribir en Kilos ahora se actualiza solo esa línea (sin redibujar toda la tabla en cada tecla), igual que ya hacía Pedidos — si no, el cursor se habría desplazado cada vez que se escribía un carácter. El valor que se guarda en `kilos` siempre es el número ya calculado (ej. `25.5`), nunca el texto de la fórmula (`"12+13.5"`) — importante porque el resto del programa (listados, backups, Excel) lee ese campo con `parseFloat`, que solo entendería el primer número y perdería el resto silenciosamente si se guardara como texto.
+
+Probado en navegador real (no solo revisado el código): navegación Tab/Enter completa fila a fila, escritura de una expresión sin perder el foco carácter a carácter, cálculo correcto de Base/2% OP/IVA/Total, aviso visual ante una expresión inválida, y grabado final con el kilos numérico correcto sin el texto de la fórmula.
+
+---
+
+## 11. Pendiente de confirmar / decidir en el diseño nuevo
 
 - [x] Tratamiento correcto del IVA en compras a proveedores extranjeros (ver punto 4) — resuelto: intracomunitario = sin IVA; no existen proveedores extracomunitarios, no hace falta tercer caso.
 - [ ] Confirmar con Víctor si hay más proveedores o casos especiales de OP aparte de "subasta/lonja marcados como tal".
