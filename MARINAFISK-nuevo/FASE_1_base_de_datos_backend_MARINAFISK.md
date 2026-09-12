@@ -81,6 +81,7 @@ No pasar a la Fase 2 hasta que:
 - [x] `compras` no tiene forma de modificarse por error desde el backend — verificado: `PUT /compras/:id` y `DELETE /compras/:id` devuelven 404 (esas rutas no existen), solo hay `GET` y `POST`.
 - [x] El HTML/programa actual sigue funcionando exactamente igual, sin tocar, en paralelo — no se ha modificado ningún `.html` del repositorio en esta fase.
 - [ ] Víctor ha revisado y entendido (en términos sencillos, no técnicos) qué se ha construido, antes de seguir — ver `backend/README.md`, pensado para eso.
+- [ ] **Protección a nivel de servidor contra doble grabación por clic repetido** (pedido explícito de Víctor en `CORRECCIONES_02-09-2026_para_Code.md`, punto 1 — ver Fase 0, punto 11.3): el backend actual (`POST /pedidos`, `/traspasos`, `/repartos`) **todavía no la tiene** — cada petición crea un registro nuevo sin comprobar si una petición equivalente ya está en curso. En el HTML esto solo se protege deshabilitando el botón en pantalla, que Víctor pide expresamente mejorar aquí — pendiente antes de cerrar la fase.
 
 ---
 

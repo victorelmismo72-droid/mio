@@ -169,7 +169,7 @@ Un pago parcial o total contra una factura (Fase 4 punto 5). Se permite más de 
 ## Puntos abiertos que este esquema no resuelve todavía (dependen de respuestas de Víctor)
 
 1. ~~IVA en compras a proveedor extranjero~~ — **Resuelto (2026-08-24):** proveedor intracomunitario (UE) → compra sin IVA (inversión del sujeto pasivo). Añadido `tipo_iva` a `proveedores` y regla explícita en `compra_lineas`. Confirmado por Víctor: los proveedores solo son **NACIONAL** o **INTRACOMUNITARIO** — no existen proveedores extracomunitarios, así que `tipo_iva` no necesita un tercer valor.
-2. Si existen más casos especiales de OP aparte de "subasta/lonja marcados como tal" (punto 9 del documento Fase 0).
+2. Si existen más casos especiales de OP aparte de "subasta/lonja marcados como tal" (ver "Pendiente de confirmar" en el documento Fase 0, actualmente su punto 12 — la numeración de esa sección se ha ido desplazando al añadir correcciones nuevas, comprobar el número vigente en vez de fiarse de este enlace).
 3. Reglas de mermas/pérdida de peso más allá del cierre de partidas.
 4. `traspasos`/`traspaso_lineas` y `repartos`/`reparto_lineas` se han revisado por encima (localizados en `historialTrp` y `repartos` del código), pero no se ha hecho todavía la misma verificación campo a campo que sí se hizo para `compras`/`compra_lineas` y `pedidos`/`pedido_lineas` el 05/09/2026 — pendiente antes de dar el esquema por definitivo.
 5. Los proveedores de hoy **no tienen ningún campo de tipo de IVA** en los datos reales (`tipo_iva` es un campo nuevo, ver punto 1) — al migrar el backup real, cada proveedor existente tendrá que clasificarse manualmente como NACIONAL o INTRACOMUNITARIO; no se puede deducir del JSON porque esa distinción no existía hasta ahora.

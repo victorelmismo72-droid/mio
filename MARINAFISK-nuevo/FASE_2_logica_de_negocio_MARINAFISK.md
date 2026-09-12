@@ -47,6 +47,7 @@ Lo que sí falta de verdad es el lado de compras:
 - Cierre de partidas: manual, con opción de cierre masivo por fecha; una partida puede cerrarse sin llegar a cero kilos (mermas).
 - **Las partidas nunca deben mostrarse en documentos de cliente** — solo en la versión interna con precios.
 - Compras siguen siendo inmutables (ver Fase 1) — el cálculo de margen se hace leyendo la compra original, nunca modificándola.
+- **Existencias en texto libre también aquí** (no solo en listas de precio, ver Fase 0 punto 9): el campo de existencias/stock asociado a una partida debe admitir texto ("AGOTADO", "POCAS") además de un número exacto de cajas — mismo motivo, indicar disponibilidad aproximada sin forzar una cifra.
 
 ---
 
@@ -55,16 +56,27 @@ Lo que sí falta de verdad es el lado de compras:
 - Confirmar que la lógica de independencia entre listas (cada una autónoma, copia de arranque opcional desde la otra si está vacía) se traslada igual que en el HTML actual (ver Fase 0, punto 5).
 - Modo automático (relleno desde compras del día) y modo manual (entrada libre), igual que hoy.
 - La versión interna (con coste, margen real, existencias en cajas) debe seguir estando claramente separada de la versión de cliente, y nunca mezclarse.
+- **Aviso de venta por debajo de coste — versión robusta (petición de Víctor, `CORRECCIONES_02-09-2026_para_Code.md` punto 4; ver Fase 0 punto 11.3):** el HTML actual compara el precio tecleado contra un campo de "coste" **también tecleado a mano** en esa misma pantalla — puede estar mal o desactualizado. El sistema nuevo, en cambio, **conoce el coste real de la partida asignada** en todo momento (viene de la compra original, inmutable). El aviso de margen negativo debe compararse contra ese coste real siempre que la línea tenga una partida asignada, no contra una cifra escrita a mano — más fiable que el HTML, no solo igual. Mismo tipo de aviso ya decidido (visual en rojo + confirmación explícita antes de generar la imagen), ver Fase 0 punto 9.
 
 ---
 
-## 5. Requisito transversal de agilidad (recordatorio, ya introducido en Fase 1)
+## 5. Listados de gestión: separar siempre venta real de movimiento interno
+
+**Añadido a partir de `CORRECCIONES_02-09-2026_para_Code.md` punto 3 (Víctor), generalizando lo ya corregido en el HTML actual para el buscador "Buscar Artículos" (ver Fase 0 punto 9):**
+
+- Los traspasos internos a Zaragoza **no son ventas** (no hay cliente, no hay cobro) — un traspaso y un pedido son conceptualmente distintos, aunque ambos muevan kilos de pescado.
+- Regla para **cualquier** listado o informe de esta fase que trate kilos/artículos/importes (no solo el buscador de artículos ya corregido en el HTML): por defecto, mostrar y sumar solo ventas reales. Ofrecer, como opción explícita (nunca activada por defecto), incluir también los traspasos — y si se incluyen, deben verse claramente diferenciados en la lista (nunca mezclados en la misma fila/categoría que una venta) y con un total aparte: un total económico (solo ventas) y un total de kilos "estadístico" que sume ventas + traspasos.
+- Esto aplica a cualquier listado de gestión que se construya en esta fase o más adelante (por ejemplo, listados por cliente/artículo/fecha, exports para contabilidad, etc.) — no es una regla de una sola pantalla.
+
+---
+
+## 6. Requisito transversal de agilidad (recordatorio, ya introducido en Fase 1)
 
 Sigue aplicando aquí: cada flujo de esta fase (registrar compra, asignar partida, generar lista de precios) debe probarse comparando el número de pasos/tiempo frente al Excel `GESTION_CORRECTA` actual. Si algún flujo nuevo resulta más lento o más tedioso que el Excel o que el HTML actual, se considera un defecto de esta fase, no un detalle menor.
 
 ---
 
-## 6. Verificación de esta fase
+## 7. Verificación de esta fase
 
 No pasar a la Fase 3 hasta que:
 
@@ -72,7 +84,9 @@ No pasar a la Fase 3 hasta que:
 - [ ] El tratamiento de IVA/Recargo de Equivalencia está implementado y documentado para las cuatro clasificaciones fiscales de proveedores y las combinaciones de clientes — con las dudas normativas señaladas explícitamente a Víctor, no asumidas.
 - [ ] El caso conocido de falsos positivos en emparejamiento de partidas (ej. C144 vs C1444) se ha probado explícitamente y no reaparece.
 - [ ] Las partidas no aparecen en ningún documento de cliente generado por el sistema nuevo.
-- [ ] Comparación de agilidad frente al Excel realizada y documentada (ver punto 5).
+- [ ] El aviso de margen negativo compara contra el coste real de la partida asignada, no contra un coste tecleado a mano (ver punto 4).
+- [ ] Todo listado de gestión de esta fase separa ventas reales de traspasos por defecto, con la opción de incluirlos aparte y diferenciados (ver punto 5).
+- [ ] Comparación de agilidad frente al Excel realizada y documentada (ver punto 6).
 - [ ] El HTML/programa actual sigue intacto y en uso normal, en paralelo.
 - [ ] Víctor ha revisado y entendido, en términos sencillos, qué se ha construido y qué puntos quedaron pendientes de confirmación normativa (IVA).
 

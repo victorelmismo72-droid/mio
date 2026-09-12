@@ -101,6 +101,9 @@ Cambios reales de negocio respecto a la versión de referencia anterior (2026-08
 - **Corrección de fecha en el Excel exportado.** Antes se dejaba que la librería XLSX convirtiera un objeto `Date` de JavaScript a fecha de Excel, lo que en ciertos días podía desplazar la fecha un día (fallo conocido de esa conversión con el horario de verano). Ahora se calcula a mano el número de serie de fecha de Excel a partir del ISO (YYYY-MM-DD), todo en UTC de principio a fin, sin pasar por conversiones intermedias. Relacionado con la regla ya existente del punto 7 (fecha local, nunca UTC "de paso") — aquí el cuidado es el inverso (hacer *todo* el cálculo interno en UTC de forma consistente, sin mezclarlo con el huso local a mitad de camino).
 - **Aviso de venta por debajo de coste en listas de precio manuales.** Al escribir precio y coste de un producto en la tabla manual de listas de precio, si el margen sale negativo se marca en rojo fuerte junto al campo ("⚠️ ¡PÉRDIDA! X€", con el input de precio resaltado) y, al salir del campo, aparece además un aviso emergente central. Antes de generar la imagen para el cliente, si queda algún producto con precio por debajo de coste, se pide confirmación explícita con el detalle de cada caso (no bloquea, pero obliga a confirmarlo). Fallo humano real detectado el 02/09/2026 (poner sin querer el precio de venta por debajo del coste) — el sistema nuevo debe incluir esta misma protección (visual + confirmación), no solo un cálculo silencioso de margen.
 - **Campo "Existencias (solo tú)" admite texto libre**, no solo número de cajas — por ejemplo "AGOTADO" o "POCAS", además de cifras. Sigue siendo un campo de uso interno que nunca aparece en la imagen que ve el cliente.
+- **Hoja Transfrío también disponible en Traspasos.** Hasta ahora ese botón (imprimir encima del papel pre-impreso del transportista, con destino/fecha/bultos/kilos) solo existía en Pedidos. Se añadió el mismo botón en Traspasos — como un traspaso es un movimiento interno (no una venta a un cliente del catálogo), el destinatario se dejó fijo, **"MARINA FISH ZARAGOZA"** con destino "ZARAGOZA", sin buscar ni depender de ninguna ficha de Clientes. Regla para el sistema nuevo: esta hoja de transporte debe existir también en la pantalla de Traspasos, con el mismo criterio — el destinatario de un traspaso a Zaragoza es una constante interna del sistema, nunca un registro del catálogo de clientes ni una ficha de cliente falsa creada solo para poder imprimir.
+
+*(Confirmado y detallado por Víctor el 02/09/2026 en `CORRECCIONES_02-09-2026_para_Code.md`, guardado en este repo — ese documento añade además dos puntos que Víctor ya tiene funcionando en su programa pero que TODAVÍA NO están en el HTML de referencia que tenemos aquí: ver punto 11.)*
 
 ---
 
@@ -128,11 +131,45 @@ Probado igual en navegador real: previsualización en vivo sin perder el foco, e
 
 ---
 
-## 11. Pendiente de confirmar / decidir en el diseño nuevo
+## 11. Funcionalidad ya en producción de Víctor, TODAVÍA NO incluida en nuestro HTML de referencia
+
+Según `CORRECCIONES_02-09-2026_para_Code.md` (guardado en este repo), Víctor ya tiene esto funcionando en su programa real, pero el fichero `CARGA_DE_ALBARANES_MARINAFISK_20260902CORREGIDO_4.html` que tenemos en el repo **no lo incluye todavía** (comprobado: no aparece "CMR" ni "Carta de Porte" en ese archivo). Se documenta aquí como especificación funcional para el sistema nuevo, a la espera de que Víctor nos pase la versión de su HTML que ya lo tiene.
+
+### 11.1 Hoja CMR / Carta de Porte para clientes de Portugal (transportista Mouzo)
+
+- Los clientes con transportista **"Mouzo Campos Trans, S.L."** (agencia `MOZO` en el catálogo — hoy solo un cliente: MARIA CUSTODIA ALVES E FILLOS, código 50540) necesitan, además del albarán normal, una hoja CMR/Carta de Porte internacional para el transporte a Portugal — un papel pre-impreso del transportista, igual que Transfrío.
+- Botón **"📄 HOJA CMR / CARTA DE PORTE"** en Pedidos, visible **solo si el cliente tiene la agencia "MOZO"** — oculto para el resto.
+- Rellena, sobre el papel pre-impreso, las casillas oficiales del formulario CMR: remitente (datos fijos de Marinafisk), consignatario (cliente, con dirección repartida en varias líneas según longitud), lugar de entrega (fijo: "INSTALACIONES CUSTODIA - PORTUGAL"), lugar/fecha de carga (fijo: "A CORUÑA, ESPAÑA" + fecha del pedido), número de albarán, texto fijo "VER ALBARÁN ADJUNTO" + nº de cajas, peso bruto total, y lugar/fecha de formalización.
+- Usa el mismo sistema de calibración en milímetros que ya existe para Transfrío (pantalla "MODELOS DE IMPRESIÓN" → editor visual X/Y por campo, "📐 Ver con regla", "↩️ Restaurar de fábrica") — las coordenadas se estimaron de una foto real y se fueron ajustando con impresiones de prueba.
+
+**Requisitos para el sistema nuevo:**
+- Misma visibilidad condicional: solo aparece si el cliente tiene asignado el transportista "MOZO" (o el campo equivalente de transportista/agencia que use el sistema nuevo).
+- Los datos fijos (remitente, lugar de entrega en Portugal, lugar de carga en A Coruña) deben ser **constantes configurables del sistema**, no texto libre que haya que volver a escribir.
+- El diseño debe permitir añadir nuevas plantillas de hoja de transporte (más clientes de Portugal, más transportistas con CMR propio) sin rehacer la lógica desde cero — algo como un "diccionario" transportista → plantilla de impresión.
+- Mantener el mismo sistema de calibración manual en milímetros que Transfrío/CMR ya tienen — es una herramienta necesaria en la práctica (nunca se acierta a la primera sobre un papel pre-impreso real), no un capricho.
+
+### 11.2 Catálogo de "Modelos de impresión" siempre actualizado
+
+- El HTML tiene una pantalla "MODELOS DE IMPRESIÓN" que lista todo lo que el programa puede imprimir/generar, con su propósito y un ejemplo. Al añadir la Hoja CMR se detectó que esa pantalla no se había actualizado a la vez — el modelo nuevo funcionaba pero no aparecía documentado, lo que podría hacer pensar que no existe.
+
+**Requisito para el sistema nuevo:** el equivalente a esta pantalla debe existir, y actualizarla debe ser **parte obligatoria del mismo cambio** cada vez que se añada un modelo de impresión nuevo — no una tarea aparte que se pueda olvidar. Si es posible, generar el catálogo automáticamente a partir de una lista central de modelos definidos en el código, en vez de mantenerlo a mano en dos sitios distintos (el catálogo y el código real) — eso es precisamente lo que causó el desajuste esta vez.
+
+### 11.3 Matices añadidos por Víctor sobre correcciones ya documentadas (puntos 9-10)
+
+- **Doble/triple grabación (punto 9):** Víctor pide explícitamente que la protección en el sistema nuevo sea **también a nivel de servidor** (que una petición de guardado ya en curso no permita otra idéntica en paralelo), no solo un botón deshabilitado en pantalla como hace hoy el HTML. **Nota para Fase 1:** el backend ya construido (`backend/`) todavía NO tiene esta protección — cada `POST /pedidos`/`/traspasos`/`/repartos` crea un registro nuevo sin comprobar si una petición equivalente está en curso. Pendiente de añadir (ver Fase 1, criterios de cierre).
+- **Refresco automático al empezar el día (punto 9 bis):** con base de datos real, este problema desaparece de raíz (no hay "cachés" que refrescar). Víctor pide verificar explícitamente en la Fase 3 que dos sesiones abiertas a la vez, cada una desde su ordenador, vean siempre los mismos contadores y el mismo estado sin ningún refresco manual ni automático — porque no debería hacer falta.
+- **Traspasos ≠ ventas en TODOS los listados, no solo en "Buscar Artículos"** (generaliza el punto 9): cualquier listado o informe que trate kilos/artículos debe separar claramente ventas reales de movimientos internos (traspasos) — un total económico (solo ventas) y un total de kilos "estadístico" que sume ambos, nunca mezclados en silencio. Ver Fase 2, nueva sección de listados de gestión.
+- **Aviso de margen negativo, versión robusta** (mejora sobre el punto 9): el sistema nuevo, a diferencia del HTML actual, sí conoce el coste real de la partida asignada en todo momento — el aviso de venta por debajo de coste debe compararse contra ese coste real, no contra un campo de coste tecleado a mano (que puede estar mal o desactualizado). Ver Fase 2, partidas y margen.
+- **Existencias en texto libre**, aplicar también en pantallas de partidas, no solo en listas de precio.
+
+---
+
+## 12. Pendiente de confirmar / decidir en el diseño nuevo
 
 - [x] Tratamiento correcto del IVA en compras a proveedores extranjeros (ver punto 4) — resuelto: intracomunitario = sin IVA; no existen proveedores extracomunitarios, no hace falta tercer caso.
 - [ ] Confirmar con Víctor si hay más proveedores o casos especiales de OP aparte de "subasta/lonja marcados como tal".
 - [ ] Revisar si existen otras reglas de mermas/pérdida de peso además de la ya mencionada en cierre de partidas.
+- [ ] Pedir a Víctor la versión del HTML que ya tiene la Hoja CMR/Carta de Porte (punto 11), para verificarla campo a campo igual que se hizo con CORREGIDO_4.
 
 ---
 
