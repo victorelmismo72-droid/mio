@@ -8,6 +8,7 @@ const { prisma } = require('../db');
 const { registrarEscritura } = require('../logEscritura');
 const { conIdempotencia } = require('../idempotencia');
 const { elegirPartidaParaVenta } = require('../margenPartida');
+const { calcularIvaPedido, calcularTotalLineaPedido } = require('../ivaVentas');
 
 const router = express.Router();
 
@@ -32,6 +33,45 @@ async function autoAsignarPartidasLineas(lineas) {
   return resultado;
 }
 
+// Prepara un pedido completo antes de grabarlo (Fase 2, punto 3): el total
+// de cada linea y el IVA/Recargo de Equivalencia del pedido se calculan EN
+// VIVO en el servidor a partir del cliente tal como esta ahora mismo en la
+// base de datos - igual que ya se hace en compras (calculoCompra.js) - en
+// vez de aceptar baseImponible/iva/total/tipoIvaAplicado ya calculados
+// desde el cliente HTTP.
+async function prepararPedido({ lineas, clienteId }) {
+  const cliente = await prisma.cliente.findUnique({ where: { id: Number(clienteId) } });
+  if (!cliente) throw new Error(`No existe ningún cliente con id ${clienteId}.`);
+
+  const lineasConPartida = await autoAsignarPartidasLineas(lineas);
+  const lineasFinal = [];
+  for (const l of lineasConPartida) {
+    const total = calcularTotalLineaPedido({ peso: l.peso, precio: l.precio, descuento: l.descuento });
+    let ivaPct = l.ivaPct;
+    if (ivaPct == null && l.articuloId) {
+      const articulo = await prisma.articulo.findUnique({ where: { id: Number(l.articuloId) } });
+      ivaPct = articulo ? articulo.ivaPct : 10;
+    }
+    lineasFinal.push({ ...l, total, ivaPct: ivaPct ?? 10 });
+  }
+
+  const baseImponible = lineasFinal.reduce((s, l) => s + l.total, 0);
+  const r = calcularIvaPedido(baseImponible, cliente.tipoIva);
+
+  return {
+    clienteNombreSnapshot: cliente.nombre,
+    clienteCifSnapshot: cliente.cif,
+    clienteDirSnapshot: cliente.direccion,
+    clientePobSnapshot: cliente.poblacion,
+    clienteTelSnapshot: cliente.telefono,
+    tipoIvaAplicado: cliente.tipoIva,
+    baseImponible,
+    iva: r.iva,
+    total: r.total,
+    lineas: lineasFinal,
+  };
+}
+
 router.get('/', async (req, res) => {
   const pedidos = await prisma.pedido.findMany({
     include: { lineas: true, cliente: true },
@@ -54,12 +94,26 @@ router.get('/:id', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     await conIdempotencia(req, res, 'POST /pedidos', async () => {
-      const { lineas, idempotencyKey, ...cabecera } = req.body;
-      const lineasConPartida = await autoAsignarPartidasLineas(lineas);
+      const {
+        lineas, idempotencyKey,
+        clienteNombreSnapshot, clienteCifSnapshot, clienteDirSnapshot, clientePobSnapshot, clienteTelSnapshot,
+        tipoIvaAplicado, baseImponible, iva, total,
+        ...cabecera
+      } = req.body;
+      const preparado = await prepararPedido({ lineas, clienteId: cabecera.clienteId });
       const creado = await prisma.pedido.create({
         data: {
           ...cabecera,
-          lineas: { create: lineasConPartida },
+          clienteNombreSnapshot: preparado.clienteNombreSnapshot,
+          clienteCifSnapshot: preparado.clienteCifSnapshot,
+          clienteDirSnapshot: preparado.clienteDirSnapshot,
+          clientePobSnapshot: preparado.clientePobSnapshot,
+          clienteTelSnapshot: preparado.clienteTelSnapshot,
+          tipoIvaAplicado: preparado.tipoIvaAplicado,
+          baseImponible: preparado.baseImponible,
+          iva: preparado.iva,
+          total: preparado.total,
+          lineas: { create: preparado.lineas },
         },
         include: { lineas: true },
       });
@@ -77,15 +131,29 @@ router.put('/:id', async (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isInteger(id)) return res.status(400).json({ error: 'El id debe ser un número entero.' });
   try {
-    const { lineas, ...cabecera } = req.body;
-    const lineasConPartida = await autoAsignarPartidasLineas(lineas);
+    const {
+      lineas,
+      clienteNombreSnapshot, clienteCifSnapshot, clienteDirSnapshot, clientePobSnapshot, clienteTelSnapshot,
+      tipoIvaAplicado, baseImponible, iva, total,
+      ...cabecera
+    } = req.body;
+    const preparado = await prepararPedido({ lineas, clienteId: cabecera.clienteId });
     const actualizado = await prisma.$transaction(async (tx) => {
       await tx.pedidoLinea.deleteMany({ where: { pedidoId: id } });
       return tx.pedido.update({
         where: { id },
         data: {
           ...cabecera,
-          lineas: { create: lineasConPartida },
+          clienteNombreSnapshot: preparado.clienteNombreSnapshot,
+          clienteCifSnapshot: preparado.clienteCifSnapshot,
+          clienteDirSnapshot: preparado.clienteDirSnapshot,
+          clientePobSnapshot: preparado.clientePobSnapshot,
+          clienteTelSnapshot: preparado.clienteTelSnapshot,
+          tipoIvaAplicado: preparado.tipoIvaAplicado,
+          baseImponible: preparado.baseImponible,
+          iva: preparado.iva,
+          total: preparado.total,
+          lineas: { create: preparado.lineas },
         },
         include: { lineas: true },
       });

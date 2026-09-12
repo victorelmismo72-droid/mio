@@ -51,11 +51,13 @@ Lo que sí falta de verdad es el lado de compras:
 - **Compras — implementado el 12/09/2026 (`calcularLineaCompra` en `backend/src/calculoCompra.js`):**
   - Proveedor Nacional → IVA 10% (tipo único del pescado, ver Fase 0).
   - Proveedor Intracomunitario → sin IVA, por inversión del sujeto pasivo — **este era el hueco real**: el HTML actual aplica 10% siempre en el cálculo de líneas de compra, sin mirar el tipo de proveedor (ver Fase 0, punto 4). Corregido tanto en `POST /compras` (alta manual) como en la importación de Excel, usando el mismo cálculo compartido — probado el 12/09/2026 con un proveedor de cada tipo fiscal (Nacional → 10%, Intracomunitario → 0%), mismos kilos/precio de entrada.
-- **Ventas** (ya funciona en el HTML, replicar el mismo comportamiento):
+- **Ventas — implementado el 12/09/2026 (`calcularIvaPedido` en `backend/src/ivaVentas.js`):** puerto directo de `calcularIvaPedido(base, tipoIva)` del HTML, no un rediseño.
   - Cliente Nacional sin Recargo de Equivalencia → IVA 10% normal.
   - Cliente Nacional con Recargo de Equivalencia → IVA 10% + 1,4% de recargo de equivalencia.
   - Cliente Intracomunitario → IVA 0%.
-- Documentar en el código, con comentarios claros en español, qué regla se aplica y por qué, para que Víctor pueda entenderlo sin ser programador.
+  - `POST /pedidos` y `PUT /pedidos/:id` calculan `baseImponible`/`iva`/`total` **en vivo** a partir de las líneas y del `tipoIva` del cliente consultado en ese momento en la base de datos — no se acepta ya calculado desde el cliente HTTP, por la misma razón que en compras (Fase 0 punto 2): un frontend con la fórmula desactualizada no debe poder grabar un pedido con el IVA equivocado. El total de cada línea (`peso * precio * (1 - descuento/100)`, igual que `calcLineaPed()` del HTML) también se calcula en el servidor. Los datos "foto" del cliente (`clienteNombreSnapshot`, etc.) se toman del cliente tal cual está en ese momento, por el mismo motivo.
+  - Probado el 12/09/2026 con un cliente de cada clasificación fiscal (Normal, Recargo de Equivalencia, Intracomunitario): la base, el IVA y el total coinciden exactamente con la fórmula esperada.
+- Documentado en el código, con comentarios claros en español, qué regla se aplica y por qué, para que Víctor pueda entenderlo sin ser programador.
 
 ---
 
@@ -112,7 +114,7 @@ No pasar a la Fase 3 hasta que:
 
 - [ ] Se ha tomado un conjunto de datos reales (un día completo de compras y ventas, por ejemplo) y se ha comparado el resultado del sistema nuevo contra el HTML actual: mismo coste real, mismas partidas asignadas, mismo margen.
 - [x] El 2% de OP se calcula siempre en vivo desde el proveedor actual, nunca congelado — implementado y probado el 12/09/2026 (ver punto 1).
-- [ ] El tratamiento de IVA/Recargo de Equivalencia está implementado y documentado para las cuatro clasificaciones fiscales de proveedores y las combinaciones de clientes — con las dudas normativas señaladas explícitamente a Víctor, no asumidas. El lado de **compras** (Nacional 10% / Intracomunitario 0%) ya está implementado y probado (ver punto 3); el lado de ventas replica `calcularIvaPedido` del HTML, pendiente de trasladar al backend nuevo.
+- [x] El tratamiento de IVA/Recargo de Equivalencia está implementado y documentado para las clasificaciones fiscales de proveedores (Nacional/Intracomunitario) y de clientes (Normal/Recargo de Equivalencia/Intracomunitario) — implementado y probado el 12/09/2026 tanto en compras como en ventas (ver punto 3). No han surgido dudas normativas que señalar a Víctor: se ha reproducido tal cual el cálculo que ya funcionaba en el HTML para ventas, y corregido el hueco conocido en compras.
 - [x] El caso conocido de falsos positivos en emparejamiento de partidas (ej. C144 vs C1444) se ha probado explícitamente y no reaparece — probado el 12/09/2026 con un caso equivalente (prefijo compartido, primera palabra distinta) en el backend nuevo.
 - [ ] Las partidas no aparecen en ningún documento de cliente generado por el sistema nuevo — pendiente de frontend (esta fase, en el backend, ya distingue claramente partida interna de lo que se manda a cliente, pero no hay todavía ningún documento de cliente generado por el sistema nuevo que verificar).
 - [ ] El aviso de margen negativo compara contra el coste real de la partida asignada, no contra un coste tecleado a mano (ver punto 5) — pendiente de frontend; el backend ya expone el coste real vía `GET /partidas/disponibles`.

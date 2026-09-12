@@ -2,10 +2,10 @@
 
 Esto es el backend de la Fase 1 (guarda y lee datos: clientes, proveedores,
 artículos, compras, partidas, pedidos, traspasos, repartos, listas de
-precio), con varias piezas de Fase 2 ya incorporadas: la **asignación
-automática del número de partida**, el **2% de OP en vivo**, el **IVA de
-compras** y la **asignación automática de partida por margen** (ver
-sección 5) — solo el IVA de ventas sigue pendiente de Fase 2. El HTML actual (`CARGA_DE_ALBARANES_MARINAFISK_20260902CORREGIDO_4.html`)
+precio), con toda la lógica de negocio de Fase 2 ya incorporada: la
+**asignación automática del número de partida**, el **2% de OP en vivo**,
+el **IVA de compras y de ventas**, y la **asignación automática de partida
+por margen** (ver sección 5). El HTML actual (`CARGA_DE_ALBARANES_MARINAFISK_20260902CORREGIDO_4.html`)
 sigue funcionando exactamente igual mientras tanto — esto se prueba aparte,
 en paralelo.
 
@@ -144,12 +144,24 @@ descuido.
   (o su familia — mismo producto en otra talla, ver `src/margenPartida.js`),
   con los kilos que quedan de cada una y el margen ya calculado si se pasa
   un precio de venta — para construir el desplegable de "elegir partida".
-- `/pedidos` — CRUD completo, con la asignación automática de partida ya
-  incorporada (12/09/2026, ver Fase 2 punto 4): `POST /pedidos` y
-  `PUT /pedidos/:id` asignan a cada línea sin `partidaNumero` explícito la
-  partida disponible más antigua que llegue al margen mínimo (1,30 €/kg);
-  si el cliente ya eligió una partida a mano, no se recalcula. Si ninguna
-  llega al margen, la línea queda sin partida (excepción). Además:
+- `/pedidos` — CRUD completo. `POST /pedidos` y `PUT /pedidos/:id` calculan
+  varias cosas en el servidor en vez de aceptarlas ya calculadas del
+  cliente (mismo motivo que en compras — Fase 0 punto 2):
+  - **IVA de ventas (12/09/2026, ver Fase 2 punto 3):** `baseImponible`,
+    `iva` y `total` del pedido se calculan a partir de las líneas y del
+    `tipoIva` del cliente (`clienteId`) consultado en ese momento en la
+    base de datos — Normal → 10%, Recargo de Equivalencia → 10%+1,4%,
+    Intracomunitario → 0% (`src/ivaVentas.js`, puerto de
+    `calcularIvaPedido()` del HTML). El total de cada línea también se
+    calcula en el servidor (`peso * precio * (1 - descuento/100)`). Los
+    campos "foto" del cliente (`clienteNombreSnapshot`, etc.) se rellenan
+    también desde el cliente real en ese momento, no hace falta que el
+    cliente HTTP los mande.
+  - **Asignación automática de partida (12/09/2026, ver Fase 2 punto 4):**
+    a cada línea sin `partidaNumero` explícito se le asigna la partida
+    disponible más antigua que llegue al margen mínimo (1,30 €/kg); si el
+    cliente ya eligió una partida a mano, no se recalcula. Si ninguna llega
+    al margen, la línea queda sin partida (excepción). Además:
   - `POST /pedidos/asignar-partidas-dia` (`{fecha}` en el cuerpo, por
     defecto hoy) — equivalente al botón "📦 ASIGNAR PARTIDAS DE HOY": asigna
     en lote todo lo que puede de los pedidos de esa fecha y devuelve las
