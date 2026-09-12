@@ -79,11 +79,20 @@ total_factura = base_real + iva_importe
 ```
 Proveedor intracomunitario (UE) → compra sin IVA, por inversión del sujeto pasivo (el IVA no lo paga el proveedor extranjero, se autorrepercute internamente en la contabilidad, fuera del alcance de este sistema). Proveedor nacional → 10% como siempre. Igual que en compras, `iva_pct` debe leerse en vivo del maestro de `proveedores` en el momento de la compra, nunca congelarse como fórmula fija en el código (misma regla crítica que el 2% de OP).
 
-### `partidas` (cierre manual de un GRUPO de compras, no de una sola compra)
+### `partidas` (registro canónico de qué partidas existen + cierre manual)
 ```
-id, numero_partida (unique), cerrada_manual (bool), cerrada_en, cerrada_por, creado_en
+id, numero_partida (unique, autogenerado por secuencia de BD),
+fecha, proveedor_id (FK), es_principal (bool, default true),
+cerrada_manual (bool), cerrada_en, cerrada_por, creado_en
 ```
-**Corrección real (05/09/2026):** en el HTML actual **no existe una tabla "partidas" separada** — es un concepto derivado: varias filas de `compras` con el mismo `numero_partida` (mismo proveedor + mismo día) FORMAN una partida. Lo único que se persiste aparte es la lista de partidas cerradas manualmente (`localStorage['partidas_cerradas_manual']`). Por eso esta tabla ya no referencia `compra_id` (no tiene sentido 1:1, una partida puede agrupar varias compras) — referencia directamente `numero_partida`, y `kilos_disponibles`/coste se calculan siempre agregando todas las filas de `compras` que compartan ese `numero_partida` (vista calculada, Fase 2), nunca como columna. `cerrada_manual` sigue siendo el único estado real a persistir aquí.
+**Corrección real (05/09/2026):** en el HTML actual **no existe una tabla "partidas" separada** — es un concepto derivado: varias filas de `compras` con el mismo `numero_partida` (mismo proveedor + mismo día) FORMAN una partida. `kilos_disponibles`/coste se calculan siempre agregando todas las filas de `compras` que compartan ese `numero_partida` (vista calculada, Fase 2), nunca como columna — esto no ha cambiado.
+
+**Diseño ampliado (12/09/2026), tras confirmar con Víctor la regla de asignación automática de partida** (ver Fase 2, punto 2): esta tabla pasó de guardar solo el cierre manual a ser el **registro canónico** de qué números de partida existen, porque el sistema nuevo necesita decidir por sí solo (sin que nadie escriba el número a mano) cuál es la partida "de siempre" de un día+proveedor, y permitir la excepción real de Víctor (una partida distinta para el mismo día+proveedor, por necesidad de producción):
+
+- `es_principal`: `true` para la partida "de siempre" de ese día+proveedor (una sola); `false` para las partidas de excepción (pueden ser varias).
+- **Restricción real de integridad — índice único PARCIAL**: `UNIQUE(fecha, proveedor_id) WHERE es_principal` — garantiza a nivel de base de datos que nunca haya dos partidas principales para el mismo día+proveedor, ni siquiera si los dos puestos intentan crear la primera compra del día para el mismo proveedor exactamente a la vez (mismo tipo de fallo que ya causó 667 duplicados en pedidos — ver Fase 0 punto 6). Prisma no expresa índices parciales en el `schema.prisma`; se añade a mano en el SQL de la migración.
+- `numero_partida` ya no lo asigna nadie a mano: lo genera una secuencia de PostgreSQL dedicada (`partidas_numero_partida_seq`), ajustable con `POST /partidas/ajustar-siguiente-numero` (equivalente al botón "🔢 Próxima partida" del HTML, para sincronizar con la numeración del Excel).
+- `cerrada_manual` sigue siendo el único estado de cierre real a persistir aquí, igual que antes.
 
 ### `pedidos` (albaranes de venta)
 ```

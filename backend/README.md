@@ -1,11 +1,13 @@
-# MARINAFISK — Backend (Fase 1)
+# MARINAFISK — Backend (Fase 1 + primera pieza de Fase 2)
 
-Esto es el backend mínimo de la Fase 1: solo guarda y lee datos (clientes,
-proveedores, artículos, compras, partidas, pedidos, traspasos, repartos,
-listas de precio). **No calcula nada todavía** — el 2% de OP, el margen, la
-asignación de partidas y el IVA se añaden en la Fase 2. El HTML actual
-(`CARGA_DE_ALBARANES_MARINAFISK_20260902CORREGIDO_4.html`) sigue funcionando
-exactamente igual mientras tanto — esto se prueba aparte, en paralelo.
+Esto es el backend de la Fase 1 (guarda y lee datos: clientes, proveedores,
+artículos, compras, partidas, pedidos, traspasos, repartos, listas de
+precio), con una primera pieza de Fase 2 ya incorporada: la **asignación
+automática del número de partida** (ver sección 5) — el resto del cálculo
+de margen, el 2% de OP en vivo y el IVA de ventas siguen pendientes de
+Fase 2. El HTML actual (`CARGA_DE_ALBARANES_MARINAFISK_20260902CORREGIDO_4.html`)
+sigue funcionando exactamente igual mientras tanto — esto se prueba aparte,
+en paralelo.
 
 Ver `MARINAFISK-nuevo/FASE_1_base_de_datos_backend_MARINAFISK.md` para el
 detalle de qué debía cumplir esta fase, y
@@ -112,8 +114,21 @@ descuido.
 - `/compras` — **solo crear y leer** (`GET`, `POST`). A propósito no existen
   rutas `PUT` ni `DELETE`: las compras son "dato sagrado" (ver Fase 0,
   punto 3) y no deben poder modificarse nunca desde la API.
+  **El número de partida ya no lo envía el cliente**: `POST /compras` recibe
+  `fecha` y `proveedorId` (en vez de `numeroPartida`) y el servidor decide el
+  número — reutiliza la partida "de siempre" de ese día+proveedor, o crea
+  una nueva si es la primera compra de ese proveedor ese día (ver Fase 2,
+  punto 2, y `src/asignacionPartida.js`). Para el caso raro de excepción
+  (necesidad de producción de otra partida distinta el mismo día+proveedor),
+  se puede mandar `partidaNueva: true`; para elegir explícitamente entre
+  varias partidas ya existentes ese día, `partidaElegida: <número>`.
+  `GET /compras/partidas-del-dia?fecha=...&proveedorId=...` lista las
+  partidas de ese día+proveedor (la principal primero) para poder elegir.
 - `/partidas` — crear y leer, más `POST /partidas/:id/cerrar` para el cierre
-  manual. Todavía no calcula kilos disponibles ni margen (eso es Fase 2).
+  manual (todavía no calcula kilos disponibles ni margen, eso sigue siendo
+  Fase 2) y `POST /partidas/ajustar-siguiente-numero` (equivalente al botón
+  "🔢 Próxima partida" del HTML — para sincronizar la numeración con el
+  Excel de Víctor).
 - `/pedidos`, `/traspasos`, `/repartos`, `/listas-precio` — CRUD completo.
 - `POST /importar/compras-excel` — importar el Excel de compras (equivalente
   al botón "📥 IMPORTAR COMPRAS EXCEL" del programa actual). Sube el fichero
@@ -123,7 +138,7 @@ descuido.
   por partida+albarán+proveedor igual que hoy, y calcula cada línea con la
   misma fórmula de siempre — **con una corrección deliberada**: el IVA de
   compras ya tiene en cuenta si el proveedor es intracomunitario (0%) en vez
-  del 10% fijo que usa el HTML actual (ver Fase 0 punto 4 / Fase 2 punto 2).
+  del 10% fijo que usa el HTML actual (ver Fase 0 punto 4 / Fase 2 punto 3).
   Si el Excel trae un producto que no existe en el catálogo, se crea
   automáticamente (con la descripción provisional = su código) en vez de
   perder esa compra. **Decisión de Víctor (05/09/2026):** si se reimporta el
@@ -141,7 +156,30 @@ sin parche disponible ahí (los propios autores solo la corrigen en su CDN
 propio, no accesible desde este entorno de desarrollo). `exceljs` no tiene
 ese aviso abierto.
 
-## 6. Lo que falta para cerrar la Fase 1 (ver el documento de la fase)
+## 6. Un servidor mal formado nunca debe tirar el backend entero
+
+Fallo real encontrado y corregido el 12/09/2026: al añadir una ruta nueva
+por descuido *después* de una ruta genérica `/:id` (Express interpretó la
+ruta nueva como si "id" fuera el texto de su nombre), un id no numérico
+llegó sin comprobar hasta una consulta a la base de datos, que lanzó un
+error no capturado — y **eso tiró todo el proceso del backend**, dejando a
+cualquiera que estuviera usándolo sin servicio, no solo a quien hizo esa
+petición. Corregido en dos niveles, no solo arreglando esa ruta:
+
+- `express-async-errors` (cargado al principio de `src/index.js`, antes de
+  definir ninguna ruta): cualquier error dentro de una ruta `async` que
+  nadie capture ahora llega al manejador de errores de Express (responde
+  `500` a esa petición) en vez de crashear el proceso entero — red de
+  seguridad para todo el backend, no solo para las rutas ya revisadas.
+- Además, cada ruta `GET/PUT/DELETE /:id` valida explícitamente que el id
+  sea un número entero antes de tocar la base de datos, devolviendo `400`
+  con un mensaje claro en vez de dejar que el error llegue tan lejos.
+
+Probado reproduciendo el fallo original (la ruta mal ordenada) y con un id
+no numérico directo: el servidor responde el error correspondiente y sigue
+funcionando con normalidad después, en vez de quedarse caído.
+
+## 7. Lo que falta para cerrar la Fase 1 (ver el documento de la fase)
 
 - [ ] **Migrar el backup JSON real** del programa actual a estas tablas, y
       verificar registro a registro que coincide (pendiente de que aportes

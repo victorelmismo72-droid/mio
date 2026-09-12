@@ -64,7 +64,8 @@ model Proveedor {
   creadoEn     DateTime         @default(now()) @map("creado_en")
   modificadoEn DateTime         @updatedAt @map("modificado_en")
 
-  compras Compra[]
+  compras  Compra[]
+  partidas Partida[]
 
   @@map("proveedores")
 }
@@ -156,20 +157,41 @@ model CompraLinea {
   @@map("compra_lineas")
 }
 
-// partidas: NO es 1:1 con una compra (ver nota en el modelo Compra) - agrupa
-// por numero_partida, que puede corresponder a varias filas de `compras`.
-// kilos_disponibles NO se guarda como columna (se calcula en Fase 2 sumando
-// todas las compras de ese numero_partida); aqui solo se guarda el estado
-// real de cierre manual, que es lo unico que no se puede derivar de otra
-// tabla. Equivale a `localStorage['partidas_cerradas_manual']` de hoy.
+// partidas: registro CANONICO de que numeros de partida existen (no es 1:1
+// con una compra - ver nota en el modelo Compra - varias filas de `compras`
+// referencian el mismo numero_partida). kilos_disponibles NO se guarda como
+// columna (se calcula en Fase 2 sumando todas las compras de ese
+// numero_partida); aqui se guarda el estado real de cierre manual (equivale
+// a `localStorage['partidas_cerradas_manual']` de hoy) y la asignacion
+// automatica del numero.
+//
+// Regla de negocio (confirmada por Victor, 12/09/2026): por defecto hay UNA
+// SOLA partida "principal" por dia+proveedor (esPrincipal=true) - es la que
+// se reutiliza automaticamente en cada compra nueva de ese proveedor ese
+// dia, igual que en el Excel. En casos raros (necesidad de produccion) se
+// puede forzar una partida NUEVA distinta para ese mismo dia+proveedor
+// (esPrincipal=false) - nunca se sugiere sola, solo se usa si se elige
+// explicitamente cada vez. El indice unico parcial de mas abajo (anadido a
+// mano en la migracion, Prisma no soporta indices parciales en el schema)
+// garantiza a nivel de base de datos que nunca haya dos principales para el
+// mismo dia+proveedor, incluso si dos puestos graban a la vez.
 model Partida {
   id            Int       @id @default(autoincrement())
-  numeroPartida Int       @unique @map("numero_partida")
+  numeroPartida Int       @unique @default(dbgenerated("nextval('partidas_numero_partida_seq')")) @map("numero_partida")
+  fecha         DateTime  @db.Date
+  proveedorId   Int       @map("proveedor_id")
+  proveedor     Proveedor @relation(fields: [proveedorId], references: [id])
+  esPrincipal   Boolean   @default(true) @map("es_principal")
   cerradaManual Boolean   @default(false) @map("cerrada_manual")
   cerradaEn     DateTime? @map("cerrada_en")
   cerradaPor    String?   @map("cerrada_por")
   creadoEn      DateTime  @default(now()) @map("creado_en")
 
+  // Indice unico parcial real: UNIQUE(fecha, proveedor_id) WHERE es_principal
+  // - se añade a mano en la migracion (ver migration.sql), Prisma no lo
+  // expresa en el schema. Este @@index normal es solo para acelerar las
+  // consultas, NO es la garantia de unicidad.
+  @@index([fecha, proveedorId])
   @@map("partidas")
 }
 

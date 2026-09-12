@@ -19,8 +19,10 @@ router.get('/', async (req, res) => {
 });
 
 router.get('/:id', async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) return res.status(400).json({ error: 'El id debe ser un número entero.' });
   const pedido = await prisma.pedido.findUnique({
-    where: { id: Number(req.params.id) },
+    where: { id },
     include: { lineas: true, cliente: true },
   });
   if (!pedido) return res.status(404).json({ error: 'No existe ese pedido' });
@@ -50,6 +52,7 @@ router.post('/', async (req, res) => {
 // anteriores y crea las nuevas), todo dentro de una misma transaccion.
 router.put('/:id', async (req, res) => {
   const id = Number(req.params.id);
+  if (!Number.isInteger(id)) return res.status(400).json({ error: 'El id debe ser un número entero.' });
   try {
     const { lineas, ...cabecera } = req.body;
     const actualizado = await prisma.$transaction(async (tx) => {
@@ -72,6 +75,7 @@ router.put('/:id', async (req, res) => {
 
 router.delete('/:id', async (req, res) => {
   const id = Number(req.params.id);
+  if (!Number.isInteger(id)) return res.status(400).json({ error: 'El id debe ser un número entero.' });
   try {
     await prisma.$transaction(async (tx) => {
       await tx.pedidoLinea.deleteMany({ where: { pedidoId: id } });

@@ -113,10 +113,18 @@ CREATE TABLE "compra_lineas" (
     CONSTRAINT "compra_lineas_pkey" PRIMARY KEY ("id")
 );
 
+-- Secuencia compartida para el numero de partida (Fase 2: asignacion
+-- automatica de partida por dia+proveedor, ver Partida en schema.prisma).
+-- Debe crearse ANTES de la tabla que la usa como DEFAULT.
+CREATE SEQUENCE "partidas_numero_partida_seq";
+
 -- CreateTable
 CREATE TABLE "partidas" (
     "id" SERIAL NOT NULL,
-    "numero_partida" INTEGER NOT NULL,
+    "numero_partida" INTEGER NOT NULL DEFAULT nextval('partidas_numero_partida_seq'),
+    "fecha" DATE NOT NULL,
+    "proveedor_id" INTEGER NOT NULL,
+    "es_principal" BOOLEAN NOT NULL DEFAULT true,
     "cerrada_manual" BOOLEAN NOT NULL DEFAULT false,
     "cerrada_en" TIMESTAMP(3),
     "cerrada_por" TEXT,
@@ -292,6 +300,17 @@ CREATE INDEX "compras_numero_partida_idx" ON "compras"("numero_partida");
 CREATE UNIQUE INDEX "partidas_numero_partida_key" ON "partidas"("numero_partida");
 
 -- CreateIndex
+CREATE INDEX "partidas_fecha_proveedor_id_idx" ON "partidas"("fecha", "proveedor_id");
+
+-- Indice unico PARCIAL (Prisma no lo expresa en el schema): garantiza que
+-- nunca pueda haber dos partidas "principales" (es_principal=true) para el
+-- mismo dia+proveedor, incluso si dos peticiones concurrentes (los dos
+-- puestos, CORU/PANC) intentan crearla a la vez para el mismo dia+proveedor
+-- por primera vez. Las partidas de excepcion (es_principal=false) no entran
+-- en este indice, por eso pueden ser varias para el mismo dia+proveedor.
+CREATE UNIQUE INDEX "partidas_principal_por_dia_proveedor_key" ON "partidas"("fecha", "proveedor_id") WHERE "es_principal";
+
+-- CreateIndex
 CREATE UNIQUE INDEX "pedidos_numero_key" ON "pedidos"("numero");
 
 -- CreateIndex
@@ -314,6 +333,9 @@ ALTER TABLE "compra_lineas" ADD CONSTRAINT "compra_lineas_compra_id_fkey" FOREIG
 
 -- AddForeignKey
 ALTER TABLE "compra_lineas" ADD CONSTRAINT "compra_lineas_articulo_id_fkey" FOREIGN KEY ("articulo_id") REFERENCES "articulos"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "partidas" ADD CONSTRAINT "partidas_proveedor_id_fkey" FOREIGN KEY ("proveedor_id") REFERENCES "proveedores"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "pedidos" ADD CONSTRAINT "pedidos_cliente_id_fkey" FOREIGN KEY ("cliente_id") REFERENCES "clientes"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

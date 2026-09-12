@@ -30,7 +30,9 @@ router.get('/', async (req, res) => {
 });
 
 router.get('/:id', async (req, res) => {
-  const partida = await prisma.partida.findUnique({ where: { id: Number(req.params.id) } });
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) return res.status(400).json({ error: 'El id debe ser un número entero.' });
+  const partida = await prisma.partida.findUnique({ where: { id } });
   if (!partida) return res.status(404).json({ error: 'No existe esa partida' });
   res.json(await conComprasRelacionadas(partida));
 });
@@ -38,11 +40,32 @@ router.get('/:id', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     await conIdempotencia(req, res, 'POST /partidas', async () => {
-      const { idempotencyKey, ...datos } = req.body;
+      // numeroPartida NUNCA lo envia el cliente aqui tampoco: lo genera la
+      // secuencia de la base de datos (ver Fase 2, asignacionPartida.js).
+      const { idempotencyKey, numeroPartida, ...datos } = req.body;
       const creada = await prisma.partida.create({ data: datos });
       await registrarEscritura('partidas', 'INSERT', creada.id, datos.puestoOrigen);
       return { statusHttp: 201, cuerpo: creada };
     });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// Ajusta el proximo numero de partida que se va a asignar (equivalente al
+// boton "🔢 Próxima partida" del HTML actual) - util para sincronizar la
+// numeracion con el Excel al arrancar el sistema nuevo, o si alguna vez hay
+// que corregir el contador a mano. No lleva proteccion de idempotencia: es
+// una accion administrativa puntual, no un alta de documento por lote.
+router.post('/ajustar-siguiente-numero', async (req, res) => {
+  const siguiente = Number(req.body.siguienteNumero);
+  if (!siguiente || siguiente < 1) {
+    return res.status(400).json({ error: 'Falta "siguienteNumero" (entero positivo) en el cuerpo de la petición.' });
+  }
+  try {
+    await prisma.$executeRawUnsafe(`ALTER SEQUENCE partidas_numero_partida_seq RESTART WITH ${siguiente}`);
+    await registrarEscritura('partidas', 'AJUSTAR_SIGUIENTE_NUMERO', null, req.body.puestoOrigen);
+    res.json({ ok: true, siguienteNumero: siguiente });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
@@ -55,9 +78,11 @@ router.post('/', async (req, res) => {
 // MISMA partida no duplica nada - el segundo cierre solo repite el mismo
 // estado (cerradaManual=true), es inofensivo por si mismo.
 router.post('/:id/cerrar', async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) return res.status(400).json({ error: 'El id debe ser un número entero.' });
   try {
     const cerrada = await prisma.partida.update({
-      where: { id: Number(req.params.id) },
+      where: { id },
       data: {
         cerradaManual: true,
         cerradaEn: new Date(),

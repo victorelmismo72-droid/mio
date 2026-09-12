@@ -23,7 +23,25 @@ Al final de la Fase 2 debe poder demostrarse que, dado el mismo dato de entrada,
 
 ---
 
-## 2. IVA y Recargo de Equivalencia (usa la clasificación fiscal creada en Fase 1)
+## 2. Asignación automática del número de partida — implementado el 12/09/2026
+
+Regla confirmada por Víctor (12/09/2026): el número de partida se genera **automáticamente**, igual que en el Excel — una partida por día+proveedor, independientemente de cuántas compras (albaranes) distintas de ese proveedor se registren ese día. Existe una excepción real y poco frecuente: por necesidades de producción, a veces hace falta una partida distinta para el mismo proveedor el mismo día.
+
+**Diseño implementado en `backend/`:**
+
+- La tabla `partidas` (ver `02_ESQUEMA_BASE_DATOS_PROPUESTO.md`) es ahora el **registro canónico** de qué números de partida existen, con `fecha`, `proveedor_id` y un campo `es_principal`.
+- **Caso normal**: al grabar una compra, el servidor busca si ya existe una partida `es_principal=true` para ese día+proveedor. Si existe, la reutiliza. Si no, crea una — el número lo genera una secuencia de PostgreSQL (`partidas_numero_partida_seq`), nunca lo escribe el cliente.
+- **Caso de excepción**: se puede pedir explícitamente (`partidaNueva: true` en la petición) una partida **nueva y distinta** para ese mismo día+proveedor (`es_principal=false`). Nunca se sugiere sola — solo se usa cuando se pide a propósito, compra a compra.
+- Si ya hay más de una partida para un día+proveedor (por una excepción anterior), se puede elegir explícitamente a cuál va una compra nueva (`partidaElegida: <número>`) — endpoint `GET /compras/partidas-del-dia?fecha=...&proveedorId=...` para listarlas (la principal siempre primero).
+- **Concurrencia (el mismo tipo de fallo que ya causó 667 duplicados en pedidos, ver Fase 0 punto 6):** un índice único **parcial** en PostgreSQL (`UNIQUE(fecha, proveedor_id) WHERE es_principal`) garantiza que nunca pueda haber dos partidas principales para el mismo día+proveedor, **incluso si los dos puestos intentan crear la primera compra del día para el mismo proveedor exactamente a la vez** — probado en real con dos peticiones disparadas literalmente en paralelo: ambas obtienen el mismo número de partida.
+- El botón "🔢 Próxima partida" del HTML actual (ajustar el contador para sincronizar con el Excel) tiene su equivalente en `POST /partidas/ajustar-siguiente-numero`.
+- La importación de Excel (que trae el número de partida ya dado, sin recalcularlo — ver `backend/README.md`) registra igualmente cada número en esta tabla; si el propio histórico del Excel ya tenía una excepción (dos partidas distintas el mismo día para el mismo proveedor), la segunda se registra automáticamente como excepción (`es_principal=false`) en vez de fallar.
+
+Ver `backend/src/asignacionPartida.js` para la implementación y `backend/src/routes/compras.js` para cómo se usa al grabar una compra.
+
+---
+
+## 3. IVA y Recargo de Equivalencia (usa la clasificación fiscal creada en Fase 1)
 
 **Corrección (2026-09-05):** el párrafo original de este punto decía que "el IVA es lógica nueva que no existe correctamente en el sistema actual" y citaba el fallo de Fase 0 punto 4 — eso era impreciso. El fallo de Fase 0 punto 4 es solo del lado de **compras** (proveedores). El lado de **ventas** ya funciona en el HTML actual: la función `calcularIvaPedido(base, tipoIva)` calcula correctamente IVA 10% (NORMAL), IVA 10%+1,4% (RECARGO_EQUIVALENCIA) e IVA 0% (INTRACOMUNITARIO) según el tipo fiscal del cliente, y se usa ya en pedidos, PDFs y (desde la versión 2026-09-02-CORREGIDO_4) también en el Excel de listado. El sistema nuevo debe **reproducir ese cálculo tal cual**, no rediseñarlo desde cero.
 Lo que sí falta de verdad es el lado de compras:
@@ -39,7 +57,7 @@ Lo que sí falta de verdad es el lado de compras:
 
 ---
 
-## 3. Partidas y margen
+## 4. Partidas y margen
 
 - Reproducir la asignación automática inline: al introducir producto + precio, buscar partida disponible compatible.
 - Emparejamiento de partida: coincidencia de prefijo (4+ caracteres) **y** primera palabra de la descripción del catálogo — no usar solo el prefijo (ver Fase 0, punto 3, falsos positivos conocidos como C144/C1444).
@@ -51,7 +69,7 @@ Lo que sí falta de verdad es el lado de compras:
 
 ---
 
-## 4. Listas de precios (Pescaderías / Mayoristas)
+## 5. Listas de precios (Pescaderías / Mayoristas)
 
 - Confirmar que la lógica de independencia entre listas (cada una autónoma, copia de arranque opcional desde la otra si está vacía) se traslada igual que en el HTML actual (ver Fase 0, punto 5).
 - Modo automático (relleno desde compras del día) y modo manual (entrada libre), igual que hoy.
@@ -60,7 +78,7 @@ Lo que sí falta de verdad es el lado de compras:
 
 ---
 
-## 5. Listados de gestión: separar siempre venta real de movimiento interno
+## 6. Listados de gestión: separar siempre venta real de movimiento interno
 
 **Añadido a partir de `CORRECCIONES_02-09-2026_para_Code.md` punto 3 (Víctor), generalizando lo ya corregido en el HTML actual para el buscador "Buscar Artículos" (ver Fase 0 punto 9):**
 
@@ -70,13 +88,13 @@ Lo que sí falta de verdad es el lado de compras:
 
 ---
 
-## 6. Requisito transversal de agilidad (recordatorio, ya introducido en Fase 1)
+## 7. Requisito transversal de agilidad (recordatorio, ya introducido en Fase 1)
 
 Sigue aplicando aquí: cada flujo de esta fase (registrar compra, asignar partida, generar lista de precios) debe probarse comparando el número de pasos/tiempo frente al Excel `GESTION_CORRECTA` actual. Si algún flujo nuevo resulta más lento o más tedioso que el Excel o que el HTML actual, se considera un defecto de esta fase, no un detalle menor.
 
 ---
 
-## 7. Verificación de esta fase
+## 8. Verificación de esta fase
 
 No pasar a la Fase 3 hasta que:
 
@@ -84,9 +102,10 @@ No pasar a la Fase 3 hasta que:
 - [ ] El tratamiento de IVA/Recargo de Equivalencia está implementado y documentado para las cuatro clasificaciones fiscales de proveedores y las combinaciones de clientes — con las dudas normativas señaladas explícitamente a Víctor, no asumidas.
 - [ ] El caso conocido de falsos positivos en emparejamiento de partidas (ej. C144 vs C1444) se ha probado explícitamente y no reaparece.
 - [ ] Las partidas no aparecen en ningún documento de cliente generado por el sistema nuevo.
-- [ ] El aviso de margen negativo compara contra el coste real de la partida asignada, no contra un coste tecleado a mano (ver punto 4).
-- [ ] Todo listado de gestión de esta fase separa ventas reales de traspasos por defecto, con la opción de incluirlos aparte y diferenciados (ver punto 5).
-- [ ] Comparación de agilidad frente al Excel realizada y documentada (ver punto 6).
+- [ ] El aviso de margen negativo compara contra el coste real de la partida asignada, no contra un coste tecleado a mano (ver punto 5).
+- [ ] Todo listado de gestión de esta fase separa ventas reales de traspasos por defecto, con la opción de incluirlos aparte y diferenciados (ver punto 6).
+- [ ] Comparación de agilidad frente al Excel realizada y documentada (ver punto 7).
+- [x] Asignación automática del número de partida implementada y probada, incluyendo la excepción manual y la concurrencia entre puestos (ver punto 2).
 - [ ] El HTML/programa actual sigue intacto y en uso normal, en paralelo.
 - [ ] Víctor ha revisado y entendido, en términos sencillos, qué se ha construido y qué puntos quedaron pendientes de confirmación normativa (IVA).
 

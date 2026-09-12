@@ -31,6 +31,7 @@ const multer = require('multer');
 const ExcelJS = require('exceljs');
 const { prisma } = require('../db');
 const { registrarEscritura } = require('../logEscritura');
+const { asegurarRegistroPartida } = require('../asignacionPartida');
 
 const upload = multer({ storage: multer.memoryStorage() });
 const router = express.Router();
@@ -254,11 +255,14 @@ router.post('/compras-excel', upload.single('archivo'), async (req, res) => {
       include: { lineas: true },
     });
 
+    const fechaCompra = new Date(grupo.fecha + 'T00:00:00.000Z');
+    await asegurarRegistroPartida(grupo.numeroPartida, fechaCompra, grupo.proveedorId);
+
     if (!existente) {
       await prisma.compra.create({
         data: {
           numeroPartida: grupo.numeroPartida,
-          fecha: new Date(grupo.fecha + 'T00:00:00.000Z'),
+          fecha: fechaCompra,
           albaranProveedor: grupo.albaranProveedor,
           proveedorId: grupo.proveedorId,
           proveedorNombreSnapshot: grupo.proveedorNombreSnapshot,
@@ -293,7 +297,7 @@ router.post('/compras-excel', upload.single('archivo'), async (req, res) => {
       await tx.compra.update({
         where: { id: existente.id },
         data: {
-          fecha: new Date(grupo.fecha + 'T00:00:00.000Z'),
+          fecha: fechaCompra,
           proveedorNombreSnapshot: grupo.proveedorNombreSnapshot,
           totalKilos: totales.totalKilos,
           totalBaseZgz: totales.totalBaseZgz,

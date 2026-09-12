@@ -19,7 +19,9 @@ function crearRouterCatalogo(modeloPrisma, nombreTabla) {
   });
 
   router.get('/:id', async (req, res) => {
-    const registro = await delegado.findUnique({ where: { id: Number(req.params.id) } });
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) return res.status(400).json({ error: 'El id debe ser un número entero.' });
+    const registro = await delegado.findUnique({ where: { id } });
     if (!registro) return res.status(404).json({ error: `No existe ese registro en ${nombreTabla}` });
     res.json(registro);
   });
@@ -38,9 +40,11 @@ function crearRouterCatalogo(modeloPrisma, nombreTabla) {
   });
 
   router.put('/:id', async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) return res.status(400).json({ error: 'El id debe ser un número entero.' });
     try {
       const actualizado = await delegado.update({
-        where: { id: Number(req.params.id) },
+        where: { id },
         data: req.body,
       });
       await registrarEscritura(nombreTabla, 'UPDATE', actualizado.id, req.body.puestoOrigen);
@@ -51,9 +55,11 @@ function crearRouterCatalogo(modeloPrisma, nombreTabla) {
   });
 
   router.delete('/:id', async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) return res.status(400).json({ error: 'El id debe ser un número entero.' });
     try {
-      await delegado.delete({ where: { id: Number(req.params.id) } });
-      await registrarEscritura(nombreTabla, 'DELETE', Number(req.params.id), req.query.puestoOrigen);
+      await delegado.delete({ where: { id } });
+      await registrarEscritura(nombreTabla, 'DELETE', id, req.query.puestoOrigen);
       res.status(204).end();
     } catch (err) {
       res.status(400).json({ error: err.message });

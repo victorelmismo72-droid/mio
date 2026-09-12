@@ -5,6 +5,14 @@
 // alcance completo de esta fase.
 require('dotenv').config();
 const express = require('express');
+// DEBE ir justo despues de requerir "express" y ANTES de definir cualquier
+// ruta: parchea Express para que un error dentro de una ruta async (una
+// promesa rechazada que nadie captura) llegue al manejador de errores de
+// mas abajo en vez de crashear todo el proceso. Sin esto, una peticion mal
+// formada (ej. un id que no es un numero) podia tirar el backend entero
+// para todos los usuarios - fallo real encontrado el 12/09/2026 al añadir
+// una ruta nueva por error DESPUES de "/:id" (ver compras.js).
+require('express-async-errors');
 const cors = require('cors');
 
 const { crearRouterCatalogo } = require('./routes/crudCatalogo');

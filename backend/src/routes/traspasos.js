@@ -15,8 +15,10 @@ router.get('/', async (req, res) => {
 });
 
 router.get('/:id', async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) return res.status(400).json({ error: 'El id debe ser un número entero.' });
   const traspaso = await prisma.traspaso.findUnique({
-    where: { id: Number(req.params.id) },
+    where: { id },
     include: { lineas: true },
   });
   if (!traspaso) return res.status(404).json({ error: 'No existe ese traspaso' });
@@ -41,6 +43,7 @@ router.post('/', async (req, res) => {
 
 router.put('/:id', async (req, res) => {
   const id = Number(req.params.id);
+  if (!Number.isInteger(id)) return res.status(400).json({ error: 'El id debe ser un número entero.' });
   try {
     const { lineas, ...cabecera } = req.body;
     const actualizado = await prisma.$transaction(async (tx) => {
@@ -60,6 +63,7 @@ router.put('/:id', async (req, res) => {
 
 router.delete('/:id', async (req, res) => {
   const id = Number(req.params.id);
+  if (!Number.isInteger(id)) return res.status(400).json({ error: 'El id debe ser un número entero.' });
   try {
     await prisma.$transaction(async (tx) => {
       await tx.traspasoLinea.deleteMany({ where: { traspasoId: id } });

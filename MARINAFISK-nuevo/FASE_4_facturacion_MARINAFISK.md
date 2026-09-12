@@ -15,7 +15,7 @@ Petición de Víctor (05/09/2026): el programa debe generar **facturas agrupando
 - **Numeración propia**: serie de facturas independiente de la de pedidos, con contador correlativo consistente entre los dos puestos (CORU/PANC) — mismo mecanismo de contador consistente ya exigido para pedidos/partidas (ver Fase 0 punto 6 y `02_ESQUEMA_BASE_DATOS_PROPUESTO.md`). Un contador de facturas desincronizado sería tan grave como el ya conocido para pedidos.
 - **Cabecera de factura**: cliente, fecha de emisión, rango de fechas cubierto, lista de números de albarán incluidos.
 - **Líneas de factura**: **decidido (05/09/2026) — las dos modalidades**, seleccionable al generar/imprimir cada factura (ver punto 6).
-- **IVA/Recargo**: se calcula sobre la base total de la factura con el tipo fiscal del cliente, reutilizando `calcularIvaPedido` (ya existe y es correcto para ventas, ver corrección aplicada en Fase 2 punto 2). Como todos los albaranes de una factura son del mismo cliente, el tipo fiscal es siempre uno solo por factura.
+- **IVA/Recargo**: se calcula sobre la base total de la factura con el tipo fiscal del cliente, reutilizando `calcularIvaPedido` (ya existe y es correcto para ventas, ver corrección aplicada en Fase 2 punto 3). Como todos los albaranes de una factura son del mismo cliente, el tipo fiscal es siempre uno solo por factura.
 - **Inmutabilidad**: una factura ya emitida no se puede borrar ni editar — cualquier corrección se hace con una **factura rectificativa** enlazada a la original, no sobrescribiendo (igual que las compras son "dato sagrado", ver Fase 0 punto 3).
   **Procedimiento de rectificación — decidido (05/09/2026): el estándar legal**, sin variantes propias:
   - La rectificativa referencia explícitamente el número y fecha de la factura original que corrige, e indica el motivo (error en datos, devolución, descuento posterior, etc.).
@@ -79,7 +79,7 @@ Diseño consecuente: el vínculo entre factura y albaranes se guarda siempre a n
 
 ## 7. Relación con las fases ya escritas
 
-- No cambia nada de las reglas ya fijadas en Fase 0/1/2, salvo la corrección ya aplicada en Fase 2 punto 2 (el cálculo de IVA/Recargo de ventas ya funciona en el HTML actual; lo que de verdad falta es el IVA de compras a proveedores intracomunitarios).
+- No cambia nada de las reglas ya fijadas en Fase 0/1/2, salvo la corrección ya aplicada en Fase 2 punto 3 (el cálculo de IVA/Recargo de ventas ya funciona en el HTML actual; lo que de verdad falta es el IVA de compras a proveedores intracomunitarios).
 - Depende de que Fase 1 (base de datos) y Fase 2 (lógica de negocio: partidas, margen, IVA) estén implementadas — facturar agrupa pedidos ya grabados, no cambia cómo se graban ni su cálculo.
 - Se numera como **Fase 4** porque la Fase 3 (sincronización entre puestos) y la Fase 5 (hosting en la nube) ya estaban reservadas en los documentos anteriores.
 
