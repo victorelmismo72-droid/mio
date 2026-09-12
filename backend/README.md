@@ -2,10 +2,10 @@
 
 Esto es el backend de la Fase 1 (guarda y lee datos: clientes, proveedores,
 artículos, compras, partidas, pedidos, traspasos, repartos, listas de
-precio), con una primera pieza de Fase 2 ya incorporada: la **asignación
-automática del número de partida** (ver sección 5) — el resto del cálculo
-de margen, el 2% de OP en vivo y el IVA de ventas siguen pendientes de
-Fase 2. El HTML actual (`CARGA_DE_ALBARANES_MARINAFISK_20260902CORREGIDO_4.html`)
+precio), con varias piezas de Fase 2 ya incorporadas: la **asignación
+automática del número de partida**, el **2% de OP en vivo** y el **IVA de
+compras** (ver sección 5) — el cálculo de margen y el IVA de ventas siguen
+pendientes de Fase 2. El HTML actual (`CARGA_DE_ALBARANES_MARINAFISK_20260902CORREGIDO_4.html`)
 sigue funcionando exactamente igual mientras tanto — esto se prueba aparte,
 en paralelo.
 
@@ -124,6 +124,18 @@ descuido.
   varias partidas ya existentes ese día, `partidaElegida: <número>`.
   `GET /compras/partidas-del-dia?fecha=...&proveedorId=...` lista las
   partidas de ese día+proveedor (la principal primero) para poder elegir.
+  **Tampoco se envía ningún importe calculado (12/09/2026):** cada línea de
+  `lineas` solo lleva datos crudos (`articuloId`, `cajas`, `kilos`,
+  `precioKg`, `control`) — el campo `kilos` admite también una suma simple
+  como en el Excel (ej. `"12+13.5"`, para pesar cajas por separado). El
+  servidor calcula `baseZgz`, el 2% de OP, el IVA y el total de factura **en
+  vivo**, consultando el proveedor tal cual está en ese momento en la base
+  de datos (ver Fase 2, puntos 1 y 3, y `src/calculoCompra.js`) — nunca se
+  acepta un importe ya calculado desde el cliente, para que un frontend con
+  la fórmula desactualizada no pueda grabar una compra con el 2% de OP o el
+  IVA equivocados. Probado el 12/09/2026 con un proveedor de cada
+  combinación (subasta/no subasta, Nacional/Intracomunitario): el cálculo
+  coincide con la fórmula esperada en todos los casos.
 - `/partidas` — crear y leer, más `POST /partidas/:id/cerrar` para el cierre
   manual (todavía no calcula kilos disponibles ni margen, eso sigue siendo
   Fase 2) y `POST /partidas/ajustar-siguiente-numero` (equivalente al botón

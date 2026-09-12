@@ -14,12 +14,14 @@ Al final de la Fase 2 debe poder demostrarse que, dado el mismo dato de entrada,
 
 ---
 
-## 1. Cálculo del 2% de OP (Obras del Puerto)
+## 1. Cálculo del 2% de OP (Obras del Puerto) — implementado el 12/09/2026
 
 - Se aplica **solo** a compras de proveedores marcados como subasta/lonja (campo ya creado en Fase 1).
 - Fórmula: `baseReal = baseZgz + op2`
 - **Debe calcularse siempre en vivo**, consultando el estado actual del proveedor en el momento del cálculo — nunca guardar el 2% como valor fijo/congelado en la compra. (Ver Fase 0, punto 2: esto ya causó un fallo real por congelarse la fórmula.)
 - Probar explícitamente: cambiar la condición de "subasta/lonja" de un proveedor y confirmar que las compras futuras (no las pasadas, que son inmutables) reflejan el cambio.
+
+**Implementado en `backend/src/calculoCompra.js`** (`calcularLineaCompra`), compartido entre `POST /compras` (alta manual) y la importación de Excel, para que no haya dos sitios con la fórmula. `POST /compras` **ya no acepta ningún importe calculado desde el cliente** — solo recibe `kilos`/`precioKg` en crudo por línea, y el servidor consulta el proveedor tal como está en ese momento en la base de datos para decidir si aplica el 2% (`esSubastaOp`). Probado el 12/09/2026: un proveedor marcado como subasta produce `op2Importe = baseZgz * 0.02`; uno no marcado produce `op2Importe = 0`, con la misma línea de entrada.
 
 ---
 
@@ -46,9 +48,9 @@ Ver `backend/src/asignacionPartida.js` para la implementación y `backend/src/ro
 **Corrección (2026-09-05):** el párrafo original de este punto decía que "el IVA es lógica nueva que no existe correctamente en el sistema actual" y citaba el fallo de Fase 0 punto 4 — eso era impreciso. El fallo de Fase 0 punto 4 es solo del lado de **compras** (proveedores). El lado de **ventas** ya funciona en el HTML actual: la función `calcularIvaPedido(base, tipoIva)` calcula correctamente IVA 10% (NORMAL), IVA 10%+1,4% (RECARGO_EQUIVALENCIA) e IVA 0% (INTRACOMUNITARIO) según el tipo fiscal del cliente, y se usa ya en pedidos, PDFs y (desde la versión 2026-09-02-CORREGIDO_4) también en el Excel de listado. El sistema nuevo debe **reproducir ese cálculo tal cual**, no rediseñarlo desde cero.
 Lo que sí falta de verdad es el lado de compras:
 
-- **Compras:**
+- **Compras — implementado el 12/09/2026 (`calcularLineaCompra` en `backend/src/calculoCompra.js`):**
   - Proveedor Nacional → IVA 10% (tipo único del pescado, ver Fase 0).
-  - Proveedor Intracomunitario → sin IVA, por inversión del sujeto pasivo — **este es el hueco real**: el HTML actual aplica 10% siempre en el cálculo de líneas de compra, sin mirar el tipo de proveedor (ver Fase 0, punto 4). El sistema nuevo debe corregirlo aquí, no reproducir el fallo.
+  - Proveedor Intracomunitario → sin IVA, por inversión del sujeto pasivo — **este era el hueco real**: el HTML actual aplica 10% siempre en el cálculo de líneas de compra, sin mirar el tipo de proveedor (ver Fase 0, punto 4). Corregido tanto en `POST /compras` (alta manual) como en la importación de Excel, usando el mismo cálculo compartido — probado el 12/09/2026 con un proveedor de cada tipo fiscal (Nacional → 10%, Intracomunitario → 0%), mismos kilos/precio de entrada.
 - **Ventas** (ya funciona en el HTML, replicar el mismo comportamiento):
   - Cliente Nacional sin Recargo de Equivalencia → IVA 10% normal.
   - Cliente Nacional con Recargo de Equivalencia → IVA 10% + 1,4% de recargo de equivalencia.
@@ -99,7 +101,8 @@ Sigue aplicando aquí: cada flujo de esta fase (registrar compra, asignar partid
 No pasar a la Fase 3 hasta que:
 
 - [ ] Se ha tomado un conjunto de datos reales (un día completo de compras y ventas, por ejemplo) y se ha comparado el resultado del sistema nuevo contra el HTML actual: mismo coste real, mismas partidas asignadas, mismo margen.
-- [ ] El tratamiento de IVA/Recargo de Equivalencia está implementado y documentado para las cuatro clasificaciones fiscales de proveedores y las combinaciones de clientes — con las dudas normativas señaladas explícitamente a Víctor, no asumidas.
+- [x] El 2% de OP se calcula siempre en vivo desde el proveedor actual, nunca congelado — implementado y probado el 12/09/2026 (ver punto 1).
+- [ ] El tratamiento de IVA/Recargo de Equivalencia está implementado y documentado para las cuatro clasificaciones fiscales de proveedores y las combinaciones de clientes — con las dudas normativas señaladas explícitamente a Víctor, no asumidas. El lado de **compras** (Nacional 10% / Intracomunitario 0%) ya está implementado y probado (ver punto 3); el lado de ventas replica `calcularIvaPedido` del HTML, pendiente de trasladar al backend nuevo.
 - [ ] El caso conocido de falsos positivos en emparejamiento de partidas (ej. C144 vs C1444) se ha probado explícitamente y no reaparece.
 - [ ] Las partidas no aparecen en ningún documento de cliente generado por el sistema nuevo.
 - [ ] El aviso de margen negativo compara contra el coste real de la partida asignada, no contra un coste tecleado a mano (ver punto 5).

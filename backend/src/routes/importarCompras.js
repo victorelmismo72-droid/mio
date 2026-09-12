@@ -32,6 +32,7 @@ const ExcelJS = require('exceljs');
 const { prisma } = require('../db');
 const { registrarEscritura } = require('../logEscritura');
 const { asegurarRegistroPartida } = require('../asignacionPartida');
+const { calcularLineaCompra } = require('../calculoCompra');
 
 const upload = multer({ storage: multer.memoryStorage() });
 const router = express.Router();
@@ -54,17 +55,6 @@ function fechaLocalISO(valor) {
   if (!d || isNaN(d.getTime())) return null;
   const pad = (n) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
-
-function calcularLinea(kilos, precioKg, proveedor) {
-  const baseZgz = kilos * precioKg;
-  const baseZgzConIva = baseZgz * 1.1; // columna de referencia, igual que hoy - no es el IVA real
-  const op2Importe = proveedor.esSubastaOp ? baseZgz * 0.02 : 0;
-  const baseReal = baseZgz + op2Importe;
-  const ivaPct = proveedor.tipoIva === 'INTRACOMUNITARIO' ? 0 : 10; // corregido, ver Fase 0 punto 4 / Fase 2 punto 2
-  const ivaImporte = baseReal * (ivaPct / 100);
-  const totalFactura = baseReal + ivaImporte;
-  return { baseZgz, baseZgzConIva, op2Importe, baseReal, ivaImporte, totalFactura };
 }
 
 // exceljs guarda el valor de una celda en formas distintas segun el tipo
@@ -212,19 +202,13 @@ router.post('/compras-excel', upload.single('archivo'), async (req, res) => {
         lineas: [],
       });
     }
-    const calc = calcularLinea(kilos, precioKg, proveedor);
+    const calc = calcularLineaCompra({ kilos, precioKg, proveedor });
     grupos.get(clave).lineas.push({
       articuloId: articulo.id,
       cajas,
-      kilos,
       precioKg,
-      baseZgz: calc.baseZgz,
-      baseZgzConIva: calc.baseZgzConIva,
-      op2Importe: calc.op2Importe,
-      baseReal: calc.baseReal,
-      ivaImporte: calc.ivaImporte,
-      totalFactura: calc.totalFactura,
       control,
+      ...calc, // kilos, baseZgz, baseZgzConIva, op2Importe, baseReal, ivaImporte, totalFactura
     });
   }
 

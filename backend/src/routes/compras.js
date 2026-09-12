@@ -8,6 +8,7 @@ const { prisma } = require('../db');
 const { registrarEscritura } = require('../logEscritura');
 const { conIdempotencia } = require('../idempotencia');
 const { resolverPartidaParaCompra, listarPartidasDelDia } = require('../asignacionPartida');
+const { calcularLineaCompra, sumarTotalesCompra } = require('../calculoCompra');
 
 const router = express.Router();
 
@@ -53,29 +54,67 @@ router.get('/:id', async (req, res) => {
 // Crea la compra y sus lineas en una unica transaccion: o se guardan las dos
 // cosas, o no se guarda nada (nunca una compra a medias).
 //
-// El numero de partida NO lo envia el cliente: lo calcula el servidor (ver
-// asignacionPartida.js) a partir de fecha+proveedorId, reutilizando la
+// El cliente SOLO manda datos crudos por linea (articuloId, cajas, kilos,
+// precioKg, control) - el servidor calcula baseZgz/2%OP/IVA/total EN VIVO
+// (ver calculoCompra.js), consultando el proveedor tal como esta AHORA MISMO
+// en la base de datos. No se acepta ningun importe ya calculado desde fuera:
+// esa es justo la regla critica de Fase 0 punto 2 / Fase 2 punto 1 ("nunca
+// como formula congelada, siempre en vivo") - si se aceptara un baseReal/iva
+// ya calculado del cliente, un frontend con la formula desactualizada podria
+// grabar una compra con el 2% de OP o el IVA equivocados sin que el servidor
+// lo notara.
+//
+// El numero de partida tampoco lo envia el cliente: lo calcula el servidor
+// (ver asignacionPartida.js) a partir de fecha+proveedorId, reutilizando la
 // partida "de siempre" de ese dia+proveedor salvo que se pida explicitamente
 // una nueva (partidaNueva:true) o una ya existente concreta (partidaElegida).
 router.post('/', async (req, res) => {
   try {
     await conIdempotencia(req, res, 'POST /compras', async () => {
-      const { lineas, idempotencyKey, partidaNueva, partidaElegida, ...cabecera } = req.body;
+      const { lineas, fecha, proveedorId, albaranProveedor, puestoOrigen, partidaNueva, partidaElegida } = req.body;
+
+      const proveedor = await prisma.proveedor.findUnique({ where: { id: Number(proveedorId) } });
+      if (!proveedor) throw new Error(`No existe ningún proveedor con id ${proveedorId}.`);
+      if (!Array.isArray(lineas) || !lineas.length) throw new Error('La compra necesita al menos una línea.');
+
+      const fechaCompra = new Date(fecha);
       const numeroPartida = await resolverPartidaParaCompra({
-        fecha: new Date(cabecera.fecha),
-        proveedorId: cabecera.proveedorId,
+        fecha: fechaCompra,
+        proveedorId: proveedor.id,
         partidaNueva,
         partidaElegida,
       });
+
+      const lineasCalculadas = lineas.map((l) => {
+        const calc = calcularLineaCompra({ kilos: l.kilos, precioKg: l.precioKg, proveedor });
+        return {
+          articuloId: l.articuloId,
+          cajas: l.cajas != null && l.cajas !== '' ? Number(l.cajas) : null,
+          precioKg: Number(l.precioKg),
+          control: !!l.control,
+          ...calc,
+        };
+      });
+      const totales = sumarTotalesCompra(lineasCalculadas);
+
       const creada = await prisma.compra.create({
         data: {
-          ...cabecera,
           numeroPartida,
-          lineas: { create: lineas || [] },
+          fecha: fechaCompra,
+          albaranProveedor: albaranProveedor || null,
+          proveedorId: proveedor.id,
+          proveedorNombreSnapshot: proveedor.nombre,
+          puestoOrigen,
+          totalKilos: totales.totalKilos,
+          totalBaseZgz: totales.totalBaseZgz,
+          totalBaseReal: totales.totalBaseReal,
+          totalIva: totales.totalIva,
+          totalFactura: totales.totalFactura,
+          lineas: { create: lineasCalculadas },
         },
         include: { lineas: true },
       });
-      await registrarEscritura('compras', 'INSERT', creada.id, cabecera.puestoOrigen);
+      await registrarEscritura('compras', 'INSERT', creada.id, puestoOrigen);
       return { statusHttp: 201, cuerpo: creada };
     });
   } catch (err) {
