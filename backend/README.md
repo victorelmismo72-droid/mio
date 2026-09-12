@@ -67,7 +67,42 @@ Abre una pantalla en el navegador donde puedes ver y editar cada tabla como
 si fuera una hoja de cálculo — útil para comprobar que los datos están bien
 sin tener que usar la API ni SQL.
 
-## 4. Qué endpoints existen ya
+## 4. Protección contra doble grabación por clic repetido (a nivel de servidor)
+
+Pedido explícito de Víctor (`CORRECCIONES_02-09-2026_para_Code.md`, punto 1 —
+ver Fase 0 punto 11.3): en el HTML actual, un clic repetido en "GRABAR"
+mientras el guardado tardaba en confirmarse creó el mismo pedido varias
+veces, porque solo había protección en pantalla (botón deshabilitado). Aquí
+la protección es del servidor, no solo de una pantalla que todavía no existe.
+
+**Toda petición `POST` que crea un documento nuevo** (`/clientes`,
+`/proveedores`, `/articulos`, `/compras`, `/partidas`, `/pedidos`,
+`/traspasos`, `/repartos`, `/listas-precio`) **exige un campo
+`idempotencyKey`** en el cuerpo — una cadena que el cliente genera **una
+vez por intento de guardado** (por ejemplo, un UUID generado en el momento
+de pulsar el botón) y que debe **reenviar tal cual** si ese mismo intento se
+reintenta (por un clic de más, un fallo de red, etc.) — nunca generar una
+clave nueva para reintentar el mismo intento, porque eso anularía la
+protección.
+
+Qué hace el servidor con esa clave:
+- Primera vez que se ve esa clave: procesa la petición normalmente.
+- Si la clave ya se usó y esa petición **ya terminó**: devuelve la misma
+  respuesta de entonces, sin crear nada nuevo — un reintento es indistinguible
+  de la primera vez, en vez de duplicar.
+- Si la clave ya se usó y esa petición **todavía se está procesando**
+  (dos clics casi a la vez): la segunda petición recibe `409 Conflict` en
+  vez de crear un segundo registro — probado con dos peticiones disparadas
+  literalmente a la vez, solo se crea un registro.
+- Si la petición real falla (ej. datos inválidos), la clave se libera —
+  un reintento posterior con la misma clave, ya con datos correctos, se
+  procesa con normalidad, sin quedar bloqueada para siempre.
+
+Sin `idempotencyKey` en el cuerpo, estas rutas devuelven `400` — a propósito,
+para que sea imposible integrar un frontend nuevo sin esta protección por
+descuido.
+
+## 5. Qué endpoints existen ya
 
 - `GET /health` — comprobar que el backend está vivo.
 - `GET /export` — vuelca todas las tablas en un JSON, para comparar contra
@@ -106,7 +141,7 @@ sin parche disponible ahí (los propios autores solo la corrigen en su CDN
 propio, no accesible desde este entorno de desarrollo). `exceljs` no tiene
 ese aviso abierto.
 
-## 5. Lo que falta para cerrar la Fase 1 (ver el documento de la fase)
+## 6. Lo que falta para cerrar la Fase 1 (ver el documento de la fase)
 
 - [ ] **Migrar el backup JSON real** del programa actual a estas tablas, y
       verificar registro a registro que coincide (pendiente de que aportes

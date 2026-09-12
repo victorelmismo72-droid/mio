@@ -6,6 +6,7 @@
 const express = require('express');
 const { prisma } = require('../db');
 const { registrarEscritura } = require('../logEscritura');
+const { conIdempotencia } = require('../idempotencia');
 
 const router = express.Router();
 
@@ -28,16 +29,18 @@ router.get('/:id', async (req, res) => {
 
 router.post('/', async (req, res) => {
   try {
-    const { lineas, ...cabecera } = req.body;
-    const creado = await prisma.pedido.create({
-      data: {
-        ...cabecera,
-        lineas: { create: lineas || [] },
-      },
-      include: { lineas: true },
+    await conIdempotencia(req, res, 'POST /pedidos', async () => {
+      const { lineas, idempotencyKey, ...cabecera } = req.body;
+      const creado = await prisma.pedido.create({
+        data: {
+          ...cabecera,
+          lineas: { create: lineas || [] },
+        },
+        include: { lineas: true },
+      });
+      await registrarEscritura('pedidos', 'INSERT', creado.id, cabecera.puestoOrigen);
+      return { statusHttp: 201, cuerpo: creado };
     });
-    await registrarEscritura('pedidos', 'INSERT', creado.id, cabecera.puestoOrigen);
-    res.status(201).json(creado);
   } catch (err) {
     res.status(400).json({ error: err.message });
   }

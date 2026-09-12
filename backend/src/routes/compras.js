@@ -6,6 +6,7 @@
 const express = require('express');
 const { prisma } = require('../db');
 const { registrarEscritura } = require('../logEscritura');
+const { conIdempotencia } = require('../idempotencia');
 
 const router = express.Router();
 
@@ -30,16 +31,18 @@ router.get('/:id', async (req, res) => {
 // cosas, o no se guarda nada (nunca una compra a medias).
 router.post('/', async (req, res) => {
   try {
-    const { lineas, ...cabecera } = req.body;
-    const creada = await prisma.compra.create({
-      data: {
-        ...cabecera,
-        lineas: { create: lineas || [] },
-      },
-      include: { lineas: true },
+    await conIdempotencia(req, res, 'POST /compras', async () => {
+      const { lineas, idempotencyKey, ...cabecera } = req.body;
+      const creada = await prisma.compra.create({
+        data: {
+          ...cabecera,
+          lineas: { create: lineas || [] },
+        },
+        include: { lineas: true },
+      });
+      await registrarEscritura('compras', 'INSERT', creada.id, cabecera.puestoOrigen);
+      return { statusHttp: 201, cuerpo: creada };
     });
-    await registrarEscritura('compras', 'INSERT', creada.id, cabecera.puestoOrigen);
-    res.status(201).json(creada);
   } catch (err) {
     res.status(400).json({ error: err.message });
   }

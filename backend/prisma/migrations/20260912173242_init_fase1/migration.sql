@@ -253,6 +253,20 @@ CREATE TABLE "log_escrituras" (
 );
 
 -- CreateTable
+CREATE TABLE "claves_idempotencia" (
+    "id" SERIAL NOT NULL,
+    "clave" TEXT NOT NULL,
+    "ruta" TEXT NOT NULL,
+    "estado" TEXT NOT NULL,
+    "statusHttp" INTEGER,
+    "respuesta" JSONB,
+    "creado_en" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "completado_en" TIMESTAMP(3),
+
+    CONSTRAINT "claves_idempotencia_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "importaciones_backup" (
     "id" SERIAL NOT NULL,
     "tipo" TEXT NOT NULL,
@@ -288,6 +302,9 @@ CREATE UNIQUE INDEX "repartos_numero_key" ON "repartos"("numero");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "listas_precio_tipo_fecha_key" ON "listas_precio"("tipo", "fecha");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "claves_idempotencia_clave_key" ON "claves_idempotencia"("clave");
 
 -- AddForeignKey
 ALTER TABLE "compras" ADD CONSTRAINT "compras_proveedor_id_fkey" FOREIGN KEY ("proveedor_id") REFERENCES "proveedores"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

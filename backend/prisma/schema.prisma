@@ -345,6 +345,26 @@ model LogEscritura {
 }
 
 // ---------------------------------------------------------------------
+// Proteccion contra doble grabacion por clic repetido (CORRECCIONES_02-09-2026
+// punto 1; ver FASE_0 punto 11.3 y FASE_1 criterios de cierre) - A NIVEL DE
+// SERVIDOR, no solo deshabilitando el boton en pantalla como hace hoy el
+// HTML. El cliente debe generar una clave unica por intento de guardado (ej.
+// un UUID generado al pulsar "Grabar") y reenviar la MISMA clave si reintenta
+// ese mismo clic - nunca una clave nueva para el mismo intento.
+model ClaveIdempotencia {
+  id           Int       @id @default(autoincrement())
+  clave        String    @unique
+  ruta         String
+  estado       String    // EN_PROCESO | COMPLETADA
+  statusHttp   Int?
+  respuesta    Json?
+  creadoEn     DateTime  @default(now()) @map("creado_en")
+  completadoEn DateTime? @map("completado_en")
+
+  @@map("claves_idempotencia")
+}
+
+// ---------------------------------------------------------------------
 // Copia de seguridad automatica antes de cada importacion masiva de Excel
 // (mismo mecanismo que el HTML actual guarda como `compras_backup_previo`
 // en localStorage antes de reimportar el Excel de COMPRAS). No sustituye a

@@ -11,6 +11,7 @@
 const express = require('express');
 const { prisma } = require('../db');
 const { registrarEscritura } = require('../logEscritura');
+const { conIdempotencia } = require('../idempotencia');
 
 const router = express.Router();
 
@@ -36,16 +37,23 @@ router.get('/:id', async (req, res) => {
 
 router.post('/', async (req, res) => {
   try {
-    const creada = await prisma.partida.create({ data: req.body });
-    await registrarEscritura('partidas', 'INSERT', creada.id, req.body.puestoOrigen);
-    res.status(201).json(creada);
+    await conIdempotencia(req, res, 'POST /partidas', async () => {
+      const { idempotencyKey, ...datos } = req.body;
+      const creada = await prisma.partida.create({ data: datos });
+      await registrarEscritura('partidas', 'INSERT', creada.id, datos.puestoOrigen);
+      return { statusHttp: 201, cuerpo: creada };
+    });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
 });
 
 // Cierre manual de una partida (Fase 0 punto 3: rara vez llega a 0 kg exactos
-// por mermas, asi que el cierre es un gesto explicito, no automatico).
+// por mermas, asi que el cierre es un gesto explicito, no automatico). No
+// lleva proteccion de idempotencia: a diferencia de crear un documento nuevo
+// (donde un doble clic genera dos registros distintos), cerrar dos veces la
+// MISMA partida no duplica nada - el segundo cierre solo repite el mismo
+// estado (cerradaManual=true), es inofensivo por si mismo.
 router.post('/:id/cerrar', async (req, res) => {
   try {
     const cerrada = await prisma.partida.update({

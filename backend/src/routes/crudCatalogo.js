@@ -5,6 +5,7 @@
 const express = require('express');
 const { prisma } = require('../db');
 const { registrarEscritura } = require('../logEscritura');
+const { conIdempotencia } = require('../idempotencia');
 
 // modeloPrisma: nombre del modelo tal como lo genera Prisma (ej. "cliente").
 // nombreTabla: nombre para el log de escrituras (ej. "clientes").
@@ -25,9 +26,12 @@ function crearRouterCatalogo(modeloPrisma, nombreTabla) {
 
   router.post('/', async (req, res) => {
     try {
-      const creado = await delegado.create({ data: req.body });
-      await registrarEscritura(nombreTabla, 'INSERT', creado.id, req.body.puestoOrigen);
-      res.status(201).json(creado);
+      await conIdempotencia(req, res, `POST /${nombreTabla}`, async () => {
+        const { idempotencyKey, ...datos } = req.body;
+        const creado = await delegado.create({ data: datos });
+        await registrarEscritura(nombreTabla, 'INSERT', creado.id, datos.puestoOrigen);
+        return { statusHttp: 201, cuerpo: creado };
+      });
     } catch (err) {
       res.status(400).json({ error: err.message });
     }
