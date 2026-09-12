@@ -59,7 +59,7 @@ Lo que sí falta de verdad es el lado de compras:
 
 ---
 
-## 4. Partidas y margen
+## 4. Partidas y margen — implementado el 12/09/2026 (backend)
 
 - Reproducir la asignación automática inline: al introducir producto + precio, buscar partida disponible compatible.
 - Emparejamiento de partida: coincidencia de prefijo (4+ caracteres) **y** primera palabra de la descripción del catálogo — no usar solo el prefijo (ver Fase 0, punto 3, falsos positivos conocidos como C144/C1444).
@@ -68,6 +68,16 @@ Lo que sí falta de verdad es el lado de compras:
 - **Las partidas nunca deben mostrarse en documentos de cliente** — solo en la versión interna con precios.
 - Compras siguen siendo inmutables (ver Fase 1) — el cálculo de margen se hace leyendo la compra original, nunca modificándola.
 - **Existencias en texto libre también aquí** (no solo en listas de precio, ver Fase 0 punto 9): el campo de existencias/stock asociado a una partida debe admitir texto ("AGOTADO", "POCAS") además de un número exacto de cajas — mismo motivo, indicar disponibilidad aproximada sin forzar una cifra.
+
+**Backend implementado en `backend/src/margenPartida.js`** — puerto directo del algoritmo ya en uso en el HTML (`sonMismaFamiliaProducto`, `kilosVendidosDePartida`, `obtenerPartidasDisponibles`, `autoAsignarPartidas`/`asignarPartidasDelDia`), no un rediseño:
+
+- `POST /pedidos` y `PUT /pedidos/:id` asignan automáticamente la partida disponible más antigua (FIFO) que llegue al margen mínimo a cada línea que no traiga ya un `partidaNumero` explícito — si el cliente elige una partida a mano, esa elección nunca se recalcula (igual que `_partidaManual` en el HTML). Si ninguna disponible llega al margen, la línea queda con `partidaNumero: null` (excepción pendiente), nunca se fuerza una partida que no cumple.
+- `GET /partidas/disponibles?articuloId=&precioVenta=` — partidas disponibles para un artículo (o su familia), con kilos restantes y margen ya calculado, para construir el desplegable de elección manual.
+- `POST /pedidos/asignar-partidas-dia` (equivalente al botón "📦 ASIGNAR PARTIDAS DE HOY") — recorre todos los pedidos de una fecha, asigna automáticamente lo que puede y devuelve la lista de excepciones (líneas sin ninguna partida que llegue al margen) con sus opciones, para revisión manual en lote en vez de pedido a pedido.
+- `PATCH /pedidos/lineas/:id/partida` — aplica a mano la partida elegida para una línea que quedó como excepción.
+- Los kilos vendidos de una partida suman tanto líneas de `pedidos` como de `traspasos` (un traspaso a Zaragoza también consume kilos de la partida) — esto exigió corregir un desajuste real en el esquema: `TraspasoLinea` tenía un campo `partidaId` sin relación definida (residuo inconsistente con `PedidoLinea.partidaNumero`); se ha renombrado a `partidaNumero` (mismo significado: número de partida, no una FK) para que ambas tablas se puedan sumar igual.
+- Una partida cerrada manualmente (`Partida.cerradaManual`) deja de ofrecerse como disponible aunque le queden kilos en bruto — probado el 12/09/2026.
+- Probado end-to-end el 12/09/2026: emparejamiento por familia (código genérico ↔ código con talla, y el caso de falso positivo con prefijo parecido pero primera palabra distinta, que correctamente NO empareja), reducción de kilos disponibles tras una venta, asignación automática cuando el margen se cumple, línea que queda como excepción cuando no se cumple, aplicación manual de la excepción, y cierre manual de partida.
 
 ---
 
@@ -103,12 +113,13 @@ No pasar a la Fase 3 hasta que:
 - [ ] Se ha tomado un conjunto de datos reales (un día completo de compras y ventas, por ejemplo) y se ha comparado el resultado del sistema nuevo contra el HTML actual: mismo coste real, mismas partidas asignadas, mismo margen.
 - [x] El 2% de OP se calcula siempre en vivo desde el proveedor actual, nunca congelado — implementado y probado el 12/09/2026 (ver punto 1).
 - [ ] El tratamiento de IVA/Recargo de Equivalencia está implementado y documentado para las cuatro clasificaciones fiscales de proveedores y las combinaciones de clientes — con las dudas normativas señaladas explícitamente a Víctor, no asumidas. El lado de **compras** (Nacional 10% / Intracomunitario 0%) ya está implementado y probado (ver punto 3); el lado de ventas replica `calcularIvaPedido` del HTML, pendiente de trasladar al backend nuevo.
-- [ ] El caso conocido de falsos positivos en emparejamiento de partidas (ej. C144 vs C1444) se ha probado explícitamente y no reaparece.
-- [ ] Las partidas no aparecen en ningún documento de cliente generado por el sistema nuevo.
-- [ ] El aviso de margen negativo compara contra el coste real de la partida asignada, no contra un coste tecleado a mano (ver punto 5).
+- [x] El caso conocido de falsos positivos en emparejamiento de partidas (ej. C144 vs C1444) se ha probado explícitamente y no reaparece — probado el 12/09/2026 con un caso equivalente (prefijo compartido, primera palabra distinta) en el backend nuevo.
+- [ ] Las partidas no aparecen en ningún documento de cliente generado por el sistema nuevo — pendiente de frontend (esta fase, en el backend, ya distingue claramente partida interna de lo que se manda a cliente, pero no hay todavía ningún documento de cliente generado por el sistema nuevo que verificar).
+- [ ] El aviso de margen negativo compara contra el coste real de la partida asignada, no contra un coste tecleado a mano (ver punto 5) — pendiente de frontend; el backend ya expone el coste real vía `GET /partidas/disponibles`.
 - [ ] Todo listado de gestión de esta fase separa ventas reales de traspasos por defecto, con la opción de incluirlos aparte y diferenciados (ver punto 6).
 - [ ] Comparación de agilidad frente al Excel realizada y documentada (ver punto 7).
 - [x] Asignación automática del número de partida implementada y probada, incluyendo la excepción manual y la concurrencia entre puestos (ver punto 2).
+- [x] Asignación automática de partida a líneas de venta según margen mínimo (1,30 €/kg), con FIFO por antigüedad y excepción manual cuando ninguna partida llega al margen, implementada y probada en el backend (ver punto 4). Falta la comparación frontend contra un día real completo (primer punto de esta lista).
 - [ ] El HTML/programa actual sigue intacto y en uso normal, en paralelo.
 - [ ] Víctor ha revisado y entendido, en términos sencillos, qué se ha construido y qué puntos quedaron pendientes de confirmación normativa (IVA).
 

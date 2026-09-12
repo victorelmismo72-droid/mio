@@ -278,7 +278,13 @@ model TraspasoLinea {
   articulo   Articulo @relation(fields: [articuloId], references: [id])
   cantidad   Decimal? @db.Decimal(10, 2)
   peso       Decimal  @db.Decimal(10, 2)
-  partidaId  Int?     @map("partida_id")
+  // Corregido el 12/09/2026 (desajuste real, se llamaba "partidaId"): esto es
+  // el NUMERO de partida, igual que PedidoLinea.partidaNumero - no una FK a
+  // la tabla `partidas` (esa tabla no tiene una fila por cada numero, ver el
+  // comentario del modelo Partida mas arriba). Un traspaso a Zaragoza
+  // consume kilos de una partida exactamente igual que un pedido, por eso
+  // Fase 2 (margen) suma ambos al calcular kilos disponibles.
+  partidaNumero Int?   @map("partida_numero")
 
   @@map("traspaso_lineas")
 }

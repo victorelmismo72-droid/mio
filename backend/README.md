@@ -3,9 +3,9 @@
 Esto es el backend de la Fase 1 (guarda y lee datos: clientes, proveedores,
 artículos, compras, partidas, pedidos, traspasos, repartos, listas de
 precio), con varias piezas de Fase 2 ya incorporadas: la **asignación
-automática del número de partida**, el **2% de OP en vivo** y el **IVA de
-compras** (ver sección 5) — el cálculo de margen y el IVA de ventas siguen
-pendientes de Fase 2. El HTML actual (`CARGA_DE_ALBARANES_MARINAFISK_20260902CORREGIDO_4.html`)
+automática del número de partida**, el **2% de OP en vivo**, el **IVA de
+compras** y la **asignación automática de partida por margen** (ver
+sección 5) — solo el IVA de ventas sigue pendiente de Fase 2. El HTML actual (`CARGA_DE_ALBARANES_MARINAFISK_20260902CORREGIDO_4.html`)
 sigue funcionando exactamente igual mientras tanto — esto se prueba aparte,
 en paralelo.
 
@@ -137,11 +137,27 @@ descuido.
   combinación (subasta/no subasta, Nacional/Intracomunitario): el cálculo
   coincide con la fórmula esperada en todos los casos.
 - `/partidas` — crear y leer, más `POST /partidas/:id/cerrar` para el cierre
-  manual (todavía no calcula kilos disponibles ni margen, eso sigue siendo
-  Fase 2) y `POST /partidas/ajustar-siguiente-numero` (equivalente al botón
+  manual y `POST /partidas/ajustar-siguiente-numero` (equivalente al botón
   "🔢 Próxima partida" del HTML — para sincronizar la numeración con el
-  Excel de Víctor).
-- `/pedidos`, `/traspasos`, `/repartos`, `/listas-precio` — CRUD completo.
+  Excel de Víctor). `GET /partidas/disponibles?articuloId=&precioVenta=`
+  (12/09/2026, ver Fase 2 punto 4): partidas disponibles para un artículo
+  (o su familia — mismo producto en otra talla, ver `src/margenPartida.js`),
+  con los kilos que quedan de cada una y el margen ya calculado si se pasa
+  un precio de venta — para construir el desplegable de "elegir partida".
+- `/pedidos` — CRUD completo, con la asignación automática de partida ya
+  incorporada (12/09/2026, ver Fase 2 punto 4): `POST /pedidos` y
+  `PUT /pedidos/:id` asignan a cada línea sin `partidaNumero` explícito la
+  partida disponible más antigua que llegue al margen mínimo (1,30 €/kg);
+  si el cliente ya eligió una partida a mano, no se recalcula. Si ninguna
+  llega al margen, la línea queda sin partida (excepción). Además:
+  - `POST /pedidos/asignar-partidas-dia` (`{fecha}` en el cuerpo, por
+    defecto hoy) — equivalente al botón "📦 ASIGNAR PARTIDAS DE HOY": asigna
+    en lote todo lo que puede de los pedidos de esa fecha y devuelve las
+    excepciones restantes (con sus partidas disponibles) para revisión
+    manual.
+  - `PATCH /pedidos/lineas/:id/partida` (`{partidaNumero}`) — aplica a mano
+    la partida elegida para una línea que quedó como excepción.
+- `/traspasos`, `/repartos`, `/listas-precio` — CRUD completo.
 - `POST /importar/compras-excel` — importar el Excel de compras (equivalente
   al botón "📥 IMPORTAR COMPRAS EXCEL" del programa actual). Sube el fichero
   como `archivo` (multipart/form-data), opcionalmente `puestoOrigen`. Busca

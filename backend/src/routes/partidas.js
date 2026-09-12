@@ -1,8 +1,8 @@
-// Partidas: en esta fase (solo almacenamiento) NO hay logica de asignacion
-// de margen ni de kilos disponibles (eso es Fase 2). Aqui solo se guarda el
-// estado real de cierre manual. Por eso no hay una ruta PUT generica -
-// solo una ruta especifica para "cerrar", que es la unica escritura que
-// tiene sentido hacer aqui.
+// Partidas: solo se guarda aqui el estado real de cierre manual. Por eso no
+// hay una ruta PUT generica - solo una ruta especifica para "cerrar", que
+// es la unica escritura que tiene sentido hacer aqui. El calculo de kilos
+// disponibles y margen (Fase 2, punto 4) vive en ../margenPartida.js y se
+// expone en GET /disponibles, mas abajo.
 //
 // Importante (ver prisma/schema.prisma): una partida NO es 1:1 con una
 // compra - un numero_partida puede agrupar varias filas de `compras` (mismo
@@ -12,8 +12,33 @@ const express = require('express');
 const { prisma } = require('../db');
 const { registrarEscritura } = require('../logEscritura');
 const { conIdempotencia } = require('../idempotencia');
+const { obtenerPartidasDisponibles, MARGEN_MINIMO_PARTIDA } = require('../margenPartida');
 
 const router = express.Router();
+
+// Partidas disponibles para un articulo, con el margen ya calculado si se
+// pasa un precio de venta (para construir el desplegable de "elegir
+// partida" en la pantalla de pedidos, igual que construirOpcionesPartida en
+// el HTML). IMPORTANTE: esta ruta especifica va ANTES de "/:id" mas abajo -
+// ver la nota de compras.js sobre el fallo real de orden de rutas del
+// 12/09/2026 (si fuera despues, Express intentaria leer "disponibles" como
+// si fuera el id).
+router.get('/disponibles', async (req, res) => {
+  const { articuloId, precioVenta } = req.query;
+  if (!articuloId) return res.status(400).json({ error: 'Falta el parámetro "articuloId".' });
+  try {
+    const disponibles = await obtenerPartidasDisponibles(Number(articuloId));
+    const precio = precioVenta != null ? Number(precioVenta) : null;
+    const conMargen = disponibles.map((p) => ({
+      ...p,
+      margen: precio != null ? precio - p.coste : null,
+      cumpleMargen: precio != null ? precio - p.coste >= MARGEN_MINIMO_PARTIDA : null,
+    }));
+    res.json({ margenMinimo: MARGEN_MINIMO_PARTIDA, disponibles: conMargen });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
 
 async function conComprasRelacionadas(partida) {
   const compras = await prisma.compra.findMany({

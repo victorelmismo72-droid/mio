@@ -116,8 +116,9 @@ id, numero (unique), fecha, total_kg, base, total, puesto_origen, creado_en
 ```
 ### `traspaso_lineas`
 ```
-id, traspaso_id (FK), articulo_id (FK), cantidad, peso, partida_id (FK nullable)
+id, traspaso_id (FK), articulo_id (FK), cantidad, peso, partida_numero (nullable)
 ```
+**Corrección real (12/09/2026):** este campo se llamaba `partida_id` y no tenía relación definida — desajuste con `pedido_lineas.partida_numero` (mismo significado: el número de partida asignado a la línea, no una FK a una fila de `partidas`, ver esa tabla más abajo). Renombrado a `partida_numero` para que sea consistente y se pueda sumar junto con `pedido_lineas` al calcular kilos vendidos de una partida (ver Fase 2, punto 4, `backend/src/margenPartida.js`) — un traspaso a Zaragoza consume kilos de una partida igual que una venta.
 
 ### `repartos`
 ```
