@@ -14,31 +14,54 @@ Al final de la Fase 2 debe poder demostrarse que, dado el mismo dato de entrada,
 
 ---
 
-## 1. Cálculo del 2% de OP (Obras del Puerto)
+## 1. Cálculo del 2% de OP (Obras del Puerto) — implementado el 12/09/2026
 
 - Se aplica **solo** a compras de proveedores marcados como subasta/lonja (campo ya creado en Fase 1).
 - Fórmula: `baseReal = baseZgz + op2`
 - **Debe calcularse siempre en vivo**, consultando el estado actual del proveedor en el momento del cálculo — nunca guardar el 2% como valor fijo/congelado en la compra. (Ver Fase 0, punto 2: esto ya causó un fallo real por congelarse la fórmula.)
 - Probar explícitamente: cambiar la condición de "subasta/lonja" de un proveedor y confirmar que las compras futuras (no las pasadas, que son inmutables) reflejan el cambio.
 
+**Implementado en `backend/src/calculoCompra.js`** (`calcularLineaCompra`), compartido entre `POST /compras` (alta manual) y la importación de Excel, para que no haya dos sitios con la fórmula. `POST /compras` **ya no acepta ningún importe calculado desde el cliente** — solo recibe `kilos`/`precioKg` en crudo por línea, y el servidor consulta el proveedor tal como está en ese momento en la base de datos para decidir si aplica el 2% (`esSubastaOp`). Probado el 12/09/2026: un proveedor marcado como subasta produce `op2Importe = baseZgz * 0.02`; uno no marcado produce `op2Importe = 0`, con la misma línea de entrada.
+
 ---
 
-## 2. IVA y Recargo de Equivalencia (usa la clasificación fiscal creada en Fase 1)
+## 2. Asignación automática del número de partida — implementado el 12/09/2026
 
-Esto es lógica nueva que no existe correctamente en el sistema actual — hay que construirla bien desde cero, no copiar el comportamiento actual tal cual, porque el HTML tiene un fallo conocido aquí (ver Fase 0, punto 4).
+Regla confirmada por Víctor (12/09/2026): el número de partida se genera **automáticamente**, igual que en el Excel — una partida por día+proveedor, independientemente de cuántas compras (albaranes) distintas de ese proveedor se registren ese día. Existe una excepción real y poco frecuente: por necesidades de producción, a veces hace falta una partida distinta para el mismo proveedor el mismo día.
 
-- **Compras:**
+**Diseño implementado en `backend/`:**
+
+- La tabla `partidas` (ver `02_ESQUEMA_BASE_DATOS_PROPUESTO.md`) es ahora el **registro canónico** de qué números de partida existen, con `fecha`, `proveedor_id` y un campo `es_principal`.
+- **Caso normal**: al grabar una compra, el servidor busca si ya existe una partida `es_principal=true` para ese día+proveedor. Si existe, la reutiliza. Si no, crea una — el número lo genera una secuencia de PostgreSQL (`partidas_numero_partida_seq`), nunca lo escribe el cliente.
+- **Caso de excepción**: se puede pedir explícitamente (`partidaNueva: true` en la petición) una partida **nueva y distinta** para ese mismo día+proveedor (`es_principal=false`). Nunca se sugiere sola — solo se usa cuando se pide a propósito, compra a compra.
+- Si ya hay más de una partida para un día+proveedor (por una excepción anterior), se puede elegir explícitamente a cuál va una compra nueva (`partidaElegida: <número>`) — endpoint `GET /compras/partidas-del-dia?fecha=...&proveedorId=...` para listarlas (la principal siempre primero).
+- **Concurrencia (el mismo tipo de fallo que ya causó 667 duplicados en pedidos, ver Fase 0 punto 6):** un índice único **parcial** en PostgreSQL (`UNIQUE(fecha, proveedor_id) WHERE es_principal`) garantiza que nunca pueda haber dos partidas principales para el mismo día+proveedor, **incluso si los dos puestos intentan crear la primera compra del día para el mismo proveedor exactamente a la vez** — probado en real con dos peticiones disparadas literalmente en paralelo: ambas obtienen el mismo número de partida.
+- El botón "🔢 Próxima partida" del HTML actual (ajustar el contador para sincronizar con el Excel) tiene su equivalente en `POST /partidas/ajustar-siguiente-numero`.
+- La importación de Excel (que trae el número de partida ya dado, sin recalcularlo — ver `backend/README.md`) registra igualmente cada número en esta tabla; si el propio histórico del Excel ya tenía una excepción (dos partidas distintas el mismo día para el mismo proveedor), la segunda se registra automáticamente como excepción (`es_principal=false`) en vez de fallar.
+
+Ver `backend/src/asignacionPartida.js` para la implementación y `backend/src/routes/compras.js` para cómo se usa al grabar una compra.
+
+---
+
+## 3. IVA y Recargo de Equivalencia (usa la clasificación fiscal creada en Fase 1)
+
+**Corrección (2026-09-05):** el párrafo original de este punto decía que "el IVA es lógica nueva que no existe correctamente en el sistema actual" y citaba el fallo de Fase 0 punto 4 — eso era impreciso. El fallo de Fase 0 punto 4 es solo del lado de **compras** (proveedores). El lado de **ventas** ya funciona en el HTML actual: la función `calcularIvaPedido(base, tipoIva)` calcula correctamente IVA 10% (NORMAL), IVA 10%+1,4% (RECARGO_EQUIVALENCIA) e IVA 0% (INTRACOMUNITARIO) según el tipo fiscal del cliente, y se usa ya en pedidos, PDFs y (desde la versión 2026-09-02-CORREGIDO_4) también en el Excel de listado. El sistema nuevo debe **reproducir ese cálculo tal cual**, no rediseñarlo desde cero.
+Lo que sí falta de verdad es el lado de compras:
+
+- **Compras — implementado el 12/09/2026 (`calcularLineaCompra` en `backend/src/calculoCompra.js`):**
   - Proveedor Nacional → IVA 10% (tipo único del pescado, ver Fase 0).
-  - Proveedor Comunitario / Intracomunitario / Extra-UE → **decidir explícitamente el tratamiento correcto** (por ejemplo, inversión del sujeto pasivo en operaciones intracomunitarias) y no dejarlo en blanco/sin aplicar como hace el sistema actual. Si hay dudas normativas, señalarlo a Víctor antes de dar la fase por cerrada — no asumir.
-- **Ventas (para cuando exista el módulo de facturación, pero la lógica debe quedar lista ya):**
+  - Proveedor Intracomunitario → sin IVA, por inversión del sujeto pasivo — **este era el hueco real**: el HTML actual aplica 10% siempre en el cálculo de líneas de compra, sin mirar el tipo de proveedor (ver Fase 0, punto 4). Corregido tanto en `POST /compras` (alta manual) como en la importación de Excel, usando el mismo cálculo compartido — probado el 12/09/2026 con un proveedor de cada tipo fiscal (Nacional → 10%, Intracomunitario → 0%), mismos kilos/precio de entrada.
+- **Ventas — implementado el 12/09/2026 (`calcularIvaPedido` en `backend/src/ivaVentas.js`):** puerto directo de `calcularIvaPedido(base, tipoIva)` del HTML, no un rediseño.
   - Cliente Nacional sin Recargo de Equivalencia → IVA 10% normal.
-  - Cliente Nacional con Recargo de Equivalencia → IVA 10% + recargo de equivalencia correspondiente (confirmar porcentaje exacto vigente).
-  - Cliente Intracomunitario → tratamiento de operación intracomunitaria (a confirmar con Víctor/asesoría si hace falta).
-- Documentar en el código, con comentarios claros en español, qué regla se aplica y por qué, para que Víctor pueda entenderlo sin ser programador.
+  - Cliente Nacional con Recargo de Equivalencia → IVA 10% + 1,4% de recargo de equivalencia.
+  - Cliente Intracomunitario → IVA 0%.
+  - `POST /pedidos` y `PUT /pedidos/:id` calculan `baseImponible`/`iva`/`total` **en vivo** a partir de las líneas y del `tipoIva` del cliente consultado en ese momento en la base de datos — no se acepta ya calculado desde el cliente HTTP, por la misma razón que en compras (Fase 0 punto 2): un frontend con la fórmula desactualizada no debe poder grabar un pedido con el IVA equivocado. El total de cada línea (`peso * precio * (1 - descuento/100)`, igual que `calcLineaPed()` del HTML) también se calcula en el servidor. Los datos "foto" del cliente (`clienteNombreSnapshot`, etc.) se toman del cliente tal cual está en ese momento, por el mismo motivo.
+  - Probado el 12/09/2026 con un cliente de cada clasificación fiscal (Normal, Recargo de Equivalencia, Intracomunitario): la base, el IVA y el total coinciden exactamente con la fórmula esperada.
+- Documentado en el código, con comentarios claros en español, qué regla se aplica y por qué, para que Víctor pueda entenderlo sin ser programador.
 
 ---
 
-## 3. Partidas y margen
+## 4. Partidas y margen — implementado el 12/09/2026 (backend)
 
 - Reproducir la asignación automática inline: al introducir producto + precio, buscar partida disponible compatible.
 - Emparejamiento de partida: coincidencia de prefijo (4+ caracteres) **y** primera palabra de la descripción del catálogo — no usar solo el prefijo (ver Fase 0, punto 3, falsos positivos conocidos como C144/C1444).
@@ -46,32 +69,74 @@ Esto es lógica nueva que no existe correctamente en el sistema actual — hay q
 - Cierre de partidas: manual, con opción de cierre masivo por fecha; una partida puede cerrarse sin llegar a cero kilos (mermas).
 - **Las partidas nunca deben mostrarse en documentos de cliente** — solo en la versión interna con precios.
 - Compras siguen siendo inmutables (ver Fase 1) — el cálculo de margen se hace leyendo la compra original, nunca modificándola.
+- **Existencias en texto libre también aquí** (no solo en listas de precio, ver Fase 0 punto 9): el campo de existencias/stock asociado a una partida debe admitir texto ("AGOTADO", "POCAS") además de un número exacto de cajas — mismo motivo, indicar disponibilidad aproximada sin forzar una cifra.
+
+**Backend implementado en `backend/src/margenPartida.js`** — puerto directo del algoritmo ya en uso en el HTML (`sonMismaFamiliaProducto`, `kilosVendidosDePartida`, `obtenerPartidasDisponibles`, `autoAsignarPartidas`/`asignarPartidasDelDia`), no un rediseño:
+
+- `POST /pedidos` y `PUT /pedidos/:id` asignan automáticamente la partida disponible más antigua (FIFO) que llegue al margen mínimo a cada línea que no traiga ya un `partidaNumero` explícito — si el cliente elige una partida a mano, esa elección nunca se recalcula (igual que `_partidaManual` en el HTML). Si ninguna disponible llega al margen, la línea queda con `partidaNumero: null` (excepción pendiente), nunca se fuerza una partida que no cumple.
+- `GET /partidas/disponibles?articuloId=&precioVenta=` — partidas disponibles para un artículo (o su familia), con kilos restantes y margen ya calculado, para construir el desplegable de elección manual.
+- `POST /pedidos/asignar-partidas-dia` (equivalente al botón "📦 ASIGNAR PARTIDAS DE HOY") — recorre todos los pedidos de una fecha, asigna automáticamente lo que puede y devuelve la lista de excepciones (líneas sin ninguna partida que llegue al margen) con sus opciones, para revisión manual en lote en vez de pedido a pedido.
+- `PATCH /pedidos/lineas/:id/partida` — aplica a mano la partida elegida para una línea que quedó como excepción.
+- Los kilos vendidos de una partida suman tanto líneas de `pedidos` como de `traspasos` (un traspaso a Zaragoza también consume kilos de la partida) — esto exigió corregir un desajuste real en el esquema: `TraspasoLinea` tenía un campo `partidaId` sin relación definida (residuo inconsistente con `PedidoLinea.partidaNumero`); se ha renombrado a `partidaNumero` (mismo significado: número de partida, no una FK) para que ambas tablas se puedan sumar igual.
+- Una partida cerrada manualmente (`Partida.cerradaManual`) deja de ofrecerse como disponible aunque le queden kilos en bruto — probado el 12/09/2026.
+- Probado end-to-end el 12/09/2026: emparejamiento por familia (código genérico ↔ código con talla, y el caso de falso positivo con prefijo parecido pero primera palabra distinta, que correctamente NO empareja), reducción de kilos disponibles tras una venta, asignación automática cuando el margen se cumple, línea que queda como excepción cuando no se cumple, aplicación manual de la excepción, y cierre manual de partida.
 
 ---
 
-## 4. Listas de precios (Pescaderías / Mayoristas)
+## 5. Listas de precios (Pescaderías / Mayoristas) — backend implementado el 13/09/2026
 
 - Confirmar que la lógica de independencia entre listas (cada una autónoma, copia de arranque opcional desde la otra si está vacía) se traslada igual que en el HTML actual (ver Fase 0, punto 5).
 - Modo automático (relleno desde compras del día) y modo manual (entrada libre), igual que hoy.
 - La versión interna (con coste, margen real, existencias en cajas) debe seguir estando claramente separada de la versión de cliente, y nunca mezclarse.
+- **Aviso de venta por debajo de coste — versión robusta (petición de Víctor, `CORRECCIONES_02-09-2026_para_Code.md` punto 4; ver Fase 0 punto 11.3):** el HTML actual compara el precio tecleado contra un campo de "coste" **también tecleado a mano** en esa misma pantalla — puede estar mal o desactualizado. El sistema nuevo, en cambio, **conoce el coste real de la partida asignada** en todo momento (viene de la compra original, inmutable). El aviso de margen negativo debe compararse contra ese coste real siempre que la línea tenga una partida asignada, no contra una cifra escrita a mano — más fiable que el HTML, no solo igual. Mismo tipo de aviso ya decidido (visual en rojo + confirmación explícita antes de generar la imagen), ver Fase 0 punto 9.
+
+**Backend implementado en `backend/src/routes/listasPrecio.js`:**
+
+- `GET /listas-precio/auto?fecha=` — modo automático, puerto directo de `construirListaPreciosHoy()` del HTML: coste medio ponderado por kilos de las compras de esa fecha por artículo, más el margen fijo de referencia de esta pantalla en concreto (1,70 €/kg — distinto del margen mínimo de 1,30 €/kg de la asignación de partida a ventas, punto 4).
+- `GET /listas-precio/plantilla?tipo=&fecha=` — puerto de `cargarListaManual()`: si la lista propia (tipo+fecha) ya tiene líneas, las devuelve; si está vacía, copia como punto de partida las líneas de la OTRA lista de esa misma fecha si existen — cada lista sigue siendo independiente una vez guardada (Fase 0 punto 5), esto solo sugiere con qué empezar.
+- `GET /listas-precio/coste-referencia?articuloId=` — el aviso de margen negativo ya puede compararse contra un coste real (media ponderada de las partidas disponibles de ese artículo, `costeRealActual()` en `margenPartida.js`), no contra una cifra tecleada a mano.
+- **Corrección de esquema (13/09/2026, desajuste real):** `ListaPrecioLinea.articuloId` era obligatorio, pero el modo manual del HTML permite escribir un producto en texto libre sin ningún vínculo al catálogo (`agregarFilaManualPrecio`, sin selector). Se ha hecho `articuloId` opcional y se ha añadido `descripcionLibre` para ese caso (con un `CHECK` en la base de datos que exige uno de los dos), y se han añadido los campos que faltaban para la "versión interna": `coste` y `existencias` (texto libre, igual que en partidas — ver punto 4).
+- Probado el 13/09/2026: modo automático con coste medio real de una compra existente, plantilla copiada de una lista a otra, línea con `descripcionLibre` sin artículo de catálogo, y el rechazo limpio de una línea sin ninguno de los dos.
 
 ---
 
-## 5. Requisito transversal de agilidad (recordatorio, ya introducido en Fase 1)
+## 6. Listados de gestión: separar siempre venta real de movimiento interno — implementado el 13/09/2026
+
+**Añadido a partir de `CORRECCIONES_02-09-2026_para_Code.md` punto 3 (Víctor), generalizando lo ya corregido en el HTML actual para el buscador "Buscar Artículos" (ver Fase 0 punto 9):**
+
+- Los traspasos internos a Zaragoza **no son ventas** (no hay cliente, no hay cobro) — un traspaso y un pedido son conceptualmente distintos, aunque ambos muevan kilos de pescado.
+- Regla para **cualquier** listado o informe de esta fase que trate kilos/artículos/importes (no solo el buscador de artículos ya corregido en el HTML): por defecto, mostrar y sumar solo ventas reales. Ofrecer, como opción explícita (nunca activada por defecto), incluir también los traspasos — y si se incluyen, deben verse claramente diferenciados en la lista (nunca mezclados en la misma fila/categoría que una venta) y con un total aparte: un total económico (solo ventas) y un total de kilos "estadístico" que sume ventas + traspasos.
+- Esto aplica a cualquier listado de gestión que se construya en esta fase o más adelante (por ejemplo, listados por cliente/artículo/fecha, exports para contabilidad, etc.) — no es una regla de una sola pantalla.
+
+**Backend implementado como una función compartida** (`backend/src/listadoGestion.js`, `construirListadoGestion()`), pensada precisamente para que cualquier listado nuevo la reutilice en vez de reimplementar la regla cada vez, expuesta en `GET /listados/gestion?desde=&hasta=&incluirTraspasos=&clienteId=&articuloId=`:
+
+- Sin `incluirTraspasos=true`: solo devuelve filas `tipo: "VENTA"` (de `pedidos`), con `totalEconomico` y `totalKilosVentas` — `totalKilosConTraspasos` coincide con `totalKilosVentas` en este caso.
+- Con `incluirTraspasos=true`: añade también filas `tipo: "TRASPASO"` (de `traspasos`), siempre con `importe: null` (un traspaso no tiene importe económico real, ver Fase 0) y nunca mezcladas con las de `tipo: "VENTA"` en el mismo cómputo económico. `totalEconomico` sigue siendo solo de las ventas; `totalKilosConTraspasos` suma ambos tipos.
+- Probado el 13/09/2026: listado por defecto sin traspasos, y con `incluirTraspasos=true` mostrando ambos tipos claramente diferenciados y con los totales separados correctamente (`totalEconomico` sin cambios, `totalKilosConTraspasos` = `totalKilosVentas` + kilos del traspaso).
+
+---
+
+## 7. Requisito transversal de agilidad (recordatorio, ya introducido en Fase 1)
 
 Sigue aplicando aquí: cada flujo de esta fase (registrar compra, asignar partida, generar lista de precios) debe probarse comparando el número de pasos/tiempo frente al Excel `GESTION_CORRECTA` actual. Si algún flujo nuevo resulta más lento o más tedioso que el Excel o que el HTML actual, se considera un defecto de esta fase, no un detalle menor.
 
 ---
 
-## 6. Verificación de esta fase
+## 8. Verificación de esta fase
 
 No pasar a la Fase 3 hasta que:
 
 - [ ] Se ha tomado un conjunto de datos reales (un día completo de compras y ventas, por ejemplo) y se ha comparado el resultado del sistema nuevo contra el HTML actual: mismo coste real, mismas partidas asignadas, mismo margen.
-- [ ] El tratamiento de IVA/Recargo de Equivalencia está implementado y documentado para las cuatro clasificaciones fiscales de proveedores y las combinaciones de clientes — con las dudas normativas señaladas explícitamente a Víctor, no asumidas.
-- [ ] El caso conocido de falsos positivos en emparejamiento de partidas (ej. C144 vs C1444) se ha probado explícitamente y no reaparece.
-- [ ] Las partidas no aparecen en ningún documento de cliente generado por el sistema nuevo.
-- [ ] Comparación de agilidad frente al Excel realizada y documentada (ver punto 5).
+- [x] El 2% de OP se calcula siempre en vivo desde el proveedor actual, nunca congelado — implementado y probado el 12/09/2026 (ver punto 1).
+- [x] El tratamiento de IVA/Recargo de Equivalencia está implementado y documentado para las clasificaciones fiscales de proveedores (Nacional/Intracomunitario) y de clientes (Normal/Recargo de Equivalencia/Intracomunitario) — implementado y probado el 12/09/2026 tanto en compras como en ventas (ver punto 3). No han surgido dudas normativas que señalar a Víctor: se ha reproducido tal cual el cálculo que ya funcionaba en el HTML para ventas, y corregido el hueco conocido en compras.
+- [x] El caso conocido de falsos positivos en emparejamiento de partidas (ej. C144 vs C1444) se ha probado explícitamente y no reaparece — probado el 12/09/2026 con un caso equivalente (prefijo compartido, primera palabra distinta) en el backend nuevo.
+- [ ] Las partidas no aparecen en ningún documento de cliente generado por el sistema nuevo — pendiente de frontend (esta fase, en el backend, ya distingue claramente partida interna de lo que se manda a cliente, pero no hay todavía ningún documento de cliente generado por el sistema nuevo que verificar).
+- [x] El aviso de margen negativo compara contra el coste real, no contra un coste tecleado a mano (ver punto 5) — backend implementado y probado el 13/09/2026 (`GET /listas-precio/coste-referencia`, media ponderada de partidas disponibles); falta solo conectarlo a una pantalla cuando exista el frontend.
+- [x] Todo listado de gestión de esta fase separa ventas reales de traspasos por defecto, con la opción de incluirlos aparte y diferenciados — implementado y probado el 13/09/2026 (ver punto 6, `GET /listados/gestion`).
+- [ ] Comparación de agilidad frente al Excel realizada y documentada (ver punto 7).
+- [x] Asignación automática del número de partida implementada y probada, incluyendo la excepción manual y la concurrencia entre puestos (ver punto 2).
+- [x] Asignación automática de partida a líneas de venta según margen mínimo (1,30 €/kg), con FIFO por antigüedad y excepción manual cuando ninguna partida llega al margen, implementada y probada en el backend (ver punto 4). Falta la comparación frontend contra un día real completo (primer punto de esta lista).
+- [x] Listas de precio: independencia entre listas, modo automático (coste medio real + margen fijo) y plantilla de arranque desde la otra lista, implementados y probados en el backend el 13/09/2026 (ver punto 5).
 - [ ] El HTML/programa actual sigue intacto y en uso normal, en paralelo.
 - [ ] Víctor ha revisado y entendido, en términos sencillos, qué se ha construido y qué puntos quedaron pendientes de confirmación normativa (IVA).
 

@@ -3,8 +3,8 @@
 Documento de referencia para el desarrollo del nuevo sistema con base de datos.
 Recoge cómo funciona HOY el programa HTML (`CARGA_DE_ALBARANES_MARINAFISK`), para que el sistema nuevo reproduzca exactamente el mismo comportamiento antes de añadir nada.
 
-Última versión de referencia del programa actual: **2026-08-21-I**
-Última versión corregida del Excel GESTION_CORRECTA: ver notas al final.
+Última versión de referencia del programa actual: **2026-09-02-CORREGIDO_4**, con la mejora de agilidad en Compras del 12/09/2026 (ver punto 10) aplicada encima (sustituye a la anterior, 2026-08-21-I, que se conserva en el repo como histórico).
+Última versión corregida del Excel GESTION_CORRECTA: **`GESTION_CORRECTA_precio_medio_arreglado_4.xlsx`** (guardado en este repo el 12/09/2026) — hoja `COMPRAS` (una línea por compra) y hoja `PANEL COMPRAS` (dashboard: top proveedores/productos por kilos e importe, filtrable por fecha). Es la referencia de agilidad usada para el punto 10.
 
 ---
 
@@ -74,6 +74,8 @@ Recoge cómo funciona HOY el programa HTML (`CARGA_DE_ALBARANES_MARINAFISK`), pa
   - Los contadores correlativos (nextPedido, nextPartida, nextReparto, nextTrp) deben ser siempre consistentes entre puestos — un contador desincronizado puede causar números de albarán duplicados (ya ocurrió: 667 duplicados en un incidente de 5 minutos el 28/07/2026).
   - Los backups deben **siempre** leer el estado real y completo de ambos puestos, sin usar cachés/atajos de rendimiento — un fallo pasado hizo que backups se generaran con datos "congelados" y omitieran cientos de pedidos de un puesto.
   - Las altas nuevas de clientes/artículos/proveedores en un puesto deben propagarse siempre al otro (no solo las actualizaciones de registros ya existentes).
+  - **Doble/triple grabación por clic repetido (fallo real, 01/09/2026):** un mismo clic en "GRABAR" (Pedidos) repetido mientras el guardado tardaba en confirmarse generó el mismo pedido 3 veces con 3 números distintos. Corregido en el HTML bloqueando el botón (deshabilitado + texto "⏳ Grabando...") mientras la grabación está en curso, en Pedidos, Traspasos y Repartos. **El sistema nuevo debe garantizar esto de forma estructural** (idempotencia en el backend / transacción única por documento), no solo con un botón deshabilitado en el frontend — un botón deshabilitado no protege contra reintentos de red, doble pestaña, etc.
+  - **Refresco incompleto de la carpeta antes de grabar (fallo relacionado, 01–02/09/2026):** los contadores podían desincronizarse entre puestos porque la carpeta compartida no se había refrescado del todo antes de grabar un documento. Corregido en el HTML con un refresco automático completo (no solo de Pedidos) la primera vez que se abre el programa cada día, con límite de 90s y aviso explícito si no llega a tiempo. El sistema nuevo elimina esta clase de fallo de raíz al no depender de archivos JSON en carpeta compartida (ver `02_ESQUEMA_BASE_DATOS_PROPUESTO.md`), pero conviene registrar el caso como prueba de regresión.
 
 ---
 
@@ -90,11 +92,84 @@ Recoge cómo funciona HOY el programa HTML (`CARGA_DE_ALBARANES_MARINAFISK`), pa
 
 ---
 
-## 9. Pendiente de confirmar / decidir en el diseño nuevo
+## 9. Correcciones incorporadas en la versión 2026-09-02-CORREGIDO_4
+
+Cambios reales de negocio respecto a la versión de referencia anterior (2026-08-21-I), a preservar en el sistema nuevo:
+
+- **Traspasos internos ≠ ventas, pero deben poder verse juntos como estadística de kg.** En el listado "Buscar artículo" ahora hay una casilla opcional "Incluir también los traspasos internos a Zaragoza" — al marcarla, los traspasos aparecen en la tabla claramente diferenciados (fila atenuada, sin precio ni importe, texto "TRASPASO A ZARAGOZA (interno, no es venta)"), y el total se desglosa en tres líneas: **VENTAS REALES** (kg + importe, como antes), **Traspasado a Zaragoza (no es venta)** (solo kg) y **TOTAL PESCADO MOVIDO** (suma de ambos, solo a efectos estadísticos). Por defecto (casilla sin marcar) el comportamiento es idéntico al de siempre. Regla para el sistema nuevo: cualquier informe agregado de "ventas" debe excluir traspasos del importe económico por defecto, pero debe ser posible incluirlos aparte para ver el movimiento físico total de kg.
+- **IVA/Recargo real por cliente en el Excel de listado de pedidos.** El Excel que genera el listado de pedidos (hoja con fórmulas) calculaba el IVA de la columna de totales con un 10% fijo. Ahora se calcula con el tipo real de cada pedido según la clasificación fiscal del cliente (NORMAL / RECARGO_EQUIVALENCIA / INTRACOMUNITARIO, ver Fase 2 punto 3), usando la misma función `calcularIvaPedido` que el resto del programa. También se añadió una fila de TOTALES (suma de kg, base, IVA y total de todos los albaranes del listado).
+- **Corrección de fecha en el Excel exportado.** Antes se dejaba que la librería XLSX convirtiera un objeto `Date` de JavaScript a fecha de Excel, lo que en ciertos días podía desplazar la fecha un día (fallo conocido de esa conversión con el horario de verano). Ahora se calcula a mano el número de serie de fecha de Excel a partir del ISO (YYYY-MM-DD), todo en UTC de principio a fin, sin pasar por conversiones intermedias. Relacionado con la regla ya existente del punto 7 (fecha local, nunca UTC "de paso") — aquí el cuidado es el inverso (hacer *todo* el cálculo interno en UTC de forma consistente, sin mezclarlo con el huso local a mitad de camino).
+- **Aviso de venta por debajo de coste en listas de precio manuales.** Al escribir precio y coste de un producto en la tabla manual de listas de precio, si el margen sale negativo se marca en rojo fuerte junto al campo ("⚠️ ¡PÉRDIDA! X€", con el input de precio resaltado) y, al salir del campo, aparece además un aviso emergente central. Antes de generar la imagen para el cliente, si queda algún producto con precio por debajo de coste, se pide confirmación explícita con el detalle de cada caso (no bloquea, pero obliga a confirmarlo). Fallo humano real detectado el 02/09/2026 (poner sin querer el precio de venta por debajo del coste) — el sistema nuevo debe incluir esta misma protección (visual + confirmación), no solo un cálculo silencioso de margen.
+- **Campo "Existencias (solo tú)" admite texto libre**, no solo número de cajas — por ejemplo "AGOTADO" o "POCAS", además de cifras. Sigue siendo un campo de uso interno que nunca aparece en la imagen que ve el cliente.
+- **Hoja Transfrío también disponible en Traspasos.** Hasta ahora ese botón (imprimir encima del papel pre-impreso del transportista, con destino/fecha/bultos/kilos) solo existía en Pedidos. Se añadió el mismo botón en Traspasos — como un traspaso es un movimiento interno (no una venta a un cliente del catálogo), el destinatario se dejó fijo, **"MARINA FISH ZARAGOZA"** con destino "ZARAGOZA", sin buscar ni depender de ninguna ficha de Clientes. Regla para el sistema nuevo: esta hoja de transporte debe existir también en la pantalla de Traspasos, con el mismo criterio — el destinatario de un traspaso a Zaragoza es una constante interna del sistema, nunca un registro del catálogo de clientes ni una ficha de cliente falsa creada solo para poder imprimir.
+
+*(Confirmado y detallado por Víctor el 02/09/2026 en `CORRECCIONES_02-09-2026_para_Code.md`, guardado en este repo — ese documento añade además dos puntos que Víctor ya tiene funcionando en su programa pero que TODAVÍA NO están en el HTML de referencia que tenemos aquí: ver punto 11.)*
+
+---
+
+## 10. Mejora de agilidad en Compras (12/09/2026)
+
+Petición de Víctor, comparando el programa con el Excel `GESTION_CORRECTA_precio_medio_arreglado_4.xlsx`: quería que la pantalla de Compras fuera igual de clara, concisa y rápida de teclear que ese Excel, con las mismas teclas para pasar de un campo al siguiente. Comparando la hoja `COMPRAS` de ese Excel (fila = una línea de compra: N PARTIDA/FECHA/COD PROV/COD PROD/CAJAS/KILOS/EUR-KG, el resto calculado) con el panel de Compras del programa, se encontró que **Compras no tenía la navegación por teclado que Pedidos ya tiene** (`navPed`) — había que usar el ratón para moverse entre Cajas/Kilos/€-Kg. Corregido:
+
+- **Tab/Enter entre campos de la línea de compra** (`navCompra`, mismo patrón que `navPed` en Pedidos): Cajas → Kilos → €/Kg → Cajas de la siguiente línea, añadiendo una línea nueva automáticamente igual que en Pedidos.
+- **Al elegir un artículo, el foco salta solo a Cajas** (antes había que hacer clic).
+- **El campo Kilos admite sumar varias cifras**, igual que ya se hacía a mano en el Excel `GESTION_CORRECTA` al pesar cajas por separado (ej. escribir `12+13.5` en vez de sumarlo antes con calculadora aparte — en el Excel real esto aparece como fórmula en la columna KILOS). Si lo escrito no es una suma válida, se marca en rojo (mismo tipo de aviso ya usado en listas de precio para margen negativo) sin bloquear ni corromper el resto de la línea.
+- **Corrección técnica importante para que esto no se rompiera**: al escribir en Kilos ahora se actualiza solo esa línea (sin redibujar toda la tabla en cada tecla), igual que ya hacía Pedidos — si no, el cursor se habría desplazado cada vez que se escribía un carácter. El valor que se guarda en `kilos` siempre es el número ya calculado (ej. `25.5`), nunca el texto de la fórmula (`"12+13.5"`) — importante porque el resto del programa (listados, backups, Excel) lee ese campo con `parseFloat`, que solo entendería el primer número y perdería el resto silenciosamente si se guardara como texto.
+
+Probado en navegador real (no solo revisado el código): navegación Tab/Enter completa fila a fila, escritura de una expresión sin perder el foco carácter a carácter, cálculo correcto de Base/2% OP/IVA/Total, aviso visual ante una expresión inválida, y grabado final con el kilos numérico correcto sin el texto de la fórmula.
+
+**Revisado también el HISTORIAL de Compras** (petición de Víctor, misma fecha), donde se corrigen líneas ya grabadas sin tener que reabrir la compra:
+
+- **Enter en Cajas/Kilos/€-Kg guarda la línea** (mismo efecto que pulsar 💾) — antes no hacía nada, había que ir al ratón.
+- **Base/2% OP/IVA/Total se recalculan en vivo** mientras se corrige, igual que en la pantalla de alta — antes solo se veía el resultado después de guardar.
+- **Kilos admite la misma suma de cifras** (`12+13.5`) que en la pantalla de alta, por coherencia — antes solo aceptaba un número suelto.
+- Si la expresión de Kilos no es válida, **se bloquea el guardado con un aviso claro** (no se deja grabar un valor sin sentido) — antes se habría guardado tal cual la escribiera el usuario, sin ninguna validación.
+
+Probado igual en navegador real: previsualización en vivo sin perder el foco, expresión inválida bloqueando el guardado con aviso, y guardado final con Enter dejando el kilos numérico correcto en el registro.
+
+**Hallazgo relacionado, no resuelto aquí — necesita tu confirmación:** revisando el historial se ve que el HTML actual sí permite corregir/mover/anular compras ya grabadas (`guardarLineaCompra`, `cambiarProveedorLineaCompra`, `cambiarArticuloLineaCompra`, `anularCompra`), lo cual está en tensión con la regla "compras = dato sagrado, nunca se modifican" del punto 3 — la misma tensión que ya salió con la reimportación del Excel de compras (ver la decisión de Víctor al respecto en `backend/README.md`, sección del endpoint de importación). No se toca nada de esto ahora (son funciones ya existentes y usadas por Víctor); queda anotado para cuando se diseñe cómo la Fase 1/2 del sistema nuevo debe tratar las correcciones a compras ya grabadas — probablemente con el mismo patrón de "registro de ajuste enlazado" en vez de sobrescribir en silencio, pero eso lo debe confirmar Víctor antes de construirlo.
+
+---
+
+## 11. Funcionalidad ya en producción de Víctor, TODAVÍA NO incluida en nuestro HTML de referencia
+
+Según `CORRECCIONES_02-09-2026_para_Code.md` (guardado en este repo), Víctor ya tiene esto funcionando en su programa real, pero el fichero `CARGA_DE_ALBARANES_MARINAFISK_20260902CORREGIDO_4.html` que tenemos en el repo **no lo incluye todavía** (comprobado: no aparece "CMR" ni "Carta de Porte" en ese archivo). Se documenta aquí como especificación funcional para el sistema nuevo, a la espera de que Víctor nos pase la versión de su HTML que ya lo tiene.
+
+### 11.1 Hoja CMR / Carta de Porte para clientes de Portugal (transportista Mouzo)
+
+- Los clientes con transportista **"Mouzo Campos Trans, S.L."** (agencia `MOZO` en el catálogo — hoy solo un cliente: MARIA CUSTODIA ALVES E FILLOS, código 50540) necesitan, además del albarán normal, una hoja CMR/Carta de Porte internacional para el transporte a Portugal — un papel pre-impreso del transportista, igual que Transfrío.
+- Botón **"📄 HOJA CMR / CARTA DE PORTE"** en Pedidos, visible **solo si el cliente tiene la agencia "MOZO"** — oculto para el resto.
+- Rellena, sobre el papel pre-impreso, las casillas oficiales del formulario CMR: remitente (datos fijos de Marinafisk), consignatario (cliente, con dirección repartida en varias líneas según longitud), lugar de entrega (fijo: "INSTALACIONES CUSTODIA - PORTUGAL"), lugar/fecha de carga (fijo: "A CORUÑA, ESPAÑA" + fecha del pedido), número de albarán, texto fijo "VER ALBARÁN ADJUNTO" + nº de cajas, peso bruto total, y lugar/fecha de formalización.
+- Usa el mismo sistema de calibración en milímetros que ya existe para Transfrío (pantalla "MODELOS DE IMPRESIÓN" → editor visual X/Y por campo, "📐 Ver con regla", "↩️ Restaurar de fábrica") — las coordenadas se estimaron de una foto real y se fueron ajustando con impresiones de prueba.
+
+**Requisitos para el sistema nuevo:**
+- Misma visibilidad condicional: solo aparece si el cliente tiene asignado el transportista "MOZO" (o el campo equivalente de transportista/agencia que use el sistema nuevo).
+- Los datos fijos (remitente, lugar de entrega en Portugal, lugar de carga en A Coruña) deben ser **constantes configurables del sistema**, no texto libre que haya que volver a escribir.
+- El diseño debe permitir añadir nuevas plantillas de hoja de transporte (más clientes de Portugal, más transportistas con CMR propio) sin rehacer la lógica desde cero — algo como un "diccionario" transportista → plantilla de impresión.
+- Mantener el mismo sistema de calibración manual en milímetros que Transfrío/CMR ya tienen — es una herramienta necesaria en la práctica (nunca se acierta a la primera sobre un papel pre-impreso real), no un capricho.
+
+### 11.2 Catálogo de "Modelos de impresión" siempre actualizado
+
+- El HTML tiene una pantalla "MODELOS DE IMPRESIÓN" que lista todo lo que el programa puede imprimir/generar, con su propósito y un ejemplo. Al añadir la Hoja CMR se detectó que esa pantalla no se había actualizado a la vez — el modelo nuevo funcionaba pero no aparecía documentado, lo que podría hacer pensar que no existe.
+
+**Requisito para el sistema nuevo:** el equivalente a esta pantalla debe existir, y actualizarla debe ser **parte obligatoria del mismo cambio** cada vez que se añada un modelo de impresión nuevo — no una tarea aparte que se pueda olvidar. Si es posible, generar el catálogo automáticamente a partir de una lista central de modelos definidos en el código, en vez de mantenerlo a mano en dos sitios distintos (el catálogo y el código real) — eso es precisamente lo que causó el desajuste esta vez.
+
+### 11.3 Matices añadidos por Víctor sobre correcciones ya documentadas (puntos 9-10)
+
+- **Doble/triple grabación (punto 9):** Víctor pide explícitamente que la protección en el sistema nuevo sea **también a nivel de servidor** (que una petición de guardado ya en curso no permita otra idéntica en paralelo), no solo un botón deshabilitado en pantalla como hace hoy el HTML. **Resuelto (12/09/2026):** todas las rutas `POST` que crean un documento en `backend/` (clientes/proveedores/artículos/compras/partidas/pedidos/traspasos/repartos/listas de precio) exigen ya un `idempotencyKey`, con garantía real a nivel de base de datos (no solo en memoria) — ver Fase 1, criterios de cierre y `backend/README.md`.
+- **Refresco automático al empezar el día (punto 9 bis):** con base de datos real, este problema desaparece de raíz (no hay "cachés" que refrescar). Víctor pide verificar explícitamente en la Fase 3 que dos sesiones abiertas a la vez, cada una desde su ordenador, vean siempre los mismos contadores y el mismo estado sin ningún refresco manual ni automático — porque no debería hacer falta.
+- **Traspasos ≠ ventas en TODOS los listados, no solo en "Buscar Artículos"** (generaliza el punto 9): cualquier listado o informe que trate kilos/artículos debe separar claramente ventas reales de movimientos internos (traspasos) — un total económico (solo ventas) y un total de kilos "estadístico" que sume ambos, nunca mezclados en silencio. Ver Fase 2, nueva sección de listados de gestión.
+- **Aviso de margen negativo, versión robusta** (mejora sobre el punto 9): el sistema nuevo, a diferencia del HTML actual, sí conoce el coste real de la partida asignada en todo momento — el aviso de venta por debajo de coste debe compararse contra ese coste real, no contra un campo de coste tecleado a mano (que puede estar mal o desactualizado). Ver Fase 2, partidas y margen.
+- **Existencias en texto libre**, aplicar también en pantallas de partidas, no solo en listas de precio.
+
+---
+
+## 12. Pendiente de confirmar / decidir en el diseño nuevo
 
 - [x] Tratamiento correcto del IVA en compras a proveedores extranjeros (ver punto 4) — resuelto: intracomunitario = sin IVA; no existen proveedores extracomunitarios, no hace falta tercer caso.
 - [ ] Confirmar con Víctor si hay más proveedores o casos especiales de OP aparte de "subasta/lonja marcados como tal".
 - [ ] Revisar si existen otras reglas de mermas/pérdida de peso además de la ya mencionada en cierre de partidas.
+- [ ] Pedir a Víctor la versión del HTML que ya tiene la Hoja CMR/Carta de Porte (punto 11), para verificarla campo a campo igual que se hizo con CORREGIDO_4.
 
 ---
 
