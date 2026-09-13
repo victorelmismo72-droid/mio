@@ -113,10 +113,26 @@ async function elegirPartidaParaVenta({ articuloId, precioVenta }) {
   return { partidaNumero: elegida.numeroPartida, disponibles, motivo: 'OK' };
 }
 
+// Coste real "de ahora mismo" para un articulo (Fase 2 punto 5, aviso de
+// venta por debajo de coste en listas de precio): media de las partidas
+// disponibles ponderada por los kilos que quedan de cada una - más fiable
+// que un coste tecleado a mano, porque sale directamente de las compras
+// reales (ver Fase 0 punto 11.3 / CORRECCIONES_02-09-2026_para_Code.md
+// punto 4). null si no hay ninguna partida disponible de ese producto.
+async function costeRealActual(articuloId) {
+  const disponibles = await obtenerPartidasDisponibles(articuloId);
+  if (!disponibles.length) return null;
+  const kilosTotal = disponibles.reduce((s, p) => s + p.kilosDisponibles, 0);
+  if (kilosTotal <= 0) return null;
+  const baseTotal = disponibles.reduce((s, p) => s + p.kilosDisponibles * p.coste, 0);
+  return baseTotal / kilosTotal;
+}
+
 module.exports = {
   MARGEN_MINIMO_PARTIDA,
   sonMismaFamiliaProducto,
   kilosVendidosDePartida,
   obtenerPartidasDisponibles,
   elegirPartidaParaVenta,
+  costeRealActual,
 };

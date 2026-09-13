@@ -136,8 +136,10 @@ id, tipo (MAYORISTA|PESCADERIA), fecha, modo (AUTO|MANUAL), creado_en
 ```
 ### `lista_precio_lineas`
 ```
-id, lista_precio_id (FK), articulo_id (FK), precio
+id, lista_precio_id (FK), articulo_id (FK nullable), descripcion_libre (nullable), precio, coste (nullable), existencias (nullable)
 ```
+**Corrección real (13/09/2026):** `articulo_id` no puede ser obligatorio — el modo manual del HTML actual (`agregarFilaManualPrecio`) escribe el producto como texto libre, sin ningún selector de catálogo. `articulo_id` es opcional y se añade `descripcion_libre` para ese caso, con un `CHECK` en la base de datos que exige uno de los dos (nunca ninguno). `coste` y `existencias` (texto libre, igual que en `partidas`) son la "versión interna" que el HTML ya guarda por fila (`coste`, `existencias`) y que faltaban en el borrador anterior de esta tabla.
+
 Con `UNIQUE(tipo, fecha)` por lista, y lógica de aplicación: si `modo=AUTO`, las líneas se generan/recalculan desde las compras del día; si `MANUAL`, entrada libre pero cada lista (mayorista/pescadería) guarda de forma independiente — sin pisarse entre sí, solo se copian como plantilla inicial la primera vez que una lista está vacía en el día.
 
 **Hallazgo real (05/09/2026):** hoy, la lista manual **no se sincroniza entre puestos ni se incluye en el backup** — se guarda solo en `localStorage` de cada ordenador (`borradorTablaPreciosManual_mayoristas` / `_pescaderias`, un borrador por tipo y por día, con campos `desc, precio, coste, existencias`), a diferencia de clientes/artículos/proveedores/compras/pedidos/traspasos/repartos, que sí se sincronizan vía carpeta compartida (el propio código solo refresca esas siete cachés, sin mencionar listas de precio). Guardar esto en la base de datos compartida es, por tanto, **una mejora deliberada respecto al comportamiento actual** (hoy, si se pierde el ordenador, se pierde la lista del día) — no un simple traslado 1:1 de lo que ya existía. Señalado aquí para que quede explícito, no asumido en silencio.

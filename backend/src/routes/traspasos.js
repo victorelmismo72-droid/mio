@@ -3,6 +3,7 @@ const express = require('express');
 const { prisma } = require('../db');
 const { registrarEscritura } = require('../logEscritura');
 const { conIdempotencia } = require('../idempotencia');
+const { conFechaNormalizada } = require('../fechas');
 
 const router = express.Router();
 
@@ -30,7 +31,7 @@ router.post('/', async (req, res) => {
     await conIdempotencia(req, res, 'POST /traspasos', async () => {
       const { lineas, idempotencyKey, ...cabecera } = req.body;
       const creado = await prisma.traspaso.create({
-        data: { ...cabecera, lineas: { create: lineas || [] } },
+        data: { ...conFechaNormalizada(cabecera), lineas: { create: lineas || [] } },
         include: { lineas: true },
       });
       await registrarEscritura('traspasos', 'INSERT', creado.id, cabecera.puestoOrigen);
@@ -50,7 +51,7 @@ router.put('/:id', async (req, res) => {
       await tx.traspasoLinea.deleteMany({ where: { traspasoId: id } });
       return tx.traspaso.update({
         where: { id },
-        data: { ...cabecera, lineas: { create: lineas || [] } },
+        data: { ...conFechaNormalizada(cabecera), lineas: { create: lineas || [] } },
         include: { lineas: true },
       });
     });

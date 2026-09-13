@@ -4,8 +4,10 @@ Esto es el backend de la Fase 1 (guarda y lee datos: clientes, proveedores,
 artículos, compras, partidas, pedidos, traspasos, repartos, listas de
 precio), con toda la lógica de negocio de Fase 2 ya incorporada: la
 **asignación automática del número de partida**, el **2% de OP en vivo**,
-el **IVA de compras y de ventas**, y la **asignación automática de partida
-por margen** (ver sección 5). El HTML actual (`CARGA_DE_ALBARANES_MARINAFISK_20260902CORREGIDO_4.html`)
+el **IVA de compras y de ventas**, la **asignación automática de partida
+por margen**, las **listas de precio** (modo automático + plantilla entre
+listas) y los **listados de gestión** que separan venta real de traspaso
+(ver sección 5). El HTML actual (`CARGA_DE_ALBARANES_MARINAFISK_20260902CORREGIDO_4.html`)
 sigue funcionando exactamente igual mientras tanto — esto se prueba aparte,
 en paralelo.
 
@@ -169,7 +171,45 @@ descuido.
     manual.
   - `PATCH /pedidos/lineas/:id/partida` (`{partidaNumero}`) — aplica a mano
     la partida elegida para una línea que quedó como excepción.
-- `/traspasos`, `/repartos`, `/listas-precio` — CRUD completo.
+- `/traspasos`, `/repartos` — CRUD completo.
+- `/listas-precio` — CRUD completo, más (13/09/2026, ver Fase 2 punto 5):
+  - `GET /listas-precio/auto?fecha=` — modo automático: coste medio real de
+    las compras de esa fecha por artículo (ponderado por kilos) más el
+    margen fijo de esta pantalla (1,70 €/kg — no confundir con el margen
+    mínimo de 1,30 €/kg de la asignación de partida a ventas).
+  - `GET /listas-precio/plantilla?tipo=&fecha=` — punto de partida para el
+    modo manual: las líneas propias si ya existen, o si no, las de la OTRA
+    lista (Mayorista/Pescadería) de esa misma fecha como plantilla — cada
+    lista sigue siendo independiente una vez guardada.
+  - `GET /listas-precio/coste-referencia?articuloId=` — coste real actual
+    de un artículo (media ponderada de las partidas disponibles), para el
+    aviso de venta por debajo de coste, en vez de una cifra tecleada a
+    mano.
+  - Cada línea admite `articuloId` (del catálogo) **o** `descripcionLibre`
+    (texto suelto, igual que el modo manual del HTML actual, que no obliga
+    a un producto del catálogo) — una de las dos es obligatoria. También
+    admite `coste` y `existencias` (texto libre, igual que en partidas),
+    la "versión interna" que nunca debe mandarse al cliente.
+- `GET /listados/gestion?desde=&hasta=&incluirTraspasos=&clienteId=&articuloId=`
+  (13/09/2026, ver Fase 2 punto 6) — un traspaso interno a Zaragoza no es
+  una venta (no hay cliente, no hay cobro): por defecto este listado solo
+  cuenta ventas reales (`pedidos`). Con `incluirTraspasos=true` añade
+  también filas de `traspasos`, siempre claramente diferenciadas
+  (`tipo: "VENTA"` / `"TRASPASO"`, nunca mezcladas) y con los totales
+  separados: `totalEconomico` (solo ventas) y `totalKilosConTraspasos`
+  (ventas + traspasos). Pensado como función compartida
+  (`src/listadoGestion.js`) para que cualquier listado nuevo la reutilice
+  en vez de reimplementar la regla cada vez.
+
+### Fechas: siempre acepta el formato local del HTML (`YYYY-MM-DD`)
+
+Corrección real (13/09/2026): varias rutas (`/pedidos`, `/traspasos`,
+`/repartos`, `/partidas`, `/listas-precio`) exigían sin darse cuenta una
+fecha en formato ISO completo con hora — si se les mandaba una fecha tal
+cual la genera `fechaLocalISO()` del HTML (`"2026-09-13"`, sin hora),
+Prisma la rechazaba. Corregido con un pequeño ayudante compartido
+(`src/fechas.js`) que todas estas rutas usan antes de grabar — el formato
+local de siempre ya funciona en todas ellas.
 - `POST /importar/compras-excel` — importar el Excel de compras (equivalente
   al botón "📥 IMPORTAR COMPRAS EXCEL" del programa actual). Sube el fichero
   como `archivo` (multipart/form-data), opcionalmente `puestoOrigen`. Busca

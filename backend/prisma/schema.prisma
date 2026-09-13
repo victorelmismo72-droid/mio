@@ -345,13 +345,27 @@ model ListaPrecio {
   @@map("listas_precio")
 }
 
+// Corregido el 13/09/2026 (desajuste real, ver Fase 2 punto 5): en el modo
+// manual del HTML actual, cada fila es un producto escrito LIBREMENTE
+// (agregarFilaManualPrecio: solo texto, sin ningún selector de catálogo) -
+// no siempre corresponde a un articulo del maestro. articuloId pasa a ser
+// opcional y se añade descripcionLibre para ese caso; una fila debe traer
+// uno de los dos (comprobado en la app Y con un CHECK en la base de datos,
+// añadido a mano en la migración - ver migration.sql).
+// coste y existencias son la "version interna" (Fase 0 punto 9 / Fase 2
+// punto 5): coste de referencia (solo para uso interno, nunca en la imagen
+// de cliente) y existencias en texto libre ("AGOTADO", "POCAS"...) además
+// de un número exacto, igual que en partidas.
 model ListaPrecioLinea {
-  id            Int         @id @default(autoincrement())
-  listaPrecioId Int         @map("lista_precio_id")
-  listaPrecio   ListaPrecio @relation(fields: [listaPrecioId], references: [id])
-  articuloId    Int         @map("articulo_id")
-  articulo      Articulo    @relation(fields: [articuloId], references: [id])
-  precio        Decimal     @db.Decimal(10, 2)
+  id               Int         @id @default(autoincrement())
+  listaPrecioId    Int         @map("lista_precio_id")
+  listaPrecio      ListaPrecio @relation(fields: [listaPrecioId], references: [id])
+  articuloId       Int?        @map("articulo_id")
+  articulo         Articulo?   @relation(fields: [articuloId], references: [id])
+  descripcionLibre String?     @map("descripcion_libre")
+  precio           Decimal     @db.Decimal(10, 2)
+  coste            Decimal?    @db.Decimal(10, 2)
+  existencias      String?
 
   @@map("lista_precio_lineas")
 }

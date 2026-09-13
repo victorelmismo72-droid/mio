@@ -13,6 +13,7 @@ const { prisma } = require('../db');
 const { registrarEscritura } = require('../logEscritura');
 const { conIdempotencia } = require('../idempotencia');
 const { obtenerPartidasDisponibles, MARGEN_MINIMO_PARTIDA } = require('../margenPartida');
+const { conFechaNormalizada } = require('../fechas');
 
 const router = express.Router();
 
@@ -68,7 +69,7 @@ router.post('/', async (req, res) => {
       // numeroPartida NUNCA lo envia el cliente aqui tampoco: lo genera la
       // secuencia de la base de datos (ver Fase 2, asignacionPartida.js).
       const { idempotencyKey, numeroPartida, ...datos } = req.body;
-      const creada = await prisma.partida.create({ data: datos });
+      const creada = await prisma.partida.create({ data: conFechaNormalizada(datos) });
       await registrarEscritura('partidas', 'INSERT', creada.id, datos.puestoOrigen);
       return { statusHttp: 201, cuerpo: creada };
     });

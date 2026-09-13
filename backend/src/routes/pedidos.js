@@ -9,6 +9,7 @@ const { registrarEscritura } = require('../logEscritura');
 const { conIdempotencia } = require('../idempotencia');
 const { elegirPartidaParaVenta } = require('../margenPartida');
 const { calcularIvaPedido, calcularTotalLineaPedido } = require('../ivaVentas');
+const { conFechaNormalizada } = require('../fechas');
 
 const router = express.Router();
 
@@ -103,7 +104,7 @@ router.post('/', async (req, res) => {
       const preparado = await prepararPedido({ lineas, clienteId: cabecera.clienteId });
       const creado = await prisma.pedido.create({
         data: {
-          ...cabecera,
+          ...conFechaNormalizada(cabecera),
           clienteNombreSnapshot: preparado.clienteNombreSnapshot,
           clienteCifSnapshot: preparado.clienteCifSnapshot,
           clienteDirSnapshot: preparado.clienteDirSnapshot,
@@ -143,7 +144,7 @@ router.put('/:id', async (req, res) => {
       return tx.pedido.update({
         where: { id },
         data: {
-          ...cabecera,
+          ...conFechaNormalizada(cabecera),
           clienteNombreSnapshot: preparado.clienteNombreSnapshot,
           clienteCifSnapshot: preparado.clienteCifSnapshot,
           clienteDirSnapshot: preparado.clienteDirSnapshot,

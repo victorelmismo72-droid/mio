@@ -83,22 +83,36 @@ Lo que sí falta de verdad es el lado de compras:
 
 ---
 
-## 5. Listas de precios (Pescaderías / Mayoristas)
+## 5. Listas de precios (Pescaderías / Mayoristas) — backend implementado el 13/09/2026
 
 - Confirmar que la lógica de independencia entre listas (cada una autónoma, copia de arranque opcional desde la otra si está vacía) se traslada igual que en el HTML actual (ver Fase 0, punto 5).
 - Modo automático (relleno desde compras del día) y modo manual (entrada libre), igual que hoy.
 - La versión interna (con coste, margen real, existencias en cajas) debe seguir estando claramente separada de la versión de cliente, y nunca mezclarse.
 - **Aviso de venta por debajo de coste — versión robusta (petición de Víctor, `CORRECCIONES_02-09-2026_para_Code.md` punto 4; ver Fase 0 punto 11.3):** el HTML actual compara el precio tecleado contra un campo de "coste" **también tecleado a mano** en esa misma pantalla — puede estar mal o desactualizado. El sistema nuevo, en cambio, **conoce el coste real de la partida asignada** en todo momento (viene de la compra original, inmutable). El aviso de margen negativo debe compararse contra ese coste real siempre que la línea tenga una partida asignada, no contra una cifra escrita a mano — más fiable que el HTML, no solo igual. Mismo tipo de aviso ya decidido (visual en rojo + confirmación explícita antes de generar la imagen), ver Fase 0 punto 9.
 
+**Backend implementado en `backend/src/routes/listasPrecio.js`:**
+
+- `GET /listas-precio/auto?fecha=` — modo automático, puerto directo de `construirListaPreciosHoy()` del HTML: coste medio ponderado por kilos de las compras de esa fecha por artículo, más el margen fijo de referencia de esta pantalla en concreto (1,70 €/kg — distinto del margen mínimo de 1,30 €/kg de la asignación de partida a ventas, punto 4).
+- `GET /listas-precio/plantilla?tipo=&fecha=` — puerto de `cargarListaManual()`: si la lista propia (tipo+fecha) ya tiene líneas, las devuelve; si está vacía, copia como punto de partida las líneas de la OTRA lista de esa misma fecha si existen — cada lista sigue siendo independiente una vez guardada (Fase 0 punto 5), esto solo sugiere con qué empezar.
+- `GET /listas-precio/coste-referencia?articuloId=` — el aviso de margen negativo ya puede compararse contra un coste real (media ponderada de las partidas disponibles de ese artículo, `costeRealActual()` en `margenPartida.js`), no contra una cifra tecleada a mano.
+- **Corrección de esquema (13/09/2026, desajuste real):** `ListaPrecioLinea.articuloId` era obligatorio, pero el modo manual del HTML permite escribir un producto en texto libre sin ningún vínculo al catálogo (`agregarFilaManualPrecio`, sin selector). Se ha hecho `articuloId` opcional y se ha añadido `descripcionLibre` para ese caso (con un `CHECK` en la base de datos que exige uno de los dos), y se han añadido los campos que faltaban para la "versión interna": `coste` y `existencias` (texto libre, igual que en partidas — ver punto 4).
+- Probado el 13/09/2026: modo automático con coste medio real de una compra existente, plantilla copiada de una lista a otra, línea con `descripcionLibre` sin artículo de catálogo, y el rechazo limpio de una línea sin ninguno de los dos.
+
 ---
 
-## 6. Listados de gestión: separar siempre venta real de movimiento interno
+## 6. Listados de gestión: separar siempre venta real de movimiento interno — implementado el 13/09/2026
 
 **Añadido a partir de `CORRECCIONES_02-09-2026_para_Code.md` punto 3 (Víctor), generalizando lo ya corregido en el HTML actual para el buscador "Buscar Artículos" (ver Fase 0 punto 9):**
 
 - Los traspasos internos a Zaragoza **no son ventas** (no hay cliente, no hay cobro) — un traspaso y un pedido son conceptualmente distintos, aunque ambos muevan kilos de pescado.
 - Regla para **cualquier** listado o informe de esta fase que trate kilos/artículos/importes (no solo el buscador de artículos ya corregido en el HTML): por defecto, mostrar y sumar solo ventas reales. Ofrecer, como opción explícita (nunca activada por defecto), incluir también los traspasos — y si se incluyen, deben verse claramente diferenciados en la lista (nunca mezclados en la misma fila/categoría que una venta) y con un total aparte: un total económico (solo ventas) y un total de kilos "estadístico" que sume ventas + traspasos.
 - Esto aplica a cualquier listado de gestión que se construya en esta fase o más adelante (por ejemplo, listados por cliente/artículo/fecha, exports para contabilidad, etc.) — no es una regla de una sola pantalla.
+
+**Backend implementado como una función compartida** (`backend/src/listadoGestion.js`, `construirListadoGestion()`), pensada precisamente para que cualquier listado nuevo la reutilice en vez de reimplementar la regla cada vez, expuesta en `GET /listados/gestion?desde=&hasta=&incluirTraspasos=&clienteId=&articuloId=`:
+
+- Sin `incluirTraspasos=true`: solo devuelve filas `tipo: "VENTA"` (de `pedidos`), con `totalEconomico` y `totalKilosVentas` — `totalKilosConTraspasos` coincide con `totalKilosVentas` en este caso.
+- Con `incluirTraspasos=true`: añade también filas `tipo: "TRASPASO"` (de `traspasos`), siempre con `importe: null` (un traspaso no tiene importe económico real, ver Fase 0) y nunca mezcladas con las de `tipo: "VENTA"` en el mismo cómputo económico. `totalEconomico` sigue siendo solo de las ventas; `totalKilosConTraspasos` suma ambos tipos.
+- Probado el 13/09/2026: listado por defecto sin traspasos, y con `incluirTraspasos=true` mostrando ambos tipos claramente diferenciados y con los totales separados correctamente (`totalEconomico` sin cambios, `totalKilosConTraspasos` = `totalKilosVentas` + kilos del traspaso).
 
 ---
 
@@ -117,11 +131,12 @@ No pasar a la Fase 3 hasta que:
 - [x] El tratamiento de IVA/Recargo de Equivalencia está implementado y documentado para las clasificaciones fiscales de proveedores (Nacional/Intracomunitario) y de clientes (Normal/Recargo de Equivalencia/Intracomunitario) — implementado y probado el 12/09/2026 tanto en compras como en ventas (ver punto 3). No han surgido dudas normativas que señalar a Víctor: se ha reproducido tal cual el cálculo que ya funcionaba en el HTML para ventas, y corregido el hueco conocido en compras.
 - [x] El caso conocido de falsos positivos en emparejamiento de partidas (ej. C144 vs C1444) se ha probado explícitamente y no reaparece — probado el 12/09/2026 con un caso equivalente (prefijo compartido, primera palabra distinta) en el backend nuevo.
 - [ ] Las partidas no aparecen en ningún documento de cliente generado por el sistema nuevo — pendiente de frontend (esta fase, en el backend, ya distingue claramente partida interna de lo que se manda a cliente, pero no hay todavía ningún documento de cliente generado por el sistema nuevo que verificar).
-- [ ] El aviso de margen negativo compara contra el coste real de la partida asignada, no contra un coste tecleado a mano (ver punto 5) — pendiente de frontend; el backend ya expone el coste real vía `GET /partidas/disponibles`.
-- [ ] Todo listado de gestión de esta fase separa ventas reales de traspasos por defecto, con la opción de incluirlos aparte y diferenciados (ver punto 6).
+- [x] El aviso de margen negativo compara contra el coste real, no contra un coste tecleado a mano (ver punto 5) — backend implementado y probado el 13/09/2026 (`GET /listas-precio/coste-referencia`, media ponderada de partidas disponibles); falta solo conectarlo a una pantalla cuando exista el frontend.
+- [x] Todo listado de gestión de esta fase separa ventas reales de traspasos por defecto, con la opción de incluirlos aparte y diferenciados — implementado y probado el 13/09/2026 (ver punto 6, `GET /listados/gestion`).
 - [ ] Comparación de agilidad frente al Excel realizada y documentada (ver punto 7).
 - [x] Asignación automática del número de partida implementada y probada, incluyendo la excepción manual y la concurrencia entre puestos (ver punto 2).
 - [x] Asignación automática de partida a líneas de venta según margen mínimo (1,30 €/kg), con FIFO por antigüedad y excepción manual cuando ninguna partida llega al margen, implementada y probada en el backend (ver punto 4). Falta la comparación frontend contra un día real completo (primer punto de esta lista).
+- [x] Listas de precio: independencia entre listas, modo automático (coste medio real + margen fijo) y plantilla de arranque desde la otra lista, implementados y probados en el backend el 13/09/2026 (ver punto 5).
 - [ ] El HTML/programa actual sigue intacto y en uso normal, en paralelo.
 - [ ] Víctor ha revisado y entendido, en términos sencillos, qué se ha construido y qué puntos quedaron pendientes de confirmación normativa (IVA).
 
