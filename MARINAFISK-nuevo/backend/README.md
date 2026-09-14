@@ -1,12 +1,10 @@
-# MARINAFISK — Backend Fase 1 (base de datos + API mínima)
+# MARINAFISK — Backend (Fases 1, 2 y 3)
 
-Esto es lo que pedía `FASE_1_base_de_datos_backend_MARINAFISK.md`: sustituir los
-archivos JSON de la carpeta compartida por una base de datos real
-(PostgreSQL) más un programa pequeño (este backend) que sabe leer y escribir
-en ella. **No calcula nada de negocio todavía** (el 2% de OP, el IVA, el
-margen de las partidas...) — eso es la Fase 2. Esta fase solo demuestra que
-los datos de siempre caben en la base de datos nueva sin perder ni cambiar
-nada, y que hay un programa capaz de leerlos y escribirlos.
+Sustituye los archivos JSON de la carpeta compartida por una base de datos
+real (PostgreSQL) más un programa (este backend) que sabe leer y escribir
+en ella, calcula la lógica de negocio (2% de OP, IVA, Recargo de
+Equivalencia, asignación de partidas — Fase 2), y ya puede usarse desde más
+de un ordenador a la vez en la misma red local (Fase 3).
 
 El HTML de siempre (`CARGA_DE_ALBARANES_MARINAFISK_...html`) sigue
 funcionando exactamente igual, sin tocar, en paralelo. Esto de aquí es un
@@ -214,3 +212,91 @@ en `db/schema.sql`):
 - Los importes de compras vienen con hasta 6 decimales significativos
   (el programa actual nunca redondea los cálculos intermedios) — la base de
   datos los guarda con esa misma precisión exacta, sin redondear.
+
+---
+
+## 9. Usar esto desde dos ordenadores (Fase 3)
+
+Ver `FASE_3_sincronizacion_MARINAFISK.md` para la explicación completa.
+Resumen práctico:
+
+### 9.1. Dónde vive todo
+
+PostgreSQL y este backend se instalan **en un solo ordenador** (el que
+Víctor decida — puede ser el de A Coruña). El otro puesto (Pancho) **no**
+instala su propia base de datos ni su propio backend: su pantalla (cuando
+exista, Fase 4) se conecta por la red local al backend del primer
+ordenador, igual que un navegador se conecta a una página web.
+
+Al arrancar (`npm start`), el backend imprime en la pantalla la dirección
+que hay que usar desde el otro ordenador, por ejemplo:
+
+```
+MARINAFISK backend escuchando en el puerto 3001.
+  - En este mismo ordenador: http://localhost:3001
+  - Desde OTRO ordenador de la misma red local, usar una de estas direcciones:
+      http://192.168.1.23:3001
+```
+
+Si Windows pregunta si permitir el acceso a la red la primera vez que se
+arranca, hay que aceptarlo (si no, el otro ordenador no podrá conectarse).
+
+**Si el ordenador que hace de "servidor" está apagado, nadie puede usar el
+sistema** — es una limitación real, a tener en cuenta hasta que se decida
+(más adelante, Fase 5) si esto pasa a vivir en la nube en vez de en un
+ordenador concreto.
+
+### 9.2. Decir de qué puesto viene cada petición
+
+Cada petición que escribe datos (compras, pedidos, repartos, traspasos)
+puede llevar la cabecera `X-Puesto-Codigo: CORU` o `X-Puesto-Codigo: PANC`.
+No es obligatoria, pero si se manda, queda registrado correctamente en
+`puesto_id` y en el log de escrituras. Ejemplo:
+
+```
+curl -X POST http://192.168.1.23:3001/api/pedidos \
+  -H "X-Puesto-Codigo: PANC" -H "Content-Type: application/json" \
+  -d '{ "uid": "...", "fecha": "2026-09-14", "cliente_id": 1, "lineas": [...] }'
+```
+
+### 9.3. Comprobar que dos puestos a la vez no se pisan
+
+```
+node scripts/prueba_concurrencia.js http://localhost:3001
+```
+
+Crea 100 pedidos y 100 compras simulando a CORU y PANC escribiendo a la vez
+de verdad (peticiones en paralelo, no una detrás de otra), y comprueba que
+no hay ningún número repetido ni ningún hueco. También comprueba que 25
+peticiones simultáneas con el mismo `uid` (el caso del doble clic) solo
+crean 1 registro. Escribe el resultado en `VERIFICACION_FASE3_CONCURRENCIA_<fecha>.md`.
+
+⚠️ Esta prueba **crea datos de verdad** en la base de datos donde se
+ejecute (incluidas compras, que no se pueden borrar después, por ser dato
+sagrado) — no ejecutarla contra la base de datos de producción real una vez
+que Víctor la esté usando a diario, solo contra una base de datos de
+pruebas.
+
+### 9.4. Copia de seguridad real
+
+```
+node scripts/backup.js
+```
+
+Genera una copia de seguridad completa de la base de datos con `pg_dump` en
+`backend/backups/` (esa carpeta no se sube al repositorio — contiene datos
+reales de clientes). Para restaurarla, el propio script imprime al final
+los dos comandos exactos a copiar y pegar (`createdb` + `pg_restore`).
+
+Conviene programar esto para que se ejecute solo, por ejemplo una vez al
+día (en Windows, con el "Programador de tareas"; en Linux/Mac, con `cron`)
+— eso ya es una decisión de Víctor sobre cuándo y con qué frecuencia, no
+algo que este proyecto deba fijar de antemano.
+
+### 9.5. Qué falta todavía (a propósito, señalado para más adelante)
+
+- No hay usuarios ni contraseñas — cualquiera en la misma red local puede
+  usar la API. Aceptable por ahora (red local de confianza), pero **hace
+  falta añadir autenticación real antes de exponer esto a Internet**
+  (Fase 5).
+- No hay ninguna pantalla todavía (Fase 4).

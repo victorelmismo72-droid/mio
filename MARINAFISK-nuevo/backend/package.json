@@ -2,13 +2,16 @@
   "name": "marinafisk-backend",
   "version": "0.1.0",
   "private": true,
-  "description": "Backend mínimo (Fase 1) del sistema nuevo de MARINAFISK: solo lectura/escritura de datos, sin lógica de negocio.",
+  "description": "Backend del sistema nuevo de MARINAFISK: base de datos, lógica de negocio y acceso multi-puesto (Fases 1-3).",
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
     "migrar-backup": "node scripts/migrar_backup.js",
-    "verificar-migracion": "node scripts/verificar_migracion.js"
+    "verificar-migracion": "node scripts/verificar_migracion.js",
+    "verificar-fase2": "node scripts/verificar_fase2.js",
+    "prueba-concurrencia": "node scripts/prueba_concurrencia.js",
+    "backup": "node scripts/backup.js"
   },
   "dependencies": {
     "cors": "^2.8.5",

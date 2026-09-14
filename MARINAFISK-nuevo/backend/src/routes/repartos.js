@@ -45,7 +45,8 @@ async function insertarLineasReparto(cliente, repartoId, lineas) {
 
 router.post('/', async (req, res, next) => {
   try {
-    const { uid, fecha, destinatario_nombre, destinatario_ciudad, conductor, total_cajas, total_kg, puesto_id, lineas } = req.body;
+    const { uid, fecha, destinatario_nombre, destinatario_ciudad, conductor, total_cajas, total_kg, lineas } = req.body;
+    const puesto_id = req.body.puesto_id || req.puestoId || null;
     if (!uid) return res.status(400).json({ error: 'Falta "uid": todo reparto necesita una clave única generada por la pantalla que graba.' });
     if (!fecha) return res.status(400).json({ error: 'Falta "fecha".' });
     if (!Array.isArray(lineas) || !lineas.length) return res.status(400).json({ error: 'Un reparto necesita al menos una línea.' });

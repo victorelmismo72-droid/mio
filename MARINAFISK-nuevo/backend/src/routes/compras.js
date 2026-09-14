@@ -54,7 +54,10 @@ router.post('/calcular-linea', async (req, res, next) => {
 
 router.post('/', async (req, res, next) => {
   try {
-    const { uid, numero_partida, fecha, alb_proveedor, proveedor_id, puesto_id, lineas } = req.body;
+    const { uid, numero_partida, fecha, alb_proveedor, proveedor_id, lineas } = req.body;
+    // Fase 3: si la petición no trae puesto_id explícito, se usa el que
+    // resuelve el middleware a partir de la cabecera X-Puesto-Codigo.
+    const puesto_id = req.body.puesto_id || req.puestoId || null;
 
     if (!uid) return res.status(400).json({ error: 'Falta "uid": toda compra necesita una clave única generada por la pantalla que graba.' });
     if (!numero_partida) return res.status(400).json({ error: 'Falta "numero_partida".' });

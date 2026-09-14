@@ -1,9 +1,11 @@
 const express = require('express');
 const cors = require('cors');
+const { resolverPuesto } = require('./middleware/puesto');
 
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: '20mb' }));
+app.use(resolverPuesto);
 
 app.get('/salud', (req, res) => res.json({ ok: true }));
 

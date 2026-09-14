@@ -162,7 +162,8 @@ async function calcularCabeceraVenta(cliente, { clienteId, lineas }) {
 
 router.post('/', async (req, res, next) => {
   try {
-    const { uid, fecha, cliente_id, agencia, forma_pago, puesto_id, lineas } = req.body;
+    const { uid, fecha, cliente_id, agencia, forma_pago, lineas } = req.body;
+    const puesto_id = req.body.puesto_id || req.puestoId || null;
 
     if (!uid) return res.status(400).json({ error: 'Falta "uid": todo pedido necesita una clave única generada por la pantalla que graba.' });
     if (!fecha) return res.status(400).json({ error: 'Falta "fecha".' });
