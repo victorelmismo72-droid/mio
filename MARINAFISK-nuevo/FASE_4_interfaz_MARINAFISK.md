@@ -31,12 +31,24 @@ Construir TODO lo anterior de una vez no es realista en una sola tanda de trabaj
 - Selector de **puesto** (CORU/PANC) una vez por ordenador, guardado en el propio navegador, mandado en cada petición (cabecera `X-Puesto-Codigo`, Fase 3).
 - El botón de grabar se desactiva mientras se procesa el guardado, en las tres pantallas que graban (Pedidos, Compras, y las que se añadan después).
 
-### Nivel 2 — explícitamente pendiente para después de esta tanda
-- Repartos y Traspasos (mismo patrón que Pedidos, se añaden replicando la misma estructura cuando haga falta).
-- Generación de documentos imprimibles: albarán de cliente, hoja Transfrío, hoja CMR/Carta de Porte, etiquetas — con su editor de calibración en milímetros (corrección 02/09/2026 puntos 6, 7, 8) y con impresión en lote de varios pedidos seleccionados a la vez (corrección 02/09/2026 punto 9, recibida el 14/09 — casillas de marcar en el listado + filtro como alternativa, con aviso de cuántos documentos se van a generar). Esto es un bloque de trabajo grande y muy visual (posicionar campos sobre un papel pre-impreso), mejor abordarlo aparte una vez que los flujos de captura de datos (Nivel 1) ya estén en uso y validados por Víctor — no tiene sentido calibrar la impresión de un pedido si la forma de crear pedidos todavía puede cambiar. Al construirlo, diseñar la selección múltiple como una capacidad transversal del listado/historial (no repetida a mano para cada documento nuevo), tal como pide el punto 9.
-- Catálogo de modelos de impresión (depende de que exista al menos un modelo de impresión construido).
-- Listados de gestión con la separación ventas/traspasos (corrección punto 3) — se construye junto con Traspasos.
-- Cualquier tipo de inicio de sesión con usuario/contraseña (Fase 3 ya señaló que no hay todavía — sigue sin haberlo en esta fase, es aceptable en red local de confianza).
+### Nivel 2 — construido en la segunda tanda (14/09/2026)
+
+Ver `VERIFICACION_FASE4_NIVEL2_2026-09-14.md` para el detalle completo, probado con navegador y datos reales.
+
+- [x] Repartos y Traspasos, mismo patrón que Pedidos/Compras.
+- [x] Hoja Transfrío también en Traspasos, con destinatario fijo "MARINA FISH ZARAGOZA" (corrección punto 6) — probado con un traspaso real.
+- [x] Hoja CMR/Carta de Porte, visible solo para clientes con agencia "MOZO" (corrección punto 7) — probado con el cliente real citado en la corrección (MARIA CUSTODIA ALVES E FILHOS, código 50540): el botón aparece solo en ese pedido, comprobado explícitamente entre 30 pedidos recientes.
+- [x] Editor de calibración en milímetros, con "📐 Ver con regla" y "↩️ Restaurar de fábrica" (corrección punto 7) — probado de verdad: guardar, recargar la página entera y comprobar que persiste en la base de datos, y restaurar.
+- [x] Catálogo de modelos de impresión, generado desde el registro central `backend/src/modelosImpresion.js` (corrección punto 8).
+- [x] Selección múltiple e impresión en lote en Historial, como capacidad transversal (corrección punto 9, recibida el 14/09) — una única mecánica de selección (casillas + filtro como alternativa) sirve para las cuatro acciones de imprimir.
+- [x] Albarán con precios y sin precios — comprobado explícitamente que la versión sin precios no contiene ningún importe en el HTML generado.
+
+**Pendiente, señalado honestamente:** las coordenadas en milímetros de partida de Transfrío y CMR son una estimación sobre una hoja en blanco, no están calibradas contra el papel físico real de los transportistas — este entorno no tiene impresora ni el papel real para hacerlo, exactamente la misma limitación que tuvo el HTML actual la primera vez. La herramienta para que Víctor (o quien imprima) haga esa calibración con impresiones reales ya está construida y probada.
+
+**Sigue sin construirse** (no pedido explícitamente en las correcciones para esta tanda):
+- Etiquetas — no hay especificación de formato suficiente de Víctor todavía.
+- Listados de gestión con la separación ventas/traspasos (corrección punto 3).
+- Cualquier tipo de inicio de sesión con usuario/contraseña (Fase 3 ya señaló que no hay todavía — aceptable en red local de confianza, no antes de salir a Internet).
 
 ## 2. Decisión técnica
 

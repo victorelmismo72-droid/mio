@@ -333,11 +333,29 @@ Antes de elegir un puesto (CORU/PANC) en la cabecera, las peticiones se
 mandan sin esa cabecera (sigue funcionando, simplemente no queda registrado
 de qué puesto vino cada cosa) — elegirlo es recomendable pero no obligatorio.
 
-**Pendiente a propósito (Nivel 2, ver el documento de la fase):** Repartos,
-Traspasos, y toda la generación de documentos imprimibles (albarán,
-Transfrío, CMR, etiquetas) con su calibración en milímetros e impresión en
-lote — un bloque de trabajo grande y muy visual, mejor abordarlo aparte una
-vez que estos flujos ya estén en uso real.
+**Nivel 2, ya construido (14/09/2026):**
+- **Repartos** y **Traspasos** — mismo patrón que Pedidos/Compras.
+- **Historial**: buscar pedidos y seleccionar varios (o usar el filtro) para
+  imprimir de golpe.
+- **Modelos de impresión**: catálogo de todo lo que se puede imprimir,
+  generado solo desde `src/modelosImpresion.js`, con el editor de
+  calibración en milímetros para lo que se imprime sobre papel pre-impreso.
+- Documentos: **albarán** (con y sin precios), **Hoja Transfrío** (en
+  Pedidos y en Traspasos, con destinatario fijo "MARINA FISH ZARAGOZA" en
+  este último), **Hoja CMR/Carta de Porte** (solo visible para clientes con
+  agencia "MOZO").
+
+⚠️ **Las coordenadas en milímetros de Transfrío y CMR son un punto de
+partida sobre una hoja en blanco, no están calibradas contra el papel real
+de los transportistas** — hace falta imprimir de prueba sobre el papel
+físico y ajustar con el editor de calibración (pantalla "Modelos de
+impresión" → "Ajustar calibración"), exactamente igual que se tuvo que
+hacer la primera vez con el HTML actual. Nadie puede saltarse ese paso sin
+tener el papel y una impresora delante.
+
+**Sigue sin construirse:** etiquetas (sin especificación de formato
+todavía), listados de gestión con separación ventas/traspasos, y cualquier
+inicio de sesión con usuario/contraseña.
 
 Probado con un navegador real (no solo revisando el código) — ver
 `VERIFICACION_FASE4_2026-09-14.md`.

@@ -15,6 +15,8 @@ const { registrarEscritura } = require('../lib/log');
 const { ejecutarIdempotente } = require('../lib/idempotencia');
 const { asignarPartidaAutomatica } = require('../logica/partidas');
 const { calcularIvaVenta } = require('../logica/calculosVenta');
+const { obtenerModelo } = require('../modelosImpresion');
+const { valoresTransfrioPedido, valoresCmr } = require('../logica/datosImpresion');
 
 const router = express.Router();
 
@@ -29,6 +31,48 @@ router.get('/', async (req, res, next) => {
     const where = condiciones.length ? `WHERE ${condiciones.join(' AND ')}` : '';
     const r = await conTransaccion((cliente) => cliente.query(`SELECT * FROM pedidos ${where} ORDER BY fecha DESC, numero DESC`, valores));
     res.json(r.rows);
+  } catch (err) { next(err); }
+});
+
+// Datos ya resueltos para imprimir uno o varios pedidos de golpe — corrección
+// 02/09/2026 punto 9: "cualquier documento... debe poder imprimirse tanto de
+// uno en uno como en lote". Un solo pedido es, sencillamente, un lote de 1.
+// IMPORTANTE: esta ruta va ANTES de "/:id" — si no, Express la confundiría
+// con un pedido cuyo id fuese literalmente "imprimir".
+router.get('/imprimir', async (req, res, next) => {
+  try {
+    const ids = String(req.query.ids || '').split(',').map((s) => s.trim()).filter(Boolean);
+    const modeloId = req.query.modelo || null;
+    if (!ids.length) return res.status(400).json({ error: 'Falta "ids" (uno o varios id de pedido separados por coma).' });
+    const modelo = modeloId ? obtenerModelo(modeloId) : null;
+    if (modeloId && !modelo) return res.status(400).json({ error: `No existe el modelo de impresión "${modeloId}".` });
+
+    const resultado = await conTransaccion(async (cliente) => {
+      const salida = [];
+      for (const id of ids) {
+        const cab = await cliente.query('SELECT * FROM pedidos WHERE id = $1', [id]);
+        if (!cab.rows.length) continue;
+        const lineasR = await cliente.query('SELECT * FROM pedido_lineas WHERE pedido_id = $1 ORDER BY id', [id]);
+        const pedido = cab.rows[0], lineas = lineasR.rows;
+        let valores = null;
+        let clienteInfo = null;
+        if (pedido.cliente_id) {
+          const c = await cliente.query('SELECT agencia FROM clientes WHERE id = $1', [pedido.cliente_id]);
+          clienteInfo = c.rows[0] || null;
+        }
+        if (modelo && modelo.id === 'transfrio') valores = valoresTransfrioPedido(pedido, lineas);
+        if (modelo && modelo.id === 'cmr') {
+          if (!modelo.condicionCliente(clienteInfo || { agencia: pedido.agencia })) {
+            return { error: `El pedido nº ${pedido.numero} no es de un cliente con agencia "MOZO" — no lleva Hoja CMR.` };
+          }
+          valores = valoresCmr(pedido, lineas);
+        }
+        salida.push({ pedido, lineas, valores });
+      }
+      return salida;
+    });
+    if (resultado && resultado.error) return res.status(400).json({ error: resultado.error });
+    res.json(resultado);
   } catch (err) { next(err); }
 });
 

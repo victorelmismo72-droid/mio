@@ -2,6 +2,8 @@ const express = require('express');
 const { conTransaccion } = require('../db');
 const { registrarEscritura } = require('../lib/log');
 const { ejecutarIdempotente } = require('../lib/idempotencia');
+const { obtenerModelo } = require('../modelosImpresion');
+const { valoresTransfrioTraspaso } = require('../logica/datosImpresion');
 
 const router = express.Router();
 
@@ -9,6 +11,33 @@ router.get('/', async (req, res, next) => {
   try {
     const r = await conTransaccion((cliente) => cliente.query('SELECT * FROM traspasos ORDER BY fecha DESC, numero DESC'));
     res.json(r.rows);
+  } catch (err) { next(err); }
+});
+
+// Corrección 02/09/2026 punto 6: Hoja Transfrío también en Traspasos, con
+// destinatario fijo "MARINA FISH ZARAGOZA" (ver modelosImpresion.js) — no
+// depende del catálogo de Clientes en absoluto. Va antes de "/:id" por el
+// mismo motivo que en pedidos.js.
+router.get('/imprimir', async (req, res, next) => {
+  try {
+    const ids = String(req.query.ids || '').split(',').map((s) => s.trim()).filter(Boolean);
+    const modeloId = req.query.modelo || 'transfrio';
+    if (!ids.length) return res.status(400).json({ error: 'Falta "ids".' });
+    const modelo = obtenerModelo(modeloId);
+    if (!modelo || !modelo.aplicaA.includes('traspaso')) return res.status(400).json({ error: `El modelo "${modeloId}" no aplica a traspasos.` });
+
+    const resultado = await conTransaccion(async (cliente) => {
+      const salida = [];
+      for (const id of ids) {
+        const cab = await cliente.query('SELECT * FROM traspasos WHERE id = $1', [id]);
+        if (!cab.rows.length) continue;
+        const lineasR = await cliente.query('SELECT * FROM traspaso_lineas WHERE traspaso_id = $1 ORDER BY id', [id]);
+        const traspaso = cab.rows[0], lineas = lineasR.rows;
+        salida.push({ traspaso, lineas, valores: valoresTransfrioTraspaso(traspaso, lineas) });
+      }
+      return salida;
+    });
+    res.json(resultado);
   } catch (err) { next(err); }
 });
 

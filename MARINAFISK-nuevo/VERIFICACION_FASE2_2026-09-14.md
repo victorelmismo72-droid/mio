@@ -1,6 +1,6 @@
 # Verificación de la lógica de negocio (Fase 2)
 
-Fecha de esta verificación: 2026-09-14T10:30:29.346Z
+Fecha de esta verificación: 2026-09-14T16:02:36.536Z
 
 ## 1. 2% de OP e IVA en compras: recálculo contra las 1108 compras reales migradas
 

@@ -6,6 +6,7 @@
 import { api, generarUid } from '../api.js';
 import { el, euros, numero, fechaHoy, debounce, mostrarAviso, conBotonDeshabilitado } from '../utilidades.js';
 import { crearCampoArticulo, crearCampoCliente } from './buscadorArticulo.js';
+import { imprimirSobrePapel } from '../impresion/motor.js';
 
 const IVA_PESCADO_PCT = 10;
 const RECARGO_PCT = 1.4;
@@ -193,19 +194,33 @@ async function render(contenedor) {
   const divRecientes = el('div', {}, el('p', { class: 'cargando' }, 'Cargando…'));
   contenedor.appendChild(divRecientes);
 
+  async function imprimirCmr(pedidoId) {
+    try {
+      const modelo = await api.get('/api/modelos-impresion/cmr');
+      const datos = await api.get(`/api/pedidos/imprimir?ids=${pedidoId}&modelo=cmr`);
+      imprimirSobrePapel({ titulo: modelo.nombre, modelo, listaValores: datos.map((d) => d.valores) });
+    } catch (err) { mostrarAviso(contenedor, err.message, 'error'); }
+  }
+
   async function cargarRecientes() {
     const pedidos = await api.get('/api/pedidos');
     divRecientes.innerHTML = '';
     if (!pedidos.length) { divRecientes.appendChild(el('p', { class: 'vacio' }, 'No hay pedidos todavía.')); return; }
     const tabla = el('table');
-    tabla.appendChild(el('thead', {}, el('tr', {}, ['Nº', 'Fecha', 'Cliente', 'Total'].map((t) => el('th', {}, t)))));
+    tabla.appendChild(el('thead', {}, el('tr', {}, ['Nº', 'Fecha', 'Cliente', 'Total', ''].map((t) => el('th', {}, t)))));
     const tbody = el('tbody');
     for (const p of pedidos.slice(0, 30)) {
+      // Corrección 02/09/2026 punto 7: el botón CMR solo aparece para
+      // clientes con agencia "MOZO" — para el resto queda oculto.
+      const acciones = String(p.agencia || '').toUpperCase() === 'MOZO'
+        ? el('button', { class: 'pequeno secundario', onclick: () => imprimirCmr(p.id) }, '📄 CMR')
+        : '';
       tbody.appendChild(el('tr', {}, [
         el('td', { 'data-etiqueta': 'Nº' }, String(p.numero)),
         el('td', { 'data-etiqueta': 'Fecha' }, String(p.fecha).slice(0, 10)),
         el('td', { 'data-etiqueta': 'Cliente' }, p.cliente_nombre_snapshot || ''),
         el('td', { 'data-etiqueta': 'Total' }, euros(p.total)),
+        el('td', {}, acciones),
       ]));
     }
     tabla.appendChild(tbody);

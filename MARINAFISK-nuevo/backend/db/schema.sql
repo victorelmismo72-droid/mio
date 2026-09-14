@@ -413,6 +413,26 @@ CREATE INDEX idx_log_escrituras_creado_en ON log_escrituras(creado_en);
 CREATE INDEX idx_log_escrituras_tabla ON log_escrituras(tabla);
 
 -- ---------------------------------------------------------------------------
+-- 12bis. Calibración de impresión (Fase 4, Nivel 2)
+-- ---------------------------------------------------------------------------
+-- Corrección 02/09/2026 punto 7/8: los documentos que se imprimen ENCIMA de
+-- un papel pre-impreso (Transfrío, CMR...) necesitan que cada campo se
+-- pueda ajustar en milímetros, calibrado con impresiones de prueba reales
+-- — nunca se acierta a la primera. El registro central de qué campos tiene
+-- cada modelo vive en el código (backend/src/modelosImpresion.js), no aquí;
+-- esta tabla solo guarda el AJUSTE manual (offset en mm) que Víctor haga
+-- sobre la posición de partida de cada campo, para que no se pierda al
+-- reiniciar el servidor.
+CREATE TABLE calibraciones_impresion (
+    modelo_id       TEXT NOT NULL,
+    campo_clave     TEXT NOT NULL,
+    x_mm            NUMERIC NOT NULL,
+    y_mm            NUMERIC NOT NULL,
+    actualizado_en  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (modelo_id, campo_clave)
+);
+
+-- ---------------------------------------------------------------------------
 -- 13. Vista: kilos disponibles por partida (calculado, no almacenado)
 -- ---------------------------------------------------------------------------
 -- Reproduce obtenerPartidasDisponibles()/kilosVendidosDePartida() del HTML

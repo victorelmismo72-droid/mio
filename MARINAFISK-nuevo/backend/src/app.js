@@ -20,6 +20,7 @@ app.use('/api/pedidos', require('./routes/pedidos'));
 app.use('/api/repartos', require('./routes/repartos'));
 app.use('/api/traspasos', require('./routes/traspasos'));
 app.use('/api/listas-precio', require('./routes/listasPrecio'));
+app.use('/api/modelos-impresion', require('./routes/modelosImpresion'));
 app.use('/api/exportar', require('./routes/export'));
 
 // Fase 4: la pantalla (HTML/JS normal, sin paso de compilación) vive en
