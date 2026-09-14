@@ -2,10 +2,19 @@
 // corregir o anular — pero toda creación pasa por la misma protección de
 // guardado duplicado (ver lib/idempotencia.js) que exige la corrección del
 // 02/09/2026 (punto 1) y FASE_2 (punto 5quater).
+//
+// Fase 2: aquí se conectan dos piezas de lógica de negocio nuevas —
+//   1. Asignación automática de partida por línea (familiaProducto.js +
+//      partidas.js), con el margen mínimo de 1,30 €/kg.
+//   2. IVA / Recargo de Equivalencia de venta (calculosVenta.js), calculado
+//      a partir del tipo fiscal del cliente en vivo, no confiado del cliente
+//      HTTP que llama a la API.
 const express = require('express');
 const { conTransaccion } = require('../db');
 const { registrarEscritura } = require('../lib/log');
 const { ejecutarIdempotente } = require('../lib/idempotencia');
+const { asignarPartidaAutomatica } = require('../logica/partidas');
+const { calcularIvaVenta } = require('../logica/calculosVenta');
 
 const router = express.Router();
 
@@ -36,16 +45,86 @@ router.get('/:id', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-async function asegurarPartidas(cliente, lineas) {
-  const numeros = [...new Set(lineas.map((l) => l.numero_partida).filter((n) => n !== null && n !== undefined && n !== ''))];
-  for (const n of numeros) {
-    await cliente.query('INSERT INTO partidas (numero_partida) VALUES ($1) ON CONFLICT DO NOTHING', [n]);
+// Vista previa de la asignación automática de partida (Fase 0, punto 3:
+// "asignación automática inline, al introducir producto y precio"). Una
+// futura pantalla (Fase 4) puede llamar a esto mientras el usuario teclea,
+// antes de grabar nada.
+router.post('/asignar-partida', async (req, res, next) => {
+  try {
+    const { articulo_codigo, articulo_descripcion, precio } = req.body;
+    if (!articulo_codigo) return res.status(400).json({ error: 'Falta "articulo_codigo".' });
+    const resultado = await conTransaccion((cliente) => asignarPartidaAutomatica(cliente, {
+      articuloCodigo: articulo_codigo, articuloDescripcion: articulo_descripcion, precioVenta: precio,
+    }));
+    res.json({
+      numero_partida: resultado.numeroPartida,
+      estado_asignacion: resultado.estadoAsignacion,
+      margen: resultado.margen,
+    });
+  } catch (err) { next(err); }
+});
+
+// Líneas de pedidos/pedido_lineas cuya partida quedó pendiente de revisión
+// manual (sin asignar, o asignada pero sin llegar al margen mínimo) — la
+// "pantalla de excepciones" del programa actual (Fase 0, punto 3).
+router.get('/excepciones/lista', async (req, res, next) => {
+  try {
+    const r = await conTransaccion((cliente) => cliente.query(
+      `SELECT pl.*, p.numero AS pedido_numero, p.fecha AS pedido_fecha
+       FROM pedido_lineas pl JOIN pedidos p ON p.id = pl.pedido_id
+       WHERE pl.estado_asignacion IN ('AVISO_MARGEN', 'PENDIENTE_MANUAL')
+       ORDER BY p.fecha DESC, p.numero DESC`
+    ));
+    res.json(r.rows);
+  } catch (err) { next(err); }
+});
+
+async function resolverArticuloParaFamilia(cliente, l) {
+  if (l.descripcion_snapshot) return { codigo: l.articulo_codigo_snapshot, descripcion: l.descripcion_snapshot };
+  if (l.articulo_id) {
+    const r = await cliente.query('SELECT codigo, descripcion FROM articulos WHERE id = $1', [l.articulo_id]);
+    if (r.rows.length) return { codigo: r.rows[0].codigo, descripcion: r.rows[0].descripcion };
   }
+  if (l.articulo_codigo_snapshot) {
+    const r = await cliente.query('SELECT codigo, descripcion FROM articulos WHERE codigo = $1', [l.articulo_codigo_snapshot]);
+    if (r.rows.length) return { codigo: r.rows[0].codigo, descripcion: r.rows[0].descripcion };
+  }
+  return { codigo: l.articulo_codigo_snapshot || null, descripcion: null };
 }
 
 async function insertarLineasPedido(cliente, pedidoId, lineas) {
   const guardadas = [];
   for (const l of lineas) {
+    let numeroPartida = l.numero_partida || null;
+    let estadoAsignacion = l.estado_asignacion || null;
+    let asignacionManual = !!l.asignacion_manual;
+
+    // Si la pantalla no trae ya una partida resuelta, se asigna aquí mismo
+    // en el servidor (mismo criterio que la vista previa de arriba).
+    if (!numeroPartida) {
+      const { codigo, descripcion } = await resolverArticuloParaFamilia(cliente, l);
+      if (codigo) {
+        const auto = await asignarPartidaAutomatica(cliente, {
+          articuloCodigo: codigo, articuloDescripcion: descripcion, precioVenta: l.precio,
+        });
+        numeroPartida = auto.numeroPartida;
+        estadoAsignacion = auto.estadoAsignacion;
+        asignacionManual = false;
+      } else {
+        estadoAsignacion = 'PENDIENTE_MANUAL';
+      }
+    } else if (!estadoAsignacion) {
+      // El cliente mandó una partida concreta sin pasar por la asignación
+      // automática (p.ej. el usuario la eligió a mano): se trata como
+      // asignación manual, igual que el _partidaManual del HTML actual.
+      estadoAsignacion = 'OK';
+      asignacionManual = true;
+    }
+
+    if (numeroPartida) {
+      await cliente.query('INSERT INTO partidas (numero_partida) VALUES ($1) ON CONFLICT DO NOTHING', [numeroPartida]);
+    }
+
     const r = await cliente.query(
       `INSERT INTO pedido_lineas
         (pedido_id, articulo_id, articulo_codigo_snapshot, descripcion_snapshot, descripcion_editada,
@@ -55,18 +134,35 @@ async function insertarLineasPedido(cliente, pedidoId, lineas) {
       [pedidoId, l.articulo_id || null, l.articulo_codigo_snapshot || null, l.descripcion_snapshot || null,
         l.descripcion_editada || null, l.cantidad || null, l.peso || null, l.precio || null,
         l.descuento || 0, l.iva_pct == null ? 10 : l.iva_pct, l.total || null,
-        l.numero_partida || null, !!l.asignacion_manual, l.estado_asignacion || null]
+        numeroPartida, asignacionManual, estadoAsignacion]
     );
     guardadas.push(r.rows[0]);
   }
   return guardadas;
 }
 
+// IVA/Recargo de venta (Fase 2, punto 2): se calcula aquí, leyendo el tipo
+// fiscal del cliente EN VIVO — nunca se acepta un iva/total ya calculado
+// desde fuera para estos campos.
+async function calcularCabeceraVenta(cliente, { clienteId, lineas }) {
+  if (!clienteId) {
+    throw Object.assign(new Error('Falta "cliente_id": hace falta para calcular el IVA/Recargo de venta correctamente.'), { status: 400 });
+  }
+  const r = await cliente.query('SELECT * FROM clientes WHERE id = $1', [clienteId]);
+  if (!r.rows.length) throw Object.assign(new Error(`No existe ningún cliente con id ${clienteId}.`), { status: 400 });
+  const clienteFila = r.rows[0];
+  const base = lineas.reduce((s, l) => s + (Number(l.total) || 0), 0);
+  const { ivaPct, recargoPct, ivaImporte, recargoImporte, total } = calcularIvaVenta({ tipoIvaCliente: clienteFila.tipo_iva, baseImponible: base });
+  return {
+    cliente: clienteFila,
+    tipoIvaAplicado: clienteFila.tipo_iva,
+    base, ivaPct, recargoPct, ivaImporte, recargoImporte, total,
+  };
+}
+
 router.post('/', async (req, res, next) => {
   try {
-    const { uid, fecha, cliente_id, cliente_codigo_snapshot, cliente_nombre_snapshot, cliente_cif_snapshot,
-      cliente_dir_snapshot, cliente_pob_snapshot, cliente_tel_snapshot, agencia, forma_pago,
-      tipo_iva_aplicado, base, iva, total, puesto_id, lineas } = req.body;
+    const { uid, fecha, cliente_id, agencia, forma_pago, puesto_id, lineas } = req.body;
 
     if (!uid) return res.status(400).json({ error: 'Falta "uid": todo pedido necesita una clave única generada por la pantalla que graba.' });
     if (!fecha) return res.status(400).json({ error: 'Falta "fecha".' });
@@ -77,18 +173,18 @@ router.post('/', async (req, res, next) => {
         clave: uid,
         tabla: 'pedidos',
         fn: async () => {
-          await asegurarPartidas(cliente, lineas);
+          const venta = await calcularCabeceraVenta(cliente, { clienteId: cliente_id, lineas });
+          const c = venta.cliente;
           const cab = await cliente.query(
             `INSERT INTO pedidos
               (fecha, cliente_id, cliente_codigo_snapshot, cliente_nombre_snapshot, cliente_cif_snapshot,
                cliente_dir_snapshot, cliente_pob_snapshot, cliente_tel_snapshot, agencia, forma_pago,
-               tipo_iva_aplicado, base, iva, total, puesto_id, uid)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+               tipo_iva_aplicado, base, iva, recargo_importe, total, puesto_id, uid)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
              RETURNING *`,
-            [fecha, cliente_id || null, cliente_codigo_snapshot || null, cliente_nombre_snapshot || null,
-              cliente_cif_snapshot || null, cliente_dir_snapshot || null, cliente_pob_snapshot || null,
-              cliente_tel_snapshot || null, agencia || null, forma_pago || null, tipo_iva_aplicado || null,
-              base || null, iva || null, total || null, puesto_id || null, uid]
+            [fecha, c.id, c.codigo, c.nombre, c.cif, c.direccion, c.poblacion, c.telefono,
+              agencia || c.agencia || null, forma_pago || c.forma_pago || null, venta.tipoIvaAplicado,
+              venta.base, venta.ivaImporte, venta.recargoImporte, venta.total, puesto_id || null, uid]
           );
           const pedido = cab.rows[0];
           const lineasGuardadas = await insertarLineasPedido(cliente, pedido.id, lineas);
@@ -105,7 +201,10 @@ router.post('/', async (req, res, next) => {
       return res.status(409).json({ aviso: 'Este pedido ya se está grabando (otra petición con la misma clave está en curso). No se ha creado un duplicado.' });
     }
     res.status(resultado.estado === 'grabado' ? 201 : 200).json(resultado.pedido);
-  } catch (err) { next(err); }
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    next(err);
+  }
 });
 
 // Corrección de un pedido ya grabado: sustituye cabecera y líneas por las
@@ -113,22 +212,21 @@ router.post('/', async (req, res, next) => {
 // permite, porque el programa actual también permite corregir un pedido.
 router.put('/:id', async (req, res, next) => {
   try {
-    const { fecha, cliente_id, cliente_codigo_snapshot, cliente_nombre_snapshot, cliente_cif_snapshot,
-      cliente_dir_snapshot, cliente_pob_snapshot, cliente_tel_snapshot, agencia, forma_pago,
-      tipo_iva_aplicado, base, iva, total, lineas } = req.body;
+    const { fecha, cliente_id, agencia, forma_pago, lineas } = req.body;
     if (!Array.isArray(lineas) || !lineas.length) return res.status(400).json({ error: 'Un pedido necesita al menos una línea.' });
 
     const resultado = await conTransaccion(async (cliente) => {
-      await asegurarPartidas(cliente, lineas);
+      const venta = await calcularCabeceraVenta(cliente, { clienteId: cliente_id, lineas });
+      const c = venta.cliente;
       const cab = await cliente.query(
         `UPDATE pedidos SET fecha=$1, cliente_id=$2, cliente_codigo_snapshot=$3, cliente_nombre_snapshot=$4,
            cliente_cif_snapshot=$5, cliente_dir_snapshot=$6, cliente_pob_snapshot=$7, cliente_tel_snapshot=$8,
-           agencia=$9, forma_pago=$10, tipo_iva_aplicado=$11, base=$12, iva=$13, total=$14, modificado_en=now()
-         WHERE id=$15 RETURNING *`,
-        [fecha, cliente_id || null, cliente_codigo_snapshot || null, cliente_nombre_snapshot || null,
-          cliente_cif_snapshot || null, cliente_dir_snapshot || null, cliente_pob_snapshot || null,
-          cliente_tel_snapshot || null, agencia || null, forma_pago || null, tipo_iva_aplicado || null,
-          base || null, iva || null, total || null, req.params.id]
+           agencia=$9, forma_pago=$10, tipo_iva_aplicado=$11, base=$12, iva=$13, recargo_importe=$14, total=$15,
+           modificado_en=now()
+         WHERE id=$16 RETURNING *`,
+        [fecha, c.id, c.codigo, c.nombre, c.cif, c.direccion, c.poblacion, c.telefono,
+          agencia || c.agencia || null, forma_pago || c.forma_pago || null, venta.tipoIvaAplicado,
+          venta.base, venta.ivaImporte, venta.recargoImporte, venta.total, req.params.id]
       );
       if (!cab.rows.length) return null;
       await cliente.query('DELETE FROM pedido_lineas WHERE pedido_id = $1', [req.params.id]);
@@ -138,7 +236,10 @@ router.put('/:id', async (req, res, next) => {
     });
     if (!resultado) return res.status(404).json({ error: `No existe ningún pedido con id ${req.params.id}` });
     res.json(resultado);
-  } catch (err) { next(err); }
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    next(err);
+  }
 });
 
 router.delete('/:id', async (req, res, next) => {

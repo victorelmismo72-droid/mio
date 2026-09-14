@@ -6,8 +6,21 @@
 const express = require('express');
 const { conTransaccion } = require('../db');
 const { registrarEscritura } = require('../lib/log');
+const { calcularListaAuto } = require('../logica/listaPrecioAuto');
 
 const router = express.Router();
+
+// Vista previa del modo AUTO (Fase 2, punto 4): calculado al vuelo desde las
+// compras de la fecha indicada, sin guardar nada — igual que hoy, el modo
+// AUTO no se guarda hasta que alguien decide grabarlo con POST /.
+router.get('/auto-preview', async (req, res, next) => {
+  try {
+    const { fecha } = req.query;
+    if (!fecha) return res.status(400).json({ error: 'Falta "fecha" (YYYY-MM-DD).' });
+    const filas = await conTransaccion((cliente) => calcularListaAuto(cliente, fecha));
+    res.json({ fecha, filas });
+  } catch (err) { next(err); }
+});
 
 router.get('/', async (req, res, next) => {
   try {

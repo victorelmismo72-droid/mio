@@ -251,6 +251,7 @@ CREATE TABLE pedidos (
     tipo_iva_aplicado         VARCHAR(25),
     base                      NUMERIC,
     iva                       NUMERIC,
+    recargo_importe           NUMERIC,  -- NUEVO en Fase 2 (recargo de equivalencia): NULL/0 en pedidos migrados, el HTML actual nunca lo aplicaba
     total                     NUMERIC,
     puesto_id                 INTEGER REFERENCES puestos(id),
     uid                       VARCHAR(60) NOT NULL UNIQUE,

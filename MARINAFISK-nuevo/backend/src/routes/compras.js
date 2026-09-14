@@ -2,10 +2,17 @@
 // y leer, nunca modificar ni borrar. La base de datos ya lo bloquea por sí
 // misma (trigger en schema.sql), pero además esta API ni siquiera ofrece los
 // verbos PUT/DELETE, para que quede claro también en el diseño de la API.
+//
+// Fase 2: el 2% de OP y el IVA de cada línea se calculan aquí, en el
+// servidor, leyendo el proveedor EN VIVO en el momento de grabar — nunca se
+// confía en un op2/iva que venga ya calculado desde la pantalla (ver
+// FASE_0 punto 2 y FASE_2 punto 1: ese fue exactamente el fallo histórico
+// de la fórmula congelada).
 const express = require('express');
 const { conTransaccion } = require('../db');
 const { registrarEscritura } = require('../lib/log');
 const { ejecutarIdempotente } = require('../lib/idempotencia');
+const { calcularLineaCompra, calcularCabeceraCompra } = require('../logica/calculosCompra');
 
 const router = express.Router();
 
@@ -29,30 +36,60 @@ router.get('/:id', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// Esta fase no decide CÓMO se calcula numero_partida, total_iva, op2_importe,
-// etc. (eso es lógica de negocio de la Fase 2) — solo guarda lo que le
-// mandan. Aquí únicamente nos aseguramos de que el número de partida exista
-// como fila en la tabla `partidas` antes de referenciarlo.
+// Vista previa (sin guardar nada) de cómo quedaría el cálculo de una línea,
+// para que una futura pantalla (Fase 4) pueda mostrarlo mientras se teclea.
+router.post('/calcular-linea', async (req, res, next) => {
+  try {
+    const { proveedor_id, kilos, precio_kg } = req.body;
+    if (!proveedor_id) return res.status(400).json({ error: 'Falta "proveedor_id".' });
+    const resultado = await conTransaccion(async (cliente) => {
+      const prov = await cliente.query('SELECT * FROM proveedores WHERE id = $1', [proveedor_id]);
+      if (!prov.rows.length) return null;
+      return calcularLineaCompra({ kilos, precioKg: precio_kg, proveedor: prov.rows[0] });
+    });
+    if (!resultado) return res.status(404).json({ error: `No existe ningún proveedor con id ${proveedor_id}` });
+    res.json(resultado);
+  } catch (err) { next(err); }
+});
+
 router.post('/', async (req, res, next) => {
   try {
-    const { uid, numero_partida, fecha, alb_proveedor, proveedor_id, proveedor_nombre_snapshot,
-      total_kilos, total_base_zgz, total_base_real, total_iva, total_factura, puesto_id, lineas } = req.body;
+    const { uid, numero_partida, fecha, alb_proveedor, proveedor_id, puesto_id, lineas } = req.body;
 
     if (!uid) return res.status(400).json({ error: 'Falta "uid": toda compra necesita una clave única generada por la pantalla que graba.' });
     if (!numero_partida) return res.status(400).json({ error: 'Falta "numero_partida".' });
     if (!fecha) return res.status(400).json({ error: 'Falta "fecha".' });
     if (!proveedor_id) return res.status(400).json({ error: 'Falta "proveedor_id".' });
     if (!Array.isArray(lineas) || !lineas.length) return res.status(400).json({ error: 'Una compra necesita al menos una línea.' });
+    for (const l of lineas) {
+      if (l.kilos == null || l.precio_kg == null) {
+        return res.status(400).json({ error: 'Cada línea necesita "kilos" y "precio_kg" — el resto de importes los calcula el servidor.' });
+      }
+    }
 
     const resultado = await conTransaccion(async (cliente) => {
       const { duplicado, enCurso, respuesta } = await ejecutarIdempotente(cliente, {
         clave: uid,
         tabla: 'compras',
         fn: async () => {
+          const provFila = await cliente.query('SELECT * FROM proveedores WHERE id = $1', [proveedor_id]);
+          if (!provFila.rows.length) throw new Error(`No existe ningún proveedor con id ${proveedor_id}.`);
+          const proveedor = provFila.rows[0];
+
           await cliente.query(
             'INSERT INTO partidas (numero_partida) VALUES ($1) ON CONFLICT DO NOTHING',
             [numero_partida]
           );
+
+          // Cálculo EN VIVO (Fase 2, punto 1 y 2): op2/iva/totales nunca se
+          // aceptan tal cual del cliente, se recalculan aquí con el
+          // proveedor recién leído.
+          const lineasCalculadas = lineas.map((l) => ({
+            original: l,
+            kilosOriginal: l.kilos,
+            ...calcularLineaCompra({ kilos: l.kilos, precioKg: l.precio_kg, proveedor }),
+          }));
+          const totales = calcularCabeceraCompra(lineasCalculadas);
 
           const cab = await cliente.query(
             `INSERT INTO compras
@@ -60,14 +97,15 @@ router.post('/', async (req, res, next) => {
                total_kilos, total_base_zgz, total_base_real, total_iva, total_factura, puesto_id, uid)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
              RETURNING *`,
-            [numero_partida, fecha, alb_proveedor || null, proveedor_id, proveedor_nombre_snapshot || null,
-              total_kilos || null, total_base_zgz || null, total_base_real || null, total_iva || null,
-              total_factura || null, puesto_id || null, uid]
+            [numero_partida, fecha, alb_proveedor || null, proveedor_id, proveedor.nombre,
+              totales.totalKilos, totales.totalBaseZgz, totales.totalBaseReal, totales.totalIva,
+              totales.totalFactura, puesto_id || null, uid]
           );
           const compra = cab.rows[0];
 
           const lineasGuardadas = [];
-          for (const l of lineas) {
+          for (const lc of lineasCalculadas) {
+            const l = lc.original;
             const r = await cliente.query(
               `INSERT INTO compra_lineas
                 (compra_id, articulo_id, articulo_codigo_snapshot, descripcion_snapshot, cajas, kilos,
@@ -75,9 +113,8 @@ router.post('/', async (req, res, next) => {
                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
                RETURNING *`,
               [compra.id, l.articulo_id || null, l.articulo_codigo_snapshot || null, l.descripcion_snapshot || null,
-                l.cajas || null, l.kilos || null, l.precio_kg || null, l.base_zgz || null, l.base_zgz_iva || null,
-                l.op2_importe || null, l.base_real || null, l.iva_importe || null, l.total_factura || null,
-                l.control === undefined ? null : l.control]
+                l.cajas || null, l.kilos, l.precio_kg, lc.baseZgz, lc.baseZgzIva, lc.op2Importe, lc.baseReal,
+                lc.ivaImporte, lc.totalFactura, l.control === undefined ? null : l.control]
             );
             lineasGuardadas.push(r.rows[0]);
           }

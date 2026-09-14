@@ -93,18 +93,24 @@ Sigue aplicando aquí: cada flujo de esta fase (registrar compra, asignar partid
 
 ## 8. Verificación de esta fase
 
+Ver `VERIFICACION_FASE2_2026-09-14.md` para el detalle completo y reproducible (script `backend/scripts/verificar_fase2.js`).
+
 No pasar a la Fase 3 hasta que:
 
-- [ ] Se ha tomado un conjunto de datos reales (un día completo de compras y ventas, por ejemplo) y se ha comparado el resultado del sistema nuevo contra el HTML actual: mismo coste real, mismas partidas asignadas, mismo margen.
-- [ ] El tratamiento de IVA/Recargo de Equivalencia está implementado y documentado para las cuatro clasificaciones fiscales de proveedores y las combinaciones de clientes — con las dudas normativas señaladas explícitamente a Víctor, no asumidas.
-- [ ] El caso conocido de falsos positivos en emparejamiento de partidas (ej. C144 vs C1444) se ha probado explícitamente y no reaparece.
-- [ ] Las partidas no aparecen en ningún documento de cliente generado por el sistema nuevo.
-- [ ] Los listados de ventas/movimientos por artículo separan ventas reales de traspasos internos según el punto 5bis, y ningún listado mezcla ambos silenciosamente.
-- [ ] El aviso de precio por debajo de coste (punto 5ter) funciona comparando en vivo contra el coste real de partida, y el campo de existencias admite texto libre.
-- [ ] Ninguna operación de guardado permite crear un registro duplicado por una segunda petición mientras la primera sigue en curso (punto 5quater), verificado también a nivel de servidor.
-- [ ] Comparación de agilidad frente al Excel realizada y documentada (ver punto 7).
-- [ ] El HTML/programa actual sigue intacto y en uso normal, en paralelo.
-- [ ] Víctor ha revisado y entendido, en términos sencillos, qué se ha construido y qué puntos quedaron pendientes de confirmación normativa (IVA).
+- [x] Se ha recalculado el 2% de OP y el IVA con la nueva lógica contra las **1108 compras reales migradas** (2990 líneas): 0 diferencias. El caso IVA intracomunitario se ha demostrado con un proveedor de prueba, porque en los datos reales todavía no hay ninguno marcado como tal (todos entraron como NACIONAL en la migración, ver Fase 0 punto 4 — pendiente de que Víctor revise y marque los que correspondan). La asignación de partida y el cálculo de margen se han probado con partidas reales con kilos disponibles, no con un día completo lado a lado (ver más abajo lo que falta).
+- [x] IVA/Recargo de Equivalencia implementado y probado para los tres tipos de cliente (NORMAL, RECARGO_EQUIVALENCIA, INTRACOMUNITARIO) y los dos tipos de proveedor (NACIONAL, INTRACOMUNITARIO) — la redacción original de este punto hablaba de "cuatro clasificaciones fiscales de proveedores", pero Fase 0 ya había resuelto que solo existen dos (NACIONAL/INTRACOMUNITARIO), no cuatro. **Duda normativa señalada a Víctor, no asumida:** el 1,4% de recargo de equivalencia (vigente en España desde 2012 para productos al 10%) debe confirmarlo su asesoría fiscal antes de facturar con él de verdad.
+- [x] El caso conocido de falsos positivos en emparejamiento de partidas se ha probado explícitamente y no reaparece — **corrección**: el ejemplo citado en este documento como "C144 vs C1444" no es el caso real; el comentario del propio código fuente del HTML actual cita explícitamente **C255 "CABRAS/GALLINETA" vs C2550 "CABRACHO/ESCARAPOTE"** como el falso positivo conocido, y es ese caso real el que se ha probado (con las descripciones reales del catálogo migrado) y no reaparece. También se ha probado un caso positivo real (C1300 vs C13004, variante de talla) para confirmar que la familia sigue reconociéndose cuando sí toca.
+- [ ] Las partidas no aparecen en ningún documento de cliente generado por el sistema nuevo — **pendiente de verificar de verdad**: todavía no existe ningún generador de documentos de cliente (albaranes, etc.) en el sistema nuevo, eso es Fase 4. La API interna sí puede devolver `numero_partida` en las respuestas (es información de gestión, no un documento de cliente).
+- [ ] Los listados de ventas/movimientos por artículo separan ventas reales de traspasos internos según el punto 5bis — **no construido en esta fase**: esto es un listado/informe de gestión, no lógica de cálculo; queda para cuando se construyan los listados (Fase 3 o Fase 4).
+- [x] El aviso de precio por debajo de coste (punto 5ter) tiene ya la pieza de backend que necesita: `GET /api/articulos/:id/coste-referencia` devuelve el coste real de la partida que se usaría ahora mismo, probado contra datos reales. La comparación en vivo mientras se teclea es cosa de la pantalla (Fase 4). El campo de existencias en listas de precio ya admite texto libre desde la Fase 1 (columna `existencias` de tipo texto).
+- [x] Ninguna operación de guardado permite crear un registro duplicado por una segunda petición mientras la primera sigue en curso (punto 5quater) — verificado en Fase 1 con una carrera real de peticiones simultáneas; sigue aplicando igual en Fase 2 (no se ha tocado ese mecanismo).
+- [ ] Comparación de agilidad frente al Excel realizada y documentada (ver punto 7) — pendiente: necesita una pantalla real (Fase 4) para poder cronometrar pasos, no se puede hacer solo con la API.
+- [x] El HTML/programa actual sigue intacto y en uso normal, en paralelo — no se ha tocado.
+- [ ] Víctor ha revisado y entendido, en términos sencillos, qué se ha construido y qué puntos quedaron pendientes de confirmación normativa (IVA) — pendiente de que Víctor lo revise.
+
+**Nota importante sobre una diferencia deliberada frente al HTML actual, descubierta al leer el código fuente real** (no un fallo de esta fase, sino una decisión ya pedida por FASE_0 punto 2): el margen de partida se calcula aquí con `base_real` (incluye el 2% de OP), mientras que la función equivalente del HTML actual (`obtenerPartidasDisponibles`) usa el precio de compra en bruto para ese cálculo concreto. FASE_0 pide explícitamente que el 2% de OP esté incluido en el coste, así que el sistema nuevo lo hace bien aunque eso signifique que el margen mostrado no sea *literalmente* idéntico byte a byte al del HTML actual para partidas de subasta — es una mejora ya encargada, no una discrepancia sin explicar.
+
+**Nota sobre la asignación automática:** se ha reproducido fielmente el comportamiento de `construirCeldaPartida()` (la asignación mientras se teclea, la que pide FASE_0 punto 3): si ninguna partida llega al margen mínimo, no se asigna nada automáticamente, se avisa y se deja a mano. El HTML actual tiene además una función aparte, `autoAsignarPartidas()` (acción explícita de "asignar todo lo pendiente del pedido"), que si nadie llega al margen cae a la partida más antigua igualmente — esa función masiva no se ha reproducido todavía en esta fase; queda pendiente si Víctor la necesita.
 
 ---
 

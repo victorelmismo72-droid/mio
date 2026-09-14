@@ -122,7 +122,41 @@ formato JSON.
 | `GET/POST/PUT/DELETE /api/repartos` | Repartos (Reparto Super) |
 | `GET/POST/PUT/DELETE /api/traspasos` | Traspasos internos |
 | `GET/POST /api/listas-precio` | Listas de precio (histórico nuevo, ver más abajo) |
+| `GET /api/listas-precio/auto-preview?fecha=YYYY-MM-DD` | Vista previa del modo AUTO (coste medio del día + 1,70 €/kg), sin guardar nada |
 | `GET /api/exportar` | Vuelca todo en un JSON con el mismo formato que el backup de siempre, para comparar fácilmente |
+| `POST /api/compras/calcular-linea` | Vista previa (Fase 2): calcula OP2/IVA de una línea sin guardar nada, leyendo el proveedor en vivo |
+| `POST /api/pedidos/asignar-partida` | Vista previa (Fase 2): asignación automática de partida + margen para un artículo/precio, sin guardar nada |
+| `GET /api/pedidos/excepciones/lista` | Líneas de pedido pendientes de revisión manual (sin partida, o con aviso de margen) |
+| `GET /api/articulos/:id/coste-referencia` | Coste real de la partida que se asignaría ahora mismo a este artículo (para avisos de precio por debajo de coste) |
+
+### Lógica de negocio ya incorporada (Fase 2)
+
+Desde la Fase 2, `POST /api/compras` y `POST/PUT /api/pedidos` ya NO se
+limitan a guardar lo que les manden: calculan ellos mismos, en el servidor
+y leyendo los datos en vivo (nunca congelados):
+
+- El 2% de OP y el IVA de cada línea de compra (según si el proveedor es de
+  subasta y su tipo de IVA).
+- El IVA y el Recargo de Equivalencia de cada pedido (según el tipo fiscal
+  del cliente) — esto es lógica nueva, el HTML actual nunca aplica recargo.
+- La partida asignada a cada línea de un pedido, si no se manda ya resuelta
+  desde la pantalla — con el margen mínimo de 1,30 €/kg.
+
+El código de esta lógica vive en `src/logica/` (un archivo por tema:
+`calculosCompra.js`, `calculosVenta.js`, `familiaProducto.js`,
+`partidas.js`, `listaPrecioAuto.js`), con comentarios en español explicando
+qué regla aplica cada uno y por qué (tal como pide FASE_2).
+
+Para comprobar que esta lógica da los mismos resultados que el HTML actual
+sobre datos reales:
+```
+node scripts/verificar_fase2.js
+```
+Recalcula el 2% de OP y el IVA de las 1108 compras reales migradas (0
+diferencias esperadas), prueba el caso real de falso positivo de familia de
+producto citado en el propio código fuente del HTML actual, el margen
+mínimo, y el IVA/Recargo de venta. Escribe el resultado en
+`VERIFICACION_FASE2_<fecha>.md`.
 
 Toda creación de compra/pedido/reparto/traspaso necesita un campo `uid`
 (una clave única que genera la propia pantalla) — si se manda dos veces la
@@ -135,19 +169,29 @@ pantalla.
 
 ---
 
-## 7. Qué NO hace esta fase todavía
+## 7. Qué NO hace todavía el sistema (tras Fase 1 + Fase 2)
 
-- No calcula el 2% de OP, el IVA, ni el margen de las partidas — guarda lo
-  que le mandan, tal cual.
-- No decide automáticamente a qué partida se asigna cada línea de un
-  pedido — eso también es Fase 2.
+- No hay ninguna pantalla — todo esto se usa hoy por API (`curl`, o algo
+  como Postman). La interfaz de verdad es la Fase 4.
+- No genera ningún documento (albarán, hoja Transfrío, CMR...) — eso
+  también es Fase 4.
+- No hay "asignación masiva de partidas de todos los pedidos de un día"
+  (la función `asignarPartidasDelDia()`/`autoAsignarPartidas()` del HTML
+  actual) — solo la asignación inline línea a línea. Se puede añadir cuando
+  haga falta.
+- Los listados de gestión (ventas por artículo separando traspasos, etc. —
+  corrección 02/09/2026 punto 3) todavía no existen como tales.
 - Las listas de precio (`/api/listas-precio`) son una funcionalidad **nueva**
   (guardar un histórico real por día), porque hoy el programa actual no
   guarda ningún histórico de listas — solo un borrador del día que se pierde
   al día siguiente. No sustituye nada existente, se añade.
 - Todos los proveedores se migraron marcados como `NACIONAL` (el campo
   `tipo_iva` no existía antes) — hay que revisar a mano cuáles son
-  intracomunitarios.
+  intracomunitarios; mientras tanto, ningún proveedor real prueba todavía la
+  rama de código del IVA intracomunitario con datos reales (sí está probada
+  con un proveedor de prueba, ver `VERIFICACION_FASE2_*.md`).
+- El 1,4% de recargo de equivalencia está pendiente de confirmación por la
+  asesoría fiscal de Víctor (ver `src/logica/calculosVenta.js`).
 
 ---
 
