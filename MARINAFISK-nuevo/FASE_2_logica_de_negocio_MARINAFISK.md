@@ -57,13 +57,41 @@ Esto es lógica nueva que no existe correctamente en el sistema actual — hay q
 
 ---
 
-## 5. Requisito transversal de agilidad (recordatorio, ya introducido en Fase 1)
+## 5bis. Listados de gestión: separar ventas reales de traspasos internos
+
+Ver `CORRECCIONES_2026-09-02_HTML_actual_MARINAFISK.md` (punto 3) para el caso concreto que motivó esto.
+
+- Cualquier listado/informe de ventas o movimientos por artículo y fecha debe, por defecto, mostrar solo ventas reales (nunca mezclar traspasos internos a Zaragoza silenciosamente).
+- Debe existir la opción de incluir también los traspasos internos, siempre como categoría aparte y claramente diferenciada (no como fila de venta más).
+- Cuando se incluyen, los totales se presentan en tres líneas separadas: ventas reales (kg + importe), traspasado a Zaragoza (solo kg, sin precio/importe porque no es venta), y total de pescado movido (suma de ambos, solo para estadística de volumen).
+- Este criterio (separar venta real de movimiento interno) se aplica a todo listado o informe de kilos/artículos, no solo a un buscador concreto.
+
+## 5ter. Aviso de precio de venta por debajo del coste, y existencias en texto libre
+
+Ver `CORRECCIONES_2026-09-02_HTML_actual_MARINAFISK.md` (puntos 4 y 5).
+
+- En listas de precios (y en cualquier pantalla donde se introduzca manualmente un precio de venta), comparar en vivo contra el coste real de la partida asignada — el sistema nuevo conoce ese coste siempre, a diferencia del HTML actual que dependía de que Víctor lo tecleara bien — y avisar de forma clara si el precio queda por debajo del coste, antes de confirmar/generar el documento final.
+- El campo de existencias/stock debe admitir texto libre además de cantidades numéricas exactas (ej. "AGOTADO", "POCAS"), para indicar disponibilidad aproximada sin forzar un número.
+
+## 5quater. Guardado protegido contra doble grabación (a nivel de servidor)
+
+Ver `CORRECCIONES_2026-09-02_HTML_actual_MARINAFISK.md` (punto 1). Cualquier operación de guardado (pedidos, repartos, traspasos, compras, partidas, listas de precios) debe impedir que una segunda petición idéntica mientras la primera sigue en curso cree un registro duplicado — la protección debe vivir en el backend (rechazar/ignorar una grabación concurrente para el mismo origen), no solo en el botón de la pantalla.
+
+---
+
+## 6. Requisitos ya identificados para cuando se desarrolle la Fase 4 (interfaz)
+
+Estos puntos no se implementan en esta fase, pero deben tenerse en cuenta al escribir el documento de Fase 4 (interfaz), para no perderlos: hoja Transfrío también en Traspasos (con destinatario fijo "MARINA FISH ZARAGOZA", sin depender del catálogo de Clientes), hoja CMR/Carta de Porte para clientes con agencia "MOZO" (visible solo condicionalmente, con datos fijos configurables y diseño extensible tipo "transportista → plantilla"), sistema de calibración manual en milímetros para hojas sobre papel pre-impreso, y una pantalla de catálogo de modelos de impresión que idealmente se genere a partir de una lista central en el código en vez de mantenerse a mano en dos sitios. Ver `CORRECCIONES_2026-09-02_HTML_actual_MARINAFISK.md` (puntos 6, 7 y 8) para el detalle completo.
+
+---
+
+## 7. Requisito transversal de agilidad (recordatorio, ya introducido en Fase 1)
 
 Sigue aplicando aquí: cada flujo de esta fase (registrar compra, asignar partida, generar lista de precios) debe probarse comparando el número de pasos/tiempo frente al Excel `GESTION_CORRECTA` actual. Si algún flujo nuevo resulta más lento o más tedioso que el Excel o que el HTML actual, se considera un defecto de esta fase, no un detalle menor.
 
 ---
 
-## 6. Verificación de esta fase
+## 8. Verificación de esta fase
 
 No pasar a la Fase 3 hasta que:
 
@@ -71,7 +99,10 @@ No pasar a la Fase 3 hasta que:
 - [ ] El tratamiento de IVA/Recargo de Equivalencia está implementado y documentado para las cuatro clasificaciones fiscales de proveedores y las combinaciones de clientes — con las dudas normativas señaladas explícitamente a Víctor, no asumidas.
 - [ ] El caso conocido de falsos positivos en emparejamiento de partidas (ej. C144 vs C1444) se ha probado explícitamente y no reaparece.
 - [ ] Las partidas no aparecen en ningún documento de cliente generado por el sistema nuevo.
-- [ ] Comparación de agilidad frente al Excel realizada y documentada (ver punto 5).
+- [ ] Los listados de ventas/movimientos por artículo separan ventas reales de traspasos internos según el punto 5bis, y ningún listado mezcla ambos silenciosamente.
+- [ ] El aviso de precio por debajo de coste (punto 5ter) funciona comparando en vivo contra el coste real de partida, y el campo de existencias admite texto libre.
+- [ ] Ninguna operación de guardado permite crear un registro duplicado por una segunda petición mientras la primera sigue en curso (punto 5quater), verificado también a nivel de servidor.
+- [ ] Comparación de agilidad frente al Excel realizada y documentada (ver punto 7).
 - [ ] El HTML/programa actual sigue intacto y en uso normal, en paralelo.
 - [ ] Víctor ha revisado y entendido, en términos sencillos, qué se ha construido y qué puntos quedaron pendientes de confirmación normativa (IVA).
 
