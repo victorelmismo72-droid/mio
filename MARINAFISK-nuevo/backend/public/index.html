@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MARINAFISK — Sistema nuevo</title>
+  <link rel="stylesheet" href="css/estilo.css">
+</head>
+<body>
+  <header class="cabecera">
+    <h1>🐟 MARINAFISK</h1>
+    <div class="puesto">
+      Puesto:
+      <select id="selector-puesto">
+        <option value="">(sin elegir)</option>
+        <option value="CORU">CORU — A Coruña (Víctor)</option>
+        <option value="PANC">PANC — Pancho</option>
+      </select>
+    </div>
+  </header>
+
+  <nav class="principal">
+    <a href="#/pedidos">Pedidos</a>
+    <a href="#/compras">Compras</a>
+    <a href="#/partidas">Partidas</a>
+    <a href="#/excepciones">Excepciones</a>
+    <a href="#/listas-precio">Listas de precio</a>
+    <a href="#/clientes">Clientes</a>
+    <a href="#/articulos">Artículos</a>
+    <a href="#/proveedores">Proveedores</a>
+  </nav>
+
+  <main id="contenedor-principal"></main>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

@@ -1,6 +1,8 @@
 # MARINAFISK — Correcciones aplicadas hoy al programa actual (02/09/2026)
 
-Este documento resume ocho correcciones/mejoras aplicadas directamente al programa HTML que se usa a diario, **fuera del proyecto de migración**, tras detectar un problema real de duplicados y algunos fallos de usabilidad. Se entrega a Claude Code para que las tenga en cuenta en el diseño y verificación del sistema nuevo — no se han implementado en el proyecto nuevo, pero el sistema nuevo debe evitar los mismos fallos y, donde tenga sentido, ofrecer las mismas mejoras.
+Este documento resume nueve correcciones/mejoras aplicadas directamente al programa HTML que se usa a diario, **fuera del proyecto de migración**, tras detectar un problema real de duplicados y algunos fallos de usabilidad. Se entrega a Claude Code para que las tenga en cuenta en el diseño y verificación del sistema nuevo — no se han implementado en el proyecto nuevo, pero el sistema nuevo debe evitar los mismos fallos y, donde tenga sentido, ofrecer las mismas mejoras.
+
+*(Actualizado con el punto 9, recibido el 14/09/2026 — los puntos 1-8 son los mismos que ya estaban aquí.)*
 
 ---
 
@@ -103,6 +105,21 @@ Este documento resume ocho correcciones/mejoras aplicadas directamente al progra
 **Corrección aplicada en el HTML actual:** se añadió la fila que faltaba (Hoja CMR / Carta de Porte) a la tabla principal de modelos, y su referencia técnica correspondiente en la tabla "para un técnico".
 
 **Requisito para el sistema nuevo:** el sistema nuevo debe tener el equivalente a esta pantalla de catálogo — un listado siempre actualizado de todo lo que se puede imprimir/generar, con qué es cada uno y cuándo aparece. Cada vez que se añada un modelo de impresión nuevo (una hoja, una etiqueta, un formato de transporte, etc.), añadirlo a ese catálogo debe ser un paso obligatorio del mismo cambio — no una tarea aparte que se pueda olvidar, como pasó aquí. Si es posible, mejor que el catálogo se genere automáticamente a partir de una lista central de modelos definidos en el código, en vez de mantenerse a mano en dos sitios distintos (el catálogo y el código real), que es precisamente lo que causó este desajuste.
+
+---
+
+## 9. Nueva funcionalidad: imprimir varios pedidos seleccionados de golpe (Transfrío y albarán sin precios)
+
+**Motivo:** en el día a día, cuando hay que imprimir la Hoja Transfrío de varios pedidos para el mismo camión, había que abrir pedido por pedido y sacarlo uno a uno. Ya existía este mismo problema resuelto para el albarán sin precios (versión conductor), pero no para Transfrío.
+
+**Funcionalidad ya existente en el HTML actual (albarán sin precios):** en Historial, cada fila tiene una casilla de marcar. Se pueden marcar varios pedidos (o ninguno, y entonces se usa el filtro de arriba — agencia/fecha/cliente) y un botón genera **un único PDF con el albarán sin precios de cada uno, uno detrás de otro**, listo para imprimir todo seguido.
+
+**Corrección aplicada en el HTML actual:** se añadió un botón equivalente para la Hoja Transfrío, con el mismo mecanismo de selección (casillas marcadas, o filtro si no se marca ninguna). Genera un PDF con una página por cada pedido seleccionado, cada una pensada para imprimirse **encima de una hoja física ya impresa del transportista** — igual que la versión de un solo pedido, solo que ahora se pueden sacar varias de golpe. Importante: el programa no controla cuántas hojas físicas del transportista hay cargadas en la impresora — es responsabilidad de quien imprime cargar tantas hojas físicas como pedidos se hayan seleccionado, en el mismo orden.
+
+**Requisito para el sistema nuevo:**
+- Cualquier documento que se imprima "encima de un papel pre-impreso" (Transfrío, CMR, y cualquier otro que se añada en el futuro) debe poder imprimirse tanto de uno en uno como en lote, seleccionando varios pedidos a la vez, con el mismo mecanismo de selección que el resto de listados (casillas de marcar + filtro como alternativa si no se marca nada).
+- Al imprimir en lote, avisar siempre de cuántos documentos se van a generar antes de hacerlo (para poder preparar el papel físico necesario), tal como ya hace el HTML actual con la confirmación "Se van a imprimir X pedido(s)...".
+- Esta capacidad de "seleccionar varios e imprimir de golpe" debería ser una funcionalidad transversal de la pantalla de listados/historial, no algo que haya que reconstruir a mano para cada tipo de documento nuevo que se añada.
 
 ---
 

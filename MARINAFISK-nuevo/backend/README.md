@@ -1,10 +1,17 @@
-# MARINAFISK — Backend (Fases 1, 2 y 3)
+# MARINAFISK — Sistema nuevo (Fases 1, 2, 3 y 4)
 
 Sustituye los archivos JSON de la carpeta compartida por una base de datos
-real (PostgreSQL) más un programa (este backend) que sabe leer y escribir
-en ella, calcula la lógica de negocio (2% de OP, IVA, Recargo de
-Equivalencia, asignación de partidas — Fase 2), y ya puede usarse desde más
-de un ordenador a la vez en la misma red local (Fase 3).
+real (PostgreSQL) más un backend que sabe leer y escribir en ella, calcula
+la lógica de negocio (2% de OP, IVA, Recargo de Equivalencia, asignación de
+partidas — Fase 2), ya puede usarse desde más de un ordenador a la vez en
+la misma red local (Fase 3), y tiene una pantalla de verdad para el día a
+día (Pedidos y Compras, con asignación de partida y avisos en vivo — Fase 4).
+
+**Para usarlo cada día**: arranca el backend (`npm start`, ver más abajo) y
+abre `http://localhost:3001` en el navegador (o la dirección de red que
+imprime al arrancar, desde el otro ordenador). Todo lo demás de este
+documento es para instalarlo la primera vez o para quien quiera tocar el
+código.
 
 El HTML de siempre (`CARGA_DE_ALBARANES_MARINAFISK_...html`) sigue
 funcionando exactamente igual, sin tocar, en paralelo. Esto de aquí es un
@@ -299,4 +306,38 @@ algo que este proyecto deba fijar de antemano.
   usar la API. Aceptable por ahora (red local de confianza), pero **hace
   falta añadir autenticación real antes de exponer esto a Internet**
   (Fase 5).
-- No hay ninguna pantalla todavía (Fase 4).
+
+---
+
+## 10. La pantalla (Fase 4)
+
+Ver `FASE_4_interfaz_MARINAFISK.md` para el alcance completo. Vive en
+`public/` — HTML y JavaScript normal, sin React ni paso de compilación —
+y la sirve este mismo backend (`http://localhost:3001`, o la IP de red
+local del punto 9.1 desde el otro ordenador). No hace falta instalar nada
+aparte en el ordenador que solo vaya a usar la pantalla.
+
+**Pantallas ya construidas (Nivel 1 — el día a día):**
+- **Pedidos**: crear un pedido con asignación de partida y aviso de margen
+  en vivo mientras se teclea, y cálculo de IVA/Recargo antes de grabar.
+- **Compras**: crear una compra con cálculo en vivo del 2% de OP y el IVA.
+- **Partidas**: ver kilos disponibles, cerrar/reabrir a mano.
+- **Excepciones**: líneas de pedido pendientes de revisar a mano (sin
+  partida asignada, o con aviso de margen) — de momento solo de lectura.
+- **Listas de precio**: modo AUTO (vista previa desde las compras del día)
+  y modo MANUAL, con aviso en vivo de precio por debajo de coste real y
+  existencias en texto libre.
+- **Clientes / Artículos / Proveedores**: catálogo (listar, crear, editar).
+
+Antes de elegir un puesto (CORU/PANC) en la cabecera, las peticiones se
+mandan sin esa cabecera (sigue funcionando, simplemente no queda registrado
+de qué puesto vino cada cosa) — elegirlo es recomendable pero no obligatorio.
+
+**Pendiente a propósito (Nivel 2, ver el documento de la fase):** Repartos,
+Traspasos, y toda la generación de documentos imprimibles (albarán,
+Transfrío, CMR, etiquetas) con su calibración en milímetros e impresión en
+lote — un bloque de trabajo grande y muy visual, mejor abordarlo aparte una
+vez que estos flujos ya estén en uso real.
+
+Probado con un navegador real (no solo revisando el código) — ver
+`VERIFICACION_FASE4_2026-09-14.md`.

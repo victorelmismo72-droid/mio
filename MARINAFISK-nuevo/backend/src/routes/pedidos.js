@@ -60,6 +60,12 @@ router.post('/asignar-partida', async (req, res, next) => {
       numero_partida: resultado.numeroPartida,
       estado_asignacion: resultado.estadoAsignacion,
       margen: resultado.margen,
+      // Para cuando no llega ninguna al margen mínimo: la pantalla puede
+      // ofrecer elegir a mano entre estas, con su margen ya calculado.
+      candidatas: resultado.candidatas.map((c) => ({
+        numero_partida: c.numeroPartida, fecha: c.fecha, kilos_disponibles: c.kilosDisponibles,
+        coste_medio_kg: c.costeMedioKg, margen: c.margen,
+      })),
     });
   } catch (err) { next(err); }
 });

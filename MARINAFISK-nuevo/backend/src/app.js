@@ -1,4 +1,5 @@
 const express = require('express');
+const path = require('path');
 const cors = require('cors');
 const { resolverPuesto } = require('./middleware/puesto');
 
@@ -21,8 +22,16 @@ app.use('/api/traspasos', require('./routes/traspasos'));
 app.use('/api/listas-precio', require('./routes/listasPrecio'));
 app.use('/api/exportar', require('./routes/export'));
 
+// Fase 4: la pantalla (HTML/JS normal, sin paso de compilación) vive en
+// backend/public y la sirve este mismo backend — no hace falta instalar
+// nada más en el ordenador que solo vaya a usar la pantalla.
+app.use(express.static(path.join(__dirname, '..', 'public')));
+
 app.use((req, res) => {
-  res.status(404).json({ error: `No existe la ruta ${req.method} ${req.path}` });
+  if (req.path.startsWith('/api/')) {
+    return res.status(404).json({ error: `No existe la ruta ${req.method} ${req.path}` });
+  }
+  res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
 });
 
 // Manejador de errores centralizado: cualquier error de base de datos (por
