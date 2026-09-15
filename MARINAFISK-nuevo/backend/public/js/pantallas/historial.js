@@ -5,7 +5,7 @@
 // Transfrío, sin repetir el mecanismo de selección para cada una.
 import { api } from '../api.js';
 import { el, euros, mostrarAviso } from '../utilidades.js';
-import { imprimirAlbaran, imprimirSobrePapel } from '../impresion/motor.js';
+import { abrirVentanaImpresion, mostrarErrorEnVentana, rellenarAlbaran, rellenarSobrePapel } from '../impresion/motor.js';
 
 async function render(contenedor) {
   contenedor.innerHTML = '';
@@ -93,21 +93,45 @@ async function render(contenedor) {
     divTabla.appendChild(tabla);
   }
 
-  async function accionImprimir(modeloId) {
+  function accionImprimir(modeloId) {
     const idsAImprimir = seleccionados.size ? [...seleccionados] : pedidosActuales.map((p) => p.id);
     if (!idsAImprimir.length) return mostrarAviso(contenedor, 'No hay ningún pedido para imprimir.', 'error');
     if (!confirm(`Se van a imprimir ${idsAImprimir.length} documento(s). ¿Continuar?`)) return;
 
+    // Corrección 02/09/2026 punto 10, motivo 1: el Transfrío se suele
+    // imprimir en varias copias seguidas por cliente — se preguntan aquí,
+    // ANTES de pedir nada al servidor, y se construyen dentro del propio
+    // documento (nunca con el ajuste "copias" del diálogo de impresión).
+    let copias = 1;
+    if (modeloId === 'transfrio') {
+      const respuesta = prompt('¿Cuántas copias por pedido? (Transfrío se suele imprimir en 4 copias seguidas por cliente)', '4');
+      if (respuesta === null) return;
+      copias = Math.max(1, parseInt(respuesta, 10) || 1);
+    }
+
+    // Corrección punto 10, motivo 2: la ventana se abre AQUÍ MISMO, todavía
+    // dentro del clic — nunca después de esperar al servidor, o el
+    // navegador puede bloquearla sin avisar. Se rellena más abajo, cuando
+    // ya hayan llegado los datos.
+    const modeloParaTitulo = { albaran_con_precios: 'Albarán (con precios)', albaran_sin_precios: 'Albarán (sin precios)', transfrio: 'Hoja Transfrío', cmr: 'Hoja CMR' };
+    const ventana = abrirVentanaImpresion(modeloParaTitulo[modeloId] || 'Documento');
+    if (!ventana) return;
+
+    cargarYRellenar(ventana, modeloId, idsAImprimir, copias);
+  }
+
+  async function cargarYRellenar(ventana, modeloId, ids, copias) {
     try {
       if (modeloId === 'albaran_con_precios' || modeloId === 'albaran_sin_precios') {
-        const datos = await api.get(`/api/pedidos/imprimir?ids=${idsAImprimir.join(',')}`);
-        imprimirAlbaran({ listaPedidos: datos, conPrecios: modeloId === 'albaran_con_precios' });
+        const datos = await api.get(`/api/pedidos/imprimir?ids=${ids.join(',')}`);
+        rellenarAlbaran(ventana, { listaPedidos: datos, conPrecios: modeloId === 'albaran_con_precios' });
         return;
       }
       const modelo = await api.get(`/api/modelos-impresion/${modeloId}`);
-      const datos = await api.get(`/api/pedidos/imprimir?ids=${idsAImprimir.join(',')}&modelo=${modeloId}`);
-      imprimirSobrePapel({ titulo: modelo.nombre, modelo, listaValores: datos.map((d) => d.valores) });
+      const datos = await api.get(`/api/pedidos/imprimir?ids=${ids.join(',')}&modelo=${modeloId}`);
+      rellenarSobrePapel(ventana, { modelo, listaValores: datos.map((d) => d.valores), copiasPorDocumento: copias });
     } catch (err) {
+      mostrarErrorEnVentana(ventana, err.message);
       mostrarAviso(contenedor, err.message, 'error');
     }
   }

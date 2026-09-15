@@ -1,8 +1,8 @@
 # MARINAFISK — Correcciones aplicadas hoy al programa actual (02/09/2026)
 
-Este documento resume nueve correcciones/mejoras aplicadas directamente al programa HTML que se usa a diario, **fuera del proyecto de migración**, tras detectar un problema real de duplicados y algunos fallos de usabilidad. Se entrega a Claude Code para que las tenga en cuenta en el diseño y verificación del sistema nuevo — no se han implementado en el proyecto nuevo, pero el sistema nuevo debe evitar los mismos fallos y, donde tenga sentido, ofrecer las mismas mejoras.
+Este documento resume diez correcciones/mejoras aplicadas directamente al programa HTML que se usa a diario, **fuera del proyecto de migración**, tras detectar un problema real de duplicados y algunos fallos de usabilidad. Se entrega a Claude Code para que las tenga en cuenta en el diseño y verificación del sistema nuevo — no se han implementado en el proyecto nuevo, pero el sistema nuevo debe evitar los mismos fallos y, donde tenga sentido, ofrecer las mismas mejoras.
 
-*(Actualizado con el punto 9, recibido el 14/09/2026 — los puntos 1-8 son los mismos que ya estaban aquí.)*
+*(Actualizado con el punto 10, recibido el 15/09/2026 — los puntos 1-9 son los mismos que ya estaban aquí.)*
 
 ---
 
@@ -120,6 +120,22 @@ Este documento resume nueve correcciones/mejoras aplicadas directamente al progr
 - Cualquier documento que se imprima "encima de un papel pre-impreso" (Transfrío, CMR, y cualquier otro que se añada en el futuro) debe poder imprimirse tanto de uno en uno como en lote, seleccionando varios pedidos a la vez, con el mismo mecanismo de selección que el resto de listados (casillas de marcar + filtro como alternativa si no se marca nada).
 - Al imprimir en lote, avisar siempre de cuántos documentos se van a generar antes de hacerlo (para poder preparar el papel físico necesario), tal como ya hace el HTML actual con la confirmación "Se van a imprimir X pedido(s)...".
 - Esta capacidad de "seleccionar varios e imprimir de golpe" debería ser una funcionalidad transversal de la pantalla de listados/historial, no algo que haya que reconstruir a mano para cada tipo de documento nuevo que se añada.
+
+---
+
+## 10. Corrección importante sobre impresión en lote: copias por cliente y bloqueo de pestañas del navegador
+
+**Motivo 1 — copias seguidas por cliente, no por lote:** el papel de Transfrío se imprime en 4 copias por cliente. Al usar la función del punto 9, si se pedían "4 copias" desde el propio diálogo de impresión del navegador, el resultado era: cliente 1, cliente 2, cliente 3... y LUEGO repetía todo el ciclo 4 veces — en vez de las 4 copias del cliente 1 seguidas, luego las 4 del cliente 2, etc. Esto es un comportamiento normal (y esperable) de cualquier diálogo de impresión al pedirle "copias" de un documento multi-página: repite el documento entero, no cada página por separado.
+
+**Corrección aplicada en el HTML actual:** en vez de usar el ajuste de "copias" del propio navegador, el número de copias por cliente se construye **dentro del PDF generado**, repitiendo cada página tantas veces como se pida, antes de pasar al siguiente cliente. Se pregunta cuántas copias por cliente (por defecto 4) antes de generar el documento.
+
+**Motivo 2 — los navegadores bloquean las pestañas que se abren solas:** al intentar automatizar la impresión de varios clientes seguidos con una pausa entre cada uno (para poder revisar que no se atascó el papel fino de Transfrío antes de seguir), la solución inicial abría cada PDF automáticamente tras una espera (`setTimeout`) — pero **los navegadores bloquean, sin avisar, cualquier ventana/pestaña nueva que se abra fuera de una acción directa del usuario** (como un clic). Solo la primera pestaña se abría bien; las siguientes se bloqueaban en silencio, dando la sensación de que "no pasaba nada".
+
+**Corrección aplicada en el HTML actual:** en vez de abrir las pestañas automáticamente, se muestra un panel en pantalla con el nombre del cliente actual y un botón "Abrir PDF para imprimir" que hay que pulsar cada vez. Como abrir la pestaña ocurre siempre como respuesta directa a ese clic, el navegador nunca lo bloquea. Después de abrir, aparecen los botones "Siguiente cliente" / "Parar aquí", para poder revisar cada impresión antes de continuar.
+
+**Requisito para el sistema nuevo:**
+- Cualquier impresión en lote que necesite un número de copias específico por documento (no solo uno) debe construir esas copias dentro del propio archivo generado, nunca depender de la opción "copias" del diálogo de impresión del sistema operativo/navegador — ya que esa opción siempre repite el documento completo, no cada parte por separado.
+- Cualquier flujo que abra varias ventanas/pestañas nuevas en secuencia (para imprimir, descargar, o cualquier otra cosa) debe hacerlo **siempre como respuesta directa a un clic del usuario**, nunca de forma automática tras una espera o retraso temporal — los navegadores bloquean las ventanas emergentes que no vienen de una acción directa, y ese bloqueo suele ser silencioso (sin aviso visible), lo que puede parecer un fallo del programa cuando en realidad es una protección del navegador. Diseñar estos flujos como "un paso, un clic, un paso, un clic" en vez de "automático con pausas".
 
 ---
 

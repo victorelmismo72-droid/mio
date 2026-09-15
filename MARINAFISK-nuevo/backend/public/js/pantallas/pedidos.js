@@ -6,7 +6,7 @@
 import { api, generarUid } from '../api.js';
 import { el, euros, numero, fechaHoy, debounce, mostrarAviso, conBotonDeshabilitado } from '../utilidades.js';
 import { crearCampoArticulo, crearCampoCliente } from './buscadorArticulo.js';
-import { imprimirSobrePapel } from '../impresion/motor.js';
+import { abrirVentanaImpresion, mostrarErrorEnVentana, rellenarSobrePapel } from '../impresion/motor.js';
 
 const IVA_PESCADO_PCT = 10;
 const RECARGO_PCT = 1.4;
@@ -194,12 +194,21 @@ async function render(contenedor) {
   const divRecientes = el('div', {}, el('p', { class: 'cargando' }, 'Cargando…'));
   contenedor.appendChild(divRecientes);
 
-  async function imprimirCmr(pedidoId) {
-    try {
-      const modelo = await api.get('/api/modelos-impresion/cmr');
-      const datos = await api.get(`/api/pedidos/imprimir?ids=${pedidoId}&modelo=cmr`);
-      imprimirSobrePapel({ titulo: modelo.nombre, modelo, listaValores: datos.map((d) => d.valores) });
-    } catch (err) { mostrarAviso(contenedor, err.message, 'error'); }
+  function imprimirCmr(pedidoId) {
+    // La ventana se abre aquí mismo, dentro del clic — ver corrección
+    // 02/09/2026 punto 10, motivo 2, en impresion/motor.js.
+    const ventana = abrirVentanaImpresion('Hoja CMR');
+    if (!ventana) return;
+    (async () => {
+      try {
+        const modelo = await api.get('/api/modelos-impresion/cmr');
+        const datos = await api.get(`/api/pedidos/imprimir?ids=${pedidoId}&modelo=cmr`);
+        rellenarSobrePapel(ventana, { modelo, listaValores: datos.map((d) => d.valores) });
+      } catch (err) {
+        mostrarErrorEnVentana(ventana, err.message);
+        mostrarAviso(contenedor, err.message, 'error');
+      }
+    })();
   }
 
   async function cargarRecientes() {

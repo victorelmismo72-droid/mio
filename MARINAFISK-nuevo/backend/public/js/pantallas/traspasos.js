@@ -3,7 +3,7 @@
 import { api, generarUid } from '../api.js';
 import { el, euros, numero, fechaHoy, mostrarAviso, conBotonDeshabilitado } from '../utilidades.js';
 import { crearCampoArticulo } from './buscadorArticulo.js';
-import { imprimirSobrePapel } from '../impresion/motor.js';
+import { abrirVentanaImpresion, mostrarErrorEnVentana, rellenarSobrePapel } from '../impresion/motor.js';
 
 async function render(contenedor) {
   contenedor.innerHTML = '';
@@ -113,12 +113,26 @@ async function render(contenedor) {
     tabla.appendChild(tbody);
     divRecientes.appendChild(tabla);
   }
-  async function imprimirTransfrio(traspasoId) {
-    try {
-      const modelo = await api.get('/api/modelos-impresion/transfrio');
-      const datos = await api.get(`/api/traspasos/imprimir?ids=${traspasoId}&modelo=transfrio`);
-      imprimirSobrePapel({ titulo: modelo.nombre, modelo, listaValores: datos.map((d) => d.valores) });
-    } catch (err) { mostrarAviso(contenedor, err.message, 'error'); }
+  function imprimirTransfrio(traspasoId) {
+    const respuesta = prompt('¿Cuántas copias? (Transfrío se suele imprimir en 4 copias seguidas)', '4');
+    if (respuesta === null) return;
+    const copias = Math.max(1, parseInt(respuesta, 10) || 1);
+
+    // La ventana se abre aquí mismo, dentro del clic — ver corrección
+    // 02/09/2026 punto 10, motivo 2, en impresion/motor.js.
+    const ventana = abrirVentanaImpresion('Hoja Transfrío');
+    if (!ventana) return;
+
+    (async () => {
+      try {
+        const modelo = await api.get('/api/modelos-impresion/transfrio');
+        const datos = await api.get(`/api/traspasos/imprimir?ids=${traspasoId}&modelo=transfrio`);
+        rellenarSobrePapel(ventana, { modelo, listaValores: datos.map((d) => d.valores), copiasPorDocumento: copias });
+      } catch (err) {
+        mostrarErrorEnVentana(ventana, err.message);
+        mostrarAviso(contenedor, err.message, 'error');
+      }
+    })();
   }
 
   await cargarRecientes();

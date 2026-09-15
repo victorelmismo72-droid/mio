@@ -357,5 +357,15 @@ tener el papel y una impresora delante.
 todavía), listados de gestión con separación ventas/traspasos, y cualquier
 inicio de sesión con usuario/contraseña.
 
+**15/09/2026 — corrección importante sobre la impresión en lote:** la
+ventana de impresión ahora se abre **siempre en el mismo instante del
+clic** (antes de pedir nada al servidor) y se rellena después — si se abre
+tras un `await`, el navegador puede bloquearla en silencio, sin avisar. Al
+imprimir Transfrío se pregunta cuántas copias por pedido (por defecto 4) y
+se construyen dentro del propio documento, nunca con el ajuste "copias"
+del diálogo de impresión (que repetiría el lote entero de cabo a rabo en
+vez de las copias de cada cliente seguidas). Ver
+`VERIFICACION_FASE4_CORRECCION10_2026-09-15.md`.
+
 Probado con un navegador real (no solo revisando el código) — ver
 `VERIFICACION_FASE4_2026-09-14.md`.
