@@ -114,6 +114,12 @@ button.pequeno { padding: 3px 8px; font-size: 12px; }
 @media (max-width: 640px) {
   main { padding: 10px; }
   .fila { flex-direction: column; align-items: stretch; }
+  /* Un <select> (p.ej. Proveedor, con nombres largos) o un input[list] no se
+     encogen por sí solos dentro de un flex column — su ancho de contenido
+     "gana" y desborda la pantalla. min-width:0 en los contenedores flex +
+     forzar el ancho real de los campos evita ese desbordamiento horizontal. */
+  .fila, .campo { min-width: 0; }
+  input, select, textarea { max-width: 100%; width: 100%; }
   table, thead, tbody, th, td, tr { display: block; }
   table thead { display: none; }
   table tr { margin-bottom: 8px; border: 1px solid var(--gris-borde); }

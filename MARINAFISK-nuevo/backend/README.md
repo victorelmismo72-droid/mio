@@ -369,3 +369,24 @@ vez de las copias de cada cliente seguidas). Ver
 
 Probado con un navegador real (no solo revisando el código) — ver
 `VERIFICACION_FASE4_2026-09-14.md`.
+
+**18/09/2026 — prueba integral de usabilidad (recorrido de un día real de
+trabajo, no una fase concreta):** se recorrieron juntas, en una sola sesión
+de navegador real, pantallas y flujos que hasta entonces solo se habían
+probado por separado — catálogos, compra→partida→pedido de principio a
+fin, repartos, traspasos, impresión en lote desde Historial, listas de
+precio en los dos modos, cerrar/reabrir partidas, y las 12 pantallas del
+menú en móvil (375px). Aparecieron dos fallos reales, ya corregidos:
+
+- Imprimir la Hoja CMR en lote desde Historial con una selección mixta de
+  agencias (lo normal) bloqueaba **todo** el lote en cuanto encontraba el
+  primer pedido sin agencia MOZO, en vez de imprimir los que sí
+  correspondían y avisar de los demás.
+- En móvil, la pantalla de Compras desbordaba horizontalmente por el
+  desplegable de Proveedor (un `<select>` no se encoge por debajo de su
+  opción más larga dentro de un flex-column salvo que se le indique
+  explícitamente) — con los nombres de proveedor reales del catálogo, no
+  con datos de prueba cortos.
+
+Ver `VERIFICACION_USABILIDAD_2026-09-18.md` para el detalle completo,
+incluida la corrección aplicada a cada uno.

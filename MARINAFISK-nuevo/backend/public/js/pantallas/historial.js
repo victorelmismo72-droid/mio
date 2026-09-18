@@ -129,6 +129,15 @@ async function render(contenedor) {
       }
       const modelo = await api.get(`/api/modelos-impresion/${modeloId}`);
       const datos = await api.get(`/api/pedidos/imprimir?ids=${ids.join(',')}&modelo=${modeloId}`);
+      // El servidor omite del lote, en silencio, los pedidos que no cumplen
+      // la condición del modelo (p.ej. CMR solo vale para agencia MOZO) en
+      // vez de abortar la impresión entera — aquí se avisa de cuántos se han
+      // quedado fuera, para que no parezca que faltan sin más explicación.
+      if (datos.length < ids.length) {
+        const omitidos = ids.length - datos.length;
+        mostrarAviso(contenedor, `${omitidos} de ${ids.length} pedido(s) no llevan "${modelo.nombre}" y se han omitido del lote (revisa el motivo: ${modelo.descripcion.split('.')[0]}).`, 'error');
+      }
+      if (!datos.length) { mostrarErrorEnVentana(ventana, `Ningún pedido de los seleccionados lleva "${modelo.nombre}".`); return; }
       rellenarSobrePapel(ventana, { modelo, listaValores: datos.map((d) => d.valores), copiasPorDocumento: copias });
     } catch (err) {
       mostrarErrorEnVentana(ventana, err.message);

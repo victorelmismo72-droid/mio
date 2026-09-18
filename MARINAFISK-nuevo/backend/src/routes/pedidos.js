@@ -63,7 +63,12 @@ router.get('/imprimir', async (req, res, next) => {
         if (modelo && modelo.id === 'transfrio') valores = valoresTransfrioPedido(pedido, lineas);
         if (modelo && modelo.id === 'cmr') {
           if (!modelo.condicionCliente(clienteInfo || { agencia: pedido.agencia })) {
-            return { error: `El pedido nº ${pedido.numero} no es de un cliente con agencia "MOZO" — no lleva Hoja CMR.` };
+            // Se omite del lote, pero no aborta el resto — al imprimir en lote
+            // desde Historial, la mayoría no llevará agencia MOZO y no tiene
+            // sentido que uno solo sin CMR bloquee imprimir los demás (el
+            // llamador compara cuántos pedía contra cuántos ha recibido para
+            // avisar de los omitidos; ver historial.js).
+            continue;
           }
           valores = valoresCmr(pedido, lineas);
         }
@@ -71,7 +76,6 @@ router.get('/imprimir', async (req, res, next) => {
       }
       return salida;
     });
-    if (resultado && resultado.error) return res.status(400).json({ error: resultado.error });
     res.json(resultado);
   } catch (err) { next(err); }
 });
