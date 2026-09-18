@@ -42,12 +42,12 @@ Ver `VERIFICACION_FASE4_NIVEL2_2026-09-14.md` para el detalle completo, probado 
 - [x] Catálogo de modelos de impresión, generado desde el registro central `backend/src/modelosImpresion.js` (corrección punto 8).
 - [x] Selección múltiple e impresión en lote en Historial, como capacidad transversal (corrección punto 9, recibida el 14/09) — una única mecánica de selección (casillas + filtro como alternativa) sirve para las cuatro acciones de imprimir.
 - [x] Albarán con precios y sin precios — comprobado explícitamente que la versión sin precios no contiene ningún importe en el HTML generado.
+- [x] Listados de gestión con la separación ventas/traspasos (corrección punto 3, FASE_2 punto 5bis) — construido el 18/09/2026: pantalla "Listados de gestión" (`#/listados`), filtro por fecha y artículo, casilla "incluir traspasos" que los añade como filas aparte (gris/cursiva, sin precio ni importe) y los tres totales pedidos (ventas reales, traspasado a Zaragoza, total movido). Ver `VERIFICACION_LISTADOS_GESTION_2026-09-18.md`.
 
 **Pendiente, señalado honestamente:** las coordenadas en milímetros de partida de Transfrío y CMR son una estimación sobre una hoja en blanco, no están calibradas contra el papel físico real de los transportistas — este entorno no tiene impresora ni el papel real para hacerlo, exactamente la misma limitación que tuvo el HTML actual la primera vez. La herramienta para que Víctor (o quien imprima) haga esa calibración con impresiones reales ya está construida y probada.
 
 **Sigue sin construirse** (no pedido explícitamente en las correcciones para esta tanda):
 - Etiquetas — no hay especificación de formato suficiente de Víctor todavía.
-- Listados de gestión con la separación ventas/traspasos (corrección punto 3).
 - Cualquier tipo de inicio de sesión con usuario/contraseña (Fase 3 ya señaló que no hay todavía — aceptable en red local de confianza, no antes de salir a Internet).
 
 ## 2. Decisión técnica

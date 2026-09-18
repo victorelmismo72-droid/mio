@@ -133,6 +133,7 @@ formato JSON.
 | `POST /api/pedidos/asignar-partida` | Vista previa (Fase 2): asignación automática de partida + margen para un artículo/precio, sin guardar nada |
 | `GET /api/pedidos/excepciones/lista` | Líneas de pedido pendientes de revisión manual (sin partida, o con aviso de margen) |
 | `GET /api/articulos/:id/coste-referencia` | Coste real de la partida que se asignaría ahora mismo a este artículo (para avisos de precio por debajo de coste) |
+| `GET /api/listados/ventas-articulo?desde=&hasta=&articulo_id=&incluir_traspasos=1` | Listado de gestión (corrección punto 3, FASE_2 5bis): ventas por artículo/fecha, con los traspasos internos siempre aparte y sin mezclarlos en el total económico |
 
 ### Lógica de negocio ya incorporada (Fase 2)
 
@@ -390,3 +391,21 @@ menú en móvil (375px). Aparecieron dos fallos reales, ya corregidos:
 
 Ver `VERIFICACION_USABILIDAD_2026-09-18.md` para el detalle completo,
 incluida la corrección aplicada a cada uno.
+
+**18/09/2026 — último punto pendiente de Fase 4 Nivel 2 con especificación
+suficiente ya construido:** pantalla "Listados de gestión" (`#/listados`,
+`GET /api/listados/ventas-articulo`) — corrección punto 3 / FASE_2 punto
+5bis. Filtra por fecha y artículo; por defecto solo muestra ventas reales
+(pedidos); con la casilla "incluir traspasos" marcada, añade los traspasos
+internos a Zaragoza como filas aparte (gris/cursiva, sin precio ni
+importe, etiquetadas "TRASPASO A ZARAGOZA (interno, no es venta)") y
+calcula los tres totales pedidos: ventas reales (kg + importe),
+traspasado a Zaragoza (solo kg) y total de pescado movido (kg, solo para
+estadística de volumen) — nunca mezclados en el total económico. Probado
+con datos y navegador reales, incluido el filtro por artículo concreto —
+ver `VERIFICACION_LISTADOS_GESTION_2026-09-18.md`.
+
+De lo que quedaba señalado como pendiente en Fase 4 Nivel 2, solo faltan
+ya: Etiquetas (sin especificación de formato de Víctor todavía) y
+cualquier sistema de login (fuera de alcance mientras el uso sea en red
+local de confianza).

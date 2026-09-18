@@ -60,6 +60,10 @@ table { border-collapse: collapse; width: 100%; background: white; }
 table th, table td { border: 1px solid var(--gris-borde); padding: 6px 8px; font-size: 13px; text-align: left; }
 table th { background: var(--azul-claro); }
 table tbody tr:hover { background: #fafafa; }
+/* Traspaso interno a Zaragoza dentro de un listado de ventas — nunca debe
+   poder confundirse a simple vista con una fila de venta real (corrección
+   02/09/2026 punto 3). */
+table tbody tr.fila-traspaso { color: #777; font-style: italic; background: #f7f7f7; }
 
 input, select, textarea {
   padding: 6px 8px;
