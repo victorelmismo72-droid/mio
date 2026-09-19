@@ -134,6 +134,13 @@ formato JSON.
 | `GET /api/pedidos/excepciones/lista` | Líneas de pedido pendientes de revisión manual (sin partida, o con aviso de margen) |
 | `GET /api/articulos/:id/coste-referencia` | Coste real de la partida que se asignaría ahora mismo a este artículo (para avisos de precio por debajo de coste) |
 | `GET /api/listados/ventas-articulo?desde=&hasta=&articulo_id=&incluir_traspasos=1` | Listado de gestión (corrección punto 3, FASE_2 5bis): ventas por artículo/fecha, con los traspasos internos siempre aparte y sin mezclarlos en el total económico |
+| `GET /api/etiquetas/formatos` | Los 6 formatos de etiqueta (FASE_5) |
+| `POST /api/etiquetas/sueltas` | Etiqueta(s) suelta(s), sin pedido/traspaso/reparto detrás |
+| `GET /api/pedidos/:id/etiquetas?modo=todas\|seleccion\|prueba\|repetir` | Etiquetas de un pedido, en los 4 modos del diálogo (FASE_5) |
+| `GET /api/traspasos/:id/etiquetas` | Etiquetas de un traspaso (destinatario fijo Zaragoza) |
+| `GET /api/repartos/:id/etiquetas?modo=todas\|nuevas` | Etiquetas de un reparto (formato Scanfisk fijo); "nuevas" solo las cajas no impresas todavía |
+| `POST /api/repartos/:id/marcar-etiquetas-impresas` | Registra las cajas actuales como ya impresas, para que la próxima vez "nuevas" sepa desde dónde contar |
+| `GET/PUT /api/configuracion/dias-caducidad` | Días de caducidad de las etiquetas (compartido entre CORU y PANC — antes vivía en localStorage, por ordenador) |
 
 ### Lógica de negocio ya incorporada (Fase 2)
 
@@ -405,7 +412,47 @@ estadística de volumen) — nunca mezclados en el total económico. Probado
 con datos y navegador reales, incluido el filtro por artículo concreto —
 ver `VERIFICACION_LISTADOS_GESTION_2026-09-18.md`.
 
-De lo que quedaba señalado como pendiente en Fase 4 Nivel 2, solo faltan
-ya: Etiquetas (sin especificación de formato de Víctor todavía) y
+## 11. Fase 5: Etiquetas (19/09/2026)
+
+La nota anterior sobre Etiquetas ("sin especificación de formato de Víctor
+todavía") estaba equivocada — no se había leído todavía, línea a línea, el
+módulo `MarinaFiskEtiquetas` del HTML actual, que resulta tener una
+especificación completa y ya en uso real: 6 formatos, QR, lote/caducidad, y
+tres orígenes (pedido, traspaso, reparto) además de la impresión suelta
+manual. Ver `FASE_5_etiquetas_MARINAFISK.md` para el detalle completo leído
+del código real, y `VERIFICACION_ETIQUETAS_2026-09-19.md` para la prueba con
+navegador y datos reales.
+
+Construido: los 6 formatos (`marina_fisk`, `marina_fisk_fr`, `marina_fisk_it`,
+`marina_fisk_masymas`, `david_sala`, `scanfisk`) con la misma rejilla física
+(50×145mm) que ya usa Víctor, QR real (misma librería `qrcode-generator` ya
+incluida en el HTML actual, sin llamadas externas), logo/sello reales
+extraídos del HTML actual; etiquetas desde Pedidos (con los 4 modos del
+diálogo: todas/selección/prueba/repetir), desde Traspasos (destinatario fijo
+Zaragoza) y desde Repartos (una por caja, con seguimiento de "ya impreso" —
+igual que el HTML actual, para no repetir etiquetas de cajas que no han
+cambiado); pantalla "Etiquetas sueltas" para uso manual; el campo de formato
+de etiqueta del cliente pasó de texto libre a desplegable con los 6 ids
+reales. Los días de caducidad configurables ahora son un valor compartido en
+base de datos (`GET/PUT /api/configuracion/dias-caducidad`), no localStorage
+por ordenador como en el HTML actual — CORU y PANC ven siempre el mismo
+valor.
+
+Durante la propia prueba con navegador real se encontró y corrigió un fallo
+real: el motor de impresión esperaba la clave `formatoId` pero la API
+siempre devuelve `formato_id` — como resultado, toda etiqueta se imprimía en
+español por defecto sin ningún aviso, con independencia del formato real que
+le tocara. Se detectó al comprobar visualmente una etiqueta en italiano.
+
+**Se deja fuera de esta fase, señalado honestamente, no construido:** la
+importación de hojas Excel "CARGA [super]" de Scanfisk (formato de fichero
+específico de un flujo externo, no forma parte del resto del sistema), el
+envío de la muestra en PDF por WhatsApp/email a Scanfisk Celeiro (atajos
+sobre un PDF aparte, se puede seguir haciendo a mano), y los documentos de
+transporte del reparto — ficha de envío, hoja de ruta (no son etiquetas de
+producto). Ninguno de los tres afecta a la trazabilidad ni a la impresión
+real de etiquetas.
+
+De lo que quedaba señalado como pendiente en Fase 4 Nivel 2, solo falta ya
 cualquier sistema de login (fuera de alcance mientras el uso sea en red
 local de confianza).

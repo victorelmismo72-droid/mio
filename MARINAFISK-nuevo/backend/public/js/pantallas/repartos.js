@@ -3,6 +3,8 @@
 import { api, generarUid } from '../api.js';
 import { el, numero, fechaHoy, mostrarAviso, conBotonDeshabilitado } from '../utilidades.js';
 import { crearCampoArticulo } from './buscadorArticulo.js';
+import { abrirVentanaImpresion, mostrarErrorEnVentana } from '../impresion/motor.js';
+import { rellenarEtiquetas } from '../impresion/etiquetas.js';
 
 async function render(contenedor) {
   contenedor.innerHTML = '';
@@ -99,19 +101,52 @@ async function render(contenedor) {
     divRecientes.innerHTML = '';
     if (!repartos.length) { divRecientes.appendChild(el('p', { class: 'vacio' }, 'No hay repartos todavía.')); return; }
     const tabla = el('table');
-    tabla.appendChild(el('thead', {}, el('tr', {}, ['Nº', 'Fecha', 'Destinatario', 'Cajas', 'Kg'].map((t) => el('th', {}, t)))));
+    tabla.appendChild(el('thead', {}, el('tr', {}, ['Nº', 'Fecha', 'Destinatario', 'Cajas', 'Kg', ''].map((t) => el('th', {}, t)))));
     const tbody = el('tbody');
     for (const r of repartos.slice(0, 30)) {
+      const botonEtiquetas = el('button', { class: 'pequeno secundario', onclick: () => imprimirEtiquetasReparto(r.id) }, '🏷️ Etiquetas');
       tbody.appendChild(el('tr', {}, [
         el('td', { 'data-etiqueta': 'Nº' }, String(r.numero)),
         el('td', { 'data-etiqueta': 'Fecha' }, String(r.fecha).slice(0, 10)),
         el('td', { 'data-etiqueta': 'Destinatario' }, `${r.destinatario_nombre || ''} ${r.destinatario_ciudad ? '(' + r.destinatario_ciudad + ')' : ''}`),
         el('td', { 'data-etiqueta': 'Cajas' }, numero(r.total_cajas, 0)),
         el('td', { 'data-etiqueta': 'Kg' }, numero(r.total_kg, 3)),
+        el('td', {}, botonEtiquetas),
       ]));
     }
     tabla.appendChild(tbody);
     divRecientes.appendChild(tabla);
+  }
+
+  // Si el reparto ya se había impreso antes Y ahora hay más cajas que la
+  // última vez (se añadieron líneas/cajas), pregunta qué imprimir — igual
+  // que ejecutarImpresionReparto() del HTML actual. Si no hay ese conflicto,
+  // imprime "todas" directamente sin preguntar nada.
+  async function imprimirEtiquetasReparto(repartoId) {
+    let reparto;
+    try {
+      reparto = await api.get(`/api/repartos/${repartoId}`);
+    } catch (err) { return mostrarAviso(contenedor, err.message, 'error'); }
+
+    const conAlgoYaImpreso = reparto.lineas.some((l) => (Number(l.cajas_impresas) || 0) > 0);
+    const conAlgoNuevo = reparto.lineas.some((l) => (Number(l.cajas) || 0) > (Number(l.cajas_impresas) || 0));
+    let modo = 'todas';
+    if (conAlgoYaImpreso && conAlgoNuevo) {
+      modo = confirm('Este reparto ya se había impreso, y parece que se han añadido cajas desde la última vez.\n\nAceptar = imprimir solo lo nuevo.\nCancelar = imprimir todo otra vez.') ? 'nuevas' : 'todas';
+    }
+
+    const ventana = abrirVentanaImpresion('Etiquetas');
+    if (!ventana) return;
+    (async () => {
+      try {
+        const resultado = await api.get(`/api/repartos/${repartoId}/etiquetas?modo=${modo}`);
+        rellenarEtiquetas(ventana, resultado);
+        await api.post(`/api/repartos/${repartoId}/marcar-etiquetas-impresas`, {});
+      } catch (err) {
+        mostrarErrorEnVentana(ventana, err.message);
+        mostrarAviso(contenedor, err.message, 'error');
+      }
+    })();
   }
   await cargarRecientes();
 }

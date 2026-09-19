@@ -2,6 +2,8 @@ const express = require('express');
 const { conTransaccion } = require('../db');
 const { registrarEscritura } = require('../lib/log');
 const { ejecutarIdempotente } = require('../lib/idempotencia');
+const { datosEtiquetaReparto } = require('../logica/datosEtiquetas');
+const { obtenerDiasCaducidad } = require('../lib/configuracion');
 
 const router = express.Router();
 
@@ -22,6 +24,60 @@ router.get('/:id', async (req, res, next) => {
     });
     if (!resultado) return res.status(404).json({ error: `No existe ningún reparto con id ${req.params.id}` });
     res.json(resultado);
+  } catch (err) { next(err); }
+});
+
+// Etiquetas de un reparto (FASE_5) — una por caja de cada línea, siempre en
+// formato Scanfisk. Con modo=nuevas, solo las cajas que no se hubieran
+// impreso ya (cajas - cajas_impresas), para cuando un reparto crece después
+// de haberse etiquetado una vez — igual que ejecutarImpresionReparto() del
+// HTML actual.
+router.get('/:id/etiquetas', async (req, res, next) => {
+  try {
+    const modo = req.query.modo === 'nuevas' ? 'nuevas' : 'todas';
+    const resultado = await conTransaccion(async (cliente) => {
+      const cabR = await cliente.query('SELECT * FROM repartos WHERE id = $1', [req.params.id]);
+      if (!cabR.rows.length) return null;
+      const reparto = cabR.rows[0];
+      const lineasR = await cliente.query('SELECT * FROM reparto_lineas WHERE reparto_id = $1 ORDER BY id', [req.params.id]);
+      const lineas = lineasR.rows;
+      if (!lineas.length) return { error: 'Este reparto no tiene líneas.' };
+      const diasCaducidad = await obtenerDiasCaducidad(cliente);
+
+      let datos = [];
+      for (const l of lineas) {
+        const cajasTotal = Math.max(0, Math.round(Number(l.cajas) || 0));
+        const cajasImpresas = Math.max(0, Math.round(Number(l.cajas_impresas) || 0));
+        const copias = modo === 'nuevas' ? Math.max(0, cajasTotal - cajasImpresas) : cajasTotal;
+        if (!copias) continue;
+        let articulo = null;
+        if (l.articulo_id) {
+          const a = await cliente.query('SELECT * FROM articulos WHERE id = $1', [l.articulo_id]);
+          articulo = a.rows[0] || null;
+        }
+        const dato = datosEtiquetaReparto({ reparto, linea: l, articulo, diasCaducidad });
+        for (let i = 0; i < copias; i++) datos.push(dato);
+      }
+      if (!datos.length) return { error: modo === 'nuevas' ? 'No hay cajas nuevas que imprimir.' : 'Ninguna línea de este reparto tiene cajas indicadas.' };
+      return { formato_id: 'scanfisk', datos };
+    });
+    if (!resultado) return res.status(404).json({ error: `No existe ningún reparto con id ${req.params.id}` });
+    if (resultado.error) return res.status(400).json({ error: resultado.error });
+    res.json(resultado);
+  } catch (err) { next(err); }
+});
+
+// Marca las cajas actuales de cada línea como ya impresas — se llama
+// después de imprimir con éxito, para que la próxima vez "solo lo nuevo"
+// sepa desde dónde contar (igual que el HTML actual).
+router.post('/:id/marcar-etiquetas-impresas', async (req, res, next) => {
+  try {
+    const resultado = await conTransaccion(async (cliente) => {
+      const r = await cliente.query('UPDATE reparto_lineas SET cajas_impresas = cajas WHERE reparto_id = $1 RETURNING id', [req.params.id]);
+      return r.rows.length;
+    });
+    if (!resultado) return res.status(404).json({ error: `No existe ningún reparto con id ${req.params.id}, o no tiene líneas.` });
+    res.json({ ok: true });
   } catch (err) { next(err); }
 });
 

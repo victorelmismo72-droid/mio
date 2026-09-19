@@ -461,4 +461,17 @@ LEFT JOIN (
     GROUP BY numero_partida
 ) vendidos_kg ON vendidos_kg.numero_partida = p.numero_partida;
 
+-- ---------------------------------------------------------------------------
+-- 14. Configuración compartida (clave/valor)
+-- ---------------------------------------------------------------------------
+-- Fase 5 (Etiquetas): el HTML actual guarda "días de caducidad" en
+-- localStorage, por ordenador — un defecto real (CORU y PANC podrían tener
+-- valores distintos sin que nadie se diera cuenta). Aquí es una única fila
+-- compartida, igual para los dos puestos, consistente con Fase 3.
+CREATE TABLE configuracion (
+    clave           TEXT PRIMARY KEY,
+    valor           TEXT NOT NULL,
+    actualizado_en  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 COMMIT;

@@ -33,6 +33,20 @@ export default crearPantallaCrud({
         { valor: 'INTRACOMUNITARIO', etiqueta: 'Intracomunitario' },
       ],
     },
-    { clave: 'formato_etiqueta', etiqueta: 'Formato de etiqueta' },
+    {
+      // Los 6 ids reales de backend/src/etiquetasFormatos.js (FASE_5) — antes
+      // era texto libre, lo que dejaba entrar ids mal escritos que caían en
+      // silencio al formato por defecto sin que nadie se diera cuenta.
+      clave: 'formato_etiqueta', etiqueta: 'Formato de etiqueta', tipo: 'select',
+      opciones: [
+        { valor: '', etiqueta: '(por defecto: Marina Fisk estándar)' },
+        { valor: 'marina_fisk', etiqueta: 'Marina Fisk (estándar)' },
+        { valor: 'marina_fisk_fr', etiqueta: 'Marina Fisk (Francés — Pomona)' },
+        { valor: 'marina_fisk_it', etiqueta: 'Marina Fisk (Italiano)' },
+        { valor: 'marina_fisk_masymas', etiqueta: 'Marina Fisk (Más y Más)' },
+        { valor: 'david_sala', etiqueta: 'Pescados David Sala Blanes' },
+        { valor: 'scanfisk', etiqueta: 'Scanfisk Seafood' },
+      ],
+    },
   ],
 });

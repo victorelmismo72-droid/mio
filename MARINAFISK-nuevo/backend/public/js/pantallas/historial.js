@@ -6,6 +6,7 @@
 import { api } from '../api.js';
 import { el, euros, mostrarAviso } from '../utilidades.js';
 import { abrirVentanaImpresion, mostrarErrorEnVentana, rellenarAlbaran, rellenarSobrePapel } from '../impresion/motor.js';
+import { abrirPanelEtiquetasPedido } from './dialogoEtiquetas.js';
 
 async function render(contenedor) {
   contenedor.innerHTML = '';
@@ -36,6 +37,8 @@ async function render(contenedor) {
 
   const divTabla = el('div', {}, el('p', { class: 'cargando' }, 'Cargando…'));
   contenedor.appendChild(divTabla);
+  const divPanelEtiquetas = el('div', {});
+  contenedor.appendChild(divPanelEtiquetas);
 
   let pedidosActuales = [];
   const seleccionados = new Set();
@@ -72,7 +75,7 @@ async function render(contenedor) {
     casillaTodos.checked = pedidosActuales.length > 0 && seleccionados.size === pedidosActuales.length;
 
     const tabla = el('table');
-    tabla.appendChild(el('thead', {}, el('tr', {}, [el('th', {}, casillaTodos), ...['Nº', 'Fecha', 'Cliente', 'Agencia', 'Total'].map((t) => el('th', {}, t))])));
+    tabla.appendChild(el('thead', {}, el('tr', {}, [el('th', {}, casillaTodos), ...['Nº', 'Fecha', 'Cliente', 'Agencia', 'Total', ''].map((t) => el('th', {}, t))])));
     const tbody = el('tbody');
     for (const p of pedidosActuales) {
       const casilla = el('input', { type: 'checkbox', onchange: () => {
@@ -87,6 +90,7 @@ async function render(contenedor) {
         el('td', { 'data-etiqueta': 'Cliente' }, p.cliente_nombre_snapshot || ''),
         el('td', { 'data-etiqueta': 'Agencia' }, p.agencia || ''),
         el('td', { 'data-etiqueta': 'Total' }, euros(p.total)),
+        el('td', {}, el('button', { class: 'pequeno secundario', onclick: () => abrirPanelEtiquetasPedido(divPanelEtiquetas, p.id, contenedor) }, '🏷️')),
       ]));
     }
     tabla.appendChild(tbody);

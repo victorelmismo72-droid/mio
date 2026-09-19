@@ -7,6 +7,7 @@ import { api, generarUid } from '../api.js';
 import { el, euros, numero, fechaHoy, debounce, mostrarAviso, conBotonDeshabilitado } from '../utilidades.js';
 import { crearCampoArticulo, crearCampoCliente } from './buscadorArticulo.js';
 import { abrirVentanaImpresion, mostrarErrorEnVentana, rellenarSobrePapel } from '../impresion/motor.js';
+import { abrirPanelEtiquetasPedido } from './dialogoEtiquetas.js';
 
 const IVA_PESCADO_PCT = 10;
 const RECARGO_PCT = 1.4;
@@ -193,6 +194,8 @@ async function render(contenedor) {
   contenedor.appendChild(el('h3', {}, 'Pedidos recientes'));
   const divRecientes = el('div', {}, el('p', { class: 'cargando' }, 'Cargando…'));
   contenedor.appendChild(divRecientes);
+  const divPanelEtiquetas = el('div', {});
+  contenedor.appendChild(divPanelEtiquetas);
 
   function imprimirCmr(pedidoId) {
     // La ventana se abre aquí mismo, dentro del clic — ver corrección
@@ -221,9 +224,12 @@ async function render(contenedor) {
     for (const p of pedidos.slice(0, 30)) {
       // Corrección 02/09/2026 punto 7: el botón CMR solo aparece para
       // clientes con agencia "MOZO" — para el resto queda oculto.
-      const acciones = String(p.agencia || '').toUpperCase() === 'MOZO'
-        ? el('button', { class: 'pequeno secundario', onclick: () => imprimirCmr(p.id) }, '📄 CMR')
-        : '';
+      const acciones = [
+        el('button', { class: 'pequeno secundario', onclick: () => abrirPanelEtiquetasPedido(divPanelEtiquetas, p.id, contenedor) }, '🏷️ Etiquetas'),
+        String(p.agencia || '').toUpperCase() === 'MOZO'
+          ? el('button', { class: 'pequeno secundario', onclick: () => imprimirCmr(p.id) }, '📄 CMR')
+          : null,
+      ];
       tbody.appendChild(el('tr', {}, [
         el('td', { 'data-etiqueta': 'Nº' }, String(p.numero)),
         el('td', { 'data-etiqueta': 'Fecha' }, String(p.fecha).slice(0, 10)),

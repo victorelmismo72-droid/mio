@@ -21,6 +21,8 @@ app.use('/api/repartos', require('./routes/repartos'));
 app.use('/api/traspasos', require('./routes/traspasos'));
 app.use('/api/listas-precio', require('./routes/listasPrecio'));
 app.use('/api/listados', require('./routes/listados'));
+app.use('/api/etiquetas', require('./routes/etiquetas'));
+app.use('/api/configuracion', require('./routes/configuracion'));
 app.use('/api/modelos-impresion', require('./routes/modelosImpresion'));
 app.use('/api/exportar', require('./routes/export'));
 

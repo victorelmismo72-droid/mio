@@ -4,6 +4,8 @@ const { registrarEscritura } = require('../lib/log');
 const { ejecutarIdempotente } = require('../lib/idempotencia');
 const { obtenerModelo } = require('../modelosImpresion');
 const { valoresTransfrioTraspaso } = require('../logica/datosImpresion');
+const { datosEtiquetaTraspaso } = require('../logica/datosEtiquetas');
+const { obtenerDiasCaducidad } = require('../lib/configuracion');
 
 const router = express.Router();
 
@@ -50,6 +52,40 @@ router.get('/:id', async (req, res, next) => {
       return { ...cabecera.rows[0], lineas: lineas.rows };
     });
     if (!resultado) return res.status(404).json({ error: `No existe ningún traspaso con id ${req.params.id}` });
+    res.json(resultado);
+  } catch (err) { next(err); }
+});
+
+// Etiquetas de un traspaso (FASE_5) — una etiqueta por caja de cada línea,
+// destinatario fijo Zaragoza, formato siempre "marina_fisk" (el traspaso no
+// tiene cliente real que elegir un formato distinto).
+router.get('/:id/etiquetas', async (req, res, next) => {
+  try {
+    const resultado = await conTransaccion(async (cliente) => {
+      const cabR = await cliente.query('SELECT * FROM traspasos WHERE id = $1', [req.params.id]);
+      if (!cabR.rows.length) return null;
+      const traspaso = cabR.rows[0];
+      const lineasR = await cliente.query('SELECT * FROM traspaso_lineas WHERE traspaso_id = $1 ORDER BY id', [req.params.id]);
+      const lineas = lineasR.rows;
+      if (!lineas.length) return { error: 'Este traspaso no tiene líneas.' };
+      const diasCaducidad = await obtenerDiasCaducidad(cliente);
+
+      let datos = [];
+      for (const l of lineas) {
+        let articulo = null;
+        if (l.articulo_id) {
+          const a = await cliente.query('SELECT * FROM articulos WHERE id = $1', [l.articulo_id]);
+          articulo = a.rows[0] || null;
+        }
+        const dato = datosEtiquetaTraspaso({ fecha: traspaso.fecha, articulo, diasCaducidad });
+        const copias = Math.max(0, Math.round(Number(l.cajas) || 0));
+        for (let i = 0; i < copias; i++) datos.push(dato);
+      }
+      if (!datos.length) return { error: 'Ninguna línea de este traspaso tiene cajas indicadas.' };
+      return { formato_id: 'marina_fisk', datos };
+    });
+    if (!resultado) return res.status(404).json({ error: `No existe ningún traspaso con id ${req.params.id}` });
+    if (resultado.error) return res.status(400).json({ error: resultado.error });
     res.json(resultado);
   } catch (err) { next(err); }
 });

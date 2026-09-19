@@ -4,6 +4,7 @@ import { api, generarUid } from '../api.js';
 import { el, euros, numero, fechaHoy, mostrarAviso, conBotonDeshabilitado } from '../utilidades.js';
 import { crearCampoArticulo } from './buscadorArticulo.js';
 import { abrirVentanaImpresion, mostrarErrorEnVentana, rellenarSobrePapel } from '../impresion/motor.js';
+import { rellenarEtiquetas } from '../impresion/etiquetas.js';
 
 async function render(contenedor) {
   contenedor.innerHTML = '';
@@ -102,12 +103,13 @@ async function render(contenedor) {
     const tbody = el('tbody');
     for (const t of traspasos.slice(0, 30)) {
       const botonTransfrio = el('button', { class: 'pequeno secundario', onclick: () => imprimirTransfrio(t.id) }, '🚚 Transfrío');
+      const botonEtiquetas = el('button', { class: 'pequeno secundario', onclick: () => imprimirEtiquetas(t.id) }, '🏷️ Etiquetas');
       tbody.appendChild(el('tr', {}, [
         el('td', { 'data-etiqueta': 'Nº' }, String(t.numero)),
         el('td', { 'data-etiqueta': 'Fecha' }, String(t.fecha).slice(0, 10)),
         el('td', { 'data-etiqueta': 'Kg' }, numero(t.total_kg, 3)),
         el('td', { 'data-etiqueta': 'Total' }, euros(t.total)),
-        el('td', {}, botonTransfrio),
+        el('td', {}, [botonTransfrio, botonEtiquetas]),
       ]));
     }
     tabla.appendChild(tbody);
@@ -128,6 +130,22 @@ async function render(contenedor) {
         const modelo = await api.get('/api/modelos-impresion/transfrio');
         const datos = await api.get(`/api/traspasos/imprimir?ids=${traspasoId}&modelo=transfrio`);
         rellenarSobrePapel(ventana, { modelo, listaValores: datos.map((d) => d.valores), copiasPorDocumento: copias });
+      } catch (err) {
+        mostrarErrorEnVentana(ventana, err.message);
+        mostrarAviso(contenedor, err.message, 'error');
+      }
+    })();
+  }
+
+  function imprimirEtiquetas(traspasoId) {
+    // La ventana se abre aquí mismo, dentro del clic — mismo motivo que en
+    // el resto de la impresión (ver impresion/motor.js).
+    const ventana = abrirVentanaImpresion('Etiquetas');
+    if (!ventana) return;
+    (async () => {
+      try {
+        const resultado = await api.get(`/api/traspasos/${traspasoId}/etiquetas`);
+        rellenarEtiquetas(ventana, resultado);
       } catch (err) {
         mostrarErrorEnVentana(ventana, err.message);
         mostrarAviso(contenedor, err.message, 'error');

@@ -17,6 +17,9 @@ const { asignarPartidaAutomatica } = require('../logica/partidas');
 const { calcularIvaVenta } = require('../logica/calculosVenta');
 const { obtenerModelo } = require('../modelosImpresion');
 const { valoresTransfrioPedido, valoresCmr } = require('../logica/datosImpresion');
+const { formatoParaCliente } = require('../etiquetasFormatos');
+const { datosEtiquetaLinea, copiasPorLinea } = require('../logica/datosEtiquetas');
+const { obtenerDiasCaducidad } = require('../lib/configuracion');
 
 const router = express.Router();
 
@@ -76,6 +79,63 @@ router.get('/imprimir', async (req, res, next) => {
       }
       return salida;
     });
+    res.json(resultado);
+  } catch (err) { next(err); }
+});
+
+// Etiquetas de un pedido (FASE_5) — cuatro modos, igual que el diálogo del
+// HTML actual: todas las líneas, una selección de líneas, una etiqueta de
+// prueba, o repetir N etiquetas de una línea concreta a mano.
+router.get('/:id/etiquetas', async (req, res, next) => {
+  try {
+    const modo = req.query.modo || 'todas';
+    const resultado = await conTransaccion(async (cliente) => {
+      const cabR = await cliente.query('SELECT * FROM pedidos WHERE id = $1', [req.params.id]);
+      if (!cabR.rows.length) return null;
+      const pedido = cabR.rows[0];
+      const lineasR = await cliente.query('SELECT * FROM pedido_lineas WHERE pedido_id = $1 ORDER BY id', [req.params.id]);
+      const lineas = lineasR.rows;
+      if (!lineas.length) return { error: 'Este pedido no tiene líneas.' };
+
+      let clienteInfo = null;
+      if (pedido.cliente_id) {
+        const c = await cliente.query('SELECT * FROM clientes WHERE id = $1', [pedido.cliente_id]);
+        clienteInfo = c.rows[0] || null;
+      }
+      const formatoId = formatoParaCliente(clienteInfo);
+      const diasCaducidad = await obtenerDiasCaducidad(cliente);
+
+      async function articuloDeLinea(linea) {
+        if (!linea.articulo_id) return null;
+        const a = await cliente.query('SELECT * FROM articulos WHERE id = $1', [linea.articulo_id]);
+        return a.rows[0] || null;
+      }
+      async function etiquetasDeLinea(linea, copias) {
+        const articulo = await articuloDeLinea(linea);
+        const dato = datosEtiquetaLinea({ fecha: pedido.fecha, articulo, cliente: clienteInfo, formatoId, diasCaducidad });
+        return Array.from({ length: copias }, () => dato);
+      }
+
+      let datos = [];
+      if (modo === 'todas') {
+        for (const l of lineas) datos = datos.concat(await etiquetasDeLinea(l, copiasPorLinea(l)));
+      } else if (modo === 'seleccion') {
+        const ids = String(req.query.lineas || '').split(',').map((s) => s.trim()).filter(Boolean);
+        if (!ids.length) return { error: 'No se ha marcado ninguna línea.' };
+        for (const l of lineas.filter((l) => ids.includes(String(l.id)))) datos = datos.concat(await etiquetasDeLinea(l, copiasPorLinea(l)));
+      } else if (modo === 'prueba' || modo === 'repetir') {
+        const linea = lineas.find((l) => String(l.id) === String(req.query.linea));
+        if (!linea) return { error: 'No se encuentra esa línea del pedido.' };
+        const copias = modo === 'prueba' ? 1 : Math.max(1, parseInt(req.query.cantidad, 10) || 1);
+        datos = await etiquetasDeLinea(linea, copias);
+      } else {
+        return { error: `Modo de impresión de etiquetas desconocido: "${modo}".` };
+      }
+      if (!datos.length) return { error: 'No hay ninguna etiqueta que imprimir con esta selección.' };
+      return { formato_id: formatoId, pedido: { numero: pedido.numero, cliente_nombre: pedido.cliente_nombre_snapshot }, datos };
+    });
+    if (!resultado) return res.status(404).json({ error: `No existe ningún pedido con id ${req.params.id}` });
+    if (resultado.error) return res.status(400).json({ error: resultado.error });
     res.json(resultado);
   } catch (err) { next(err); }
 });
