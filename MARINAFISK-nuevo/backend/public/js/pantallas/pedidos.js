@@ -33,7 +33,11 @@ async function render(contenedor) {
   contenedor.innerHTML = '';
   contenedor.appendChild(el('h2', {}, 'Pedidos'));
 
-  const [clientes, articulos] = await Promise.all([api.get('/api/clientes'), api.get('/api/articulos')]);
+  const [clientes, articulosTodos] = await Promise.all([api.get('/api/clientes'), api.get('/api/articulos')]);
+  // Fase 6: un artículo desactivado (dado de baja en la última importación
+  // de catálogo) no se ofrece al elegir artículo en un pedido nuevo — sigue
+  // existiendo para el histórico, solo deja de aparecer aquí.
+  const articulos = articulosTodos.filter((a) => a.activo);
   if (!clientes.length) {
     contenedor.appendChild(el('p', { class: 'aviso error' }, 'No hay clientes en el catálogo todavía — crea uno primero en la pantalla Clientes.'));
     return;

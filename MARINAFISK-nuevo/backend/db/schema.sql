@@ -96,6 +96,14 @@ CREATE TABLE articulos (
     forma_obtencion     TEXT,
     nombre_frances      TEXT,
     nombre_italiano     TEXT,
+    -- Fase 6: la importación de catálogo desde Excel usa esto para "dar de
+    -- baja" un artículo (MOSTRAR EN LISTA distinto de "S", o que ya no
+    -- aparece en el Excel) SIN borrarlo — a diferencia del HTML actual, aquí
+    -- hay compras/pedidos reales con clave foránea hacia articulos, y
+    -- borrar uno referenciado rompería ese histórico. Un artículo inactivo
+    -- sigue existiendo (y se ve en la pantalla de Artículos) pero deja de
+    -- ofrecerse al elegir artículo en documentos nuevos.
+    activo              BOOLEAN NOT NULL DEFAULT true,
     creado_en           TIMESTAMPTZ NOT NULL DEFAULT now(),
     modificado_en       TIMESTAMPTZ NOT NULL DEFAULT now()
 );

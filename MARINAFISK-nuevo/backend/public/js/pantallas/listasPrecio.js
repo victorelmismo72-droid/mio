@@ -15,7 +15,7 @@ async function render(contenedor) {
   contenedor.innerHTML = '';
   contenedor.appendChild(el('h2', {}, 'Listas de precio'));
 
-  const articulos = await api.get('/api/articulos');
+  const articulos = (await api.get('/api/articulos')).filter((a) => a.activo);
   const mapaArticulosPorCodigo = new Map(articulos.map((a) => [a.codigo, a]));
 
   // ---------------- Modo AUTO ----------------

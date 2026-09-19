@@ -10,7 +10,7 @@ async function render(contenedor) {
   contenedor.innerHTML = '';
   contenedor.appendChild(el('h2', {}, 'Traspasos internos (a Zaragoza)'));
 
-  const articulos = await api.get('/api/articulos');
+  const articulos = (await api.get('/api/articulos')).filter((a) => a.activo);
   const tarjeta = el('div', { class: 'tarjeta' });
   contenedor.appendChild(tarjeta);
 

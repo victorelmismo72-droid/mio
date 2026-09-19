@@ -4,17 +4,59 @@
 import { api, generarUid } from '../api.js';
 import { el, euros, numero, fechaHoy, debounce, mostrarAviso, conBotonDeshabilitado } from '../utilidades.js';
 import { crearCampoArticulo } from './buscadorArticulo.js';
+import { leerArchivoComoWorkbook, parsearComprasExcel } from '../importacionExcel.js';
+import { panelErrores, panelResumen } from './resultadoImportacion.js';
 
 async function render(contenedor) {
   contenedor.innerHTML = '';
   contenedor.appendChild(el('h2', {}, 'Compras'));
   contenedor.appendChild(el('p', {}, '⚠️ Las compras no se pueden modificar ni borrar una vez grabadas (dato sagrado) — revisa bien antes de grabar.'));
 
-  const [proveedores, articulos] = await Promise.all([api.get('/api/proveedores'), api.get('/api/articulos')]);
+  const [proveedores, articulosTodos] = await Promise.all([api.get('/api/proveedores'), api.get('/api/articulos')]);
+  // Fase 6: un artículo desactivado no se ofrece al elegir artículo en una
+  // compra nueva — sigue existiendo para el histórico, solo deja de
+  // aparecer aquí.
+  const articulos = articulosTodos.filter((a) => a.activo);
   if (!proveedores.length) {
     contenedor.appendChild(el('p', { class: 'aviso error' }, 'No hay proveedores en el catálogo todavía — crea uno primero en la pantalla Proveedores.'));
     return;
   }
+
+  // Importación masiva desde Excel (Fase 6, hoja "COMPRAS") — nunca
+  // modifica una compra ya grabada (dato sagrado): las combinaciones
+  // partida+albarán+proveedor nuevas se dan de alta, las que ya existen
+  // igual no se tocan, y las que ya existen con datos distintos se avisan
+  // como conflicto para revisar a mano. Ver FASE_6 punto 4.
+  const tarjetaImport = el('div', { class: 'tarjeta' });
+  const divResultadoImport = el('div', {});
+  const inputFileCompras = el('input', { type: 'file', accept: '.xlsx,.xls', style: 'display:none;' });
+  inputFileCompras.addEventListener('change', async () => {
+    const file = inputFileCompras.files[0];
+    inputFileCompras.value = '';
+    if (!file) return;
+    try {
+      const wb = await leerArchivoComoWorkbook(file, { cellDates: true });
+      const r = parsearComprasExcel(wb);
+      if (!r.ok) { panelErrores(divResultadoImport, r.errores); return; }
+      const resultado = await api.post('/api/compras/importar', { grupos: r.grupos });
+      const ignoradasTotal = r.ignoradas.concat(resultado.ignoradas);
+      panelResumen(divResultadoImport, {
+        resumen: `${r.grupos.length} compra(s) del Excel procesadas → ${resultado.nuevas} nueva(s), ${resultado.sin_cambios} ya estaban igual (no se han tocado ni duplicado).`,
+        secciones: [
+          { titulo: '⚠️ Ya existían con datos distintos — no se han modificado, revísalas a mano', items: resultado.conflictos },
+          { titulo: '⚠️ Filas/compras ignoradas (no parecían una compra real)', items: ignoradasTotal },
+        ],
+      });
+      await cargarRecientes();
+    } catch (err) {
+      panelErrores(divResultadoImport, [`Error inesperado al leer el archivo: ${err.message}`]);
+    }
+  });
+  tarjetaImport.appendChild(el('div', { class: 'fila' }, [
+    el('button', { class: 'secundario', onclick: () => inputFileCompras.click() }, '📥 Importar desde Excel (hoja "COMPRAS")'), inputFileCompras,
+  ]));
+  tarjetaImport.appendChild(divResultadoImport);
+  contenedor.appendChild(tarjetaImport);
 
   const tarjeta = el('div', { class: 'tarjeta' });
   contenedor.appendChild(tarjeta);

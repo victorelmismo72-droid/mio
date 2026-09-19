@@ -14,9 +14,10 @@ async function render(contenedor) {
   contenedor.appendChild(el('h2', {}, 'Etiquetas sueltas'));
   contenedor.appendChild(el('p', {}, 'Para imprimir una o varias etiquetas de trazabilidad sin que haya un pedido, traspaso o reparto detrás.'));
 
-  const [clientes, articulos, formatos, configCaducidad] = await Promise.all([
+  const [clientes, articulosTodos, formatos, configCaducidad] = await Promise.all([
     api.get('/api/clientes'), api.get('/api/articulos'), api.get('/api/etiquetas/formatos'), api.get('/api/configuracion/dias-caducidad'),
   ]);
+  const articulos = articulosTodos.filter((a) => a.activo);
 
   const tarjeta = el('div', { class: 'tarjeta' });
   contenedor.appendChild(tarjeta);

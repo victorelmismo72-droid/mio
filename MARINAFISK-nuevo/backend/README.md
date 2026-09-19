@@ -456,3 +456,45 @@ real de etiquetas.
 De lo que quedaba señalado como pendiente en Fase 4 Nivel 2, solo falta ya
 cualquier sistema de login (fuera de alcance mientras el uso sea en red
 local de confianza).
+
+## 12. Fase 6: Importación de catálogos desde Excel (19/09/2026)
+
+Al pedir "seguir con las etiquetas y la importación de Excel", se encontró
+que el HTML actual tiene dos cosas distintas con ese nombre: la
+importación de Excel para generar etiquetas de Scanfisk (código muerto,
+sin botón que la dispare — ver Fase 5) y 6 importadores de catálogo
+completamente reales, cada uno con su propio botón. Se le preguntó a
+Víctor y confirmó que se refería a estos últimos. Ver
+`FASE_6_importacion_excel_MARINAFISK.md` para el detalle leído del código
+real, y `VERIFICACION_IMPORTACION_EXCEL_2026-09-19.md` para la prueba con
+ficheros `.xlsx` reales.
+
+Construido: importación de **Clientes** (hoja "CLIENTES"), **Proveedores**
+("PROVEEDORES"), **catálogo de Artículos** ("PRODUCTOS"), **nombres en
+francés/italiano** (hoja "TRADUC…") y **Compras** ("COMPRAS") — misma
+detección tolerante de la fila de cabecera y las mismas reglas de
+validación que el HTML actual. Dos adaptaciones deliberadas, señaladas en
+el propio documento de fase, porque el HTML actual hace algo que
+rompería garantías ya construidas y probadas en fases anteriores:
+
+- **Artículos**: el HTML actual sustituye el catálogo entero por lo que
+  trae el Excel (borra lo que no aparece). Aquí eso rompería el histórico
+  real de compras/pedidos (clave foránea real hacia `articulos`) — se
+  añadió una columna `articulos.activo`: un artículo que no viene en el
+  Excel se **desactiva**, no se borra, y deja de ofrecerse al elegir
+  artículo en compras/pedidos/repartos/traspasos/listas de
+  precio/etiquetas sueltas nuevas (se sigue viendo, y se puede reactivar a
+  mano, en la propia pantalla de Artículos).
+- **Compras**: el HTML actual sobrescribe en silencio una compra ya
+  grabada si el Excel trae datos distintos para la misma
+  partida+albarán+proveedor. Las compras son un dato sagrado (FASE_0) —
+  aquí, si ya existe con el mismo contenido no se toca (se puede
+  reimportar el mismo Excel sin duplicar), y si existe con contenido
+  **distinto** tampoco se toca: se avisa en "conflictos" para que Víctor lo
+  revise a mano.
+
+Se deja fuera, señalado honestamente: el "deshacer última importación" del
+HTML actual (aquí se recomienda usar el mecanismo real de copia de
+seguridad, `backend/scripts/backup.js`, antes de una importación grande) y
+la sincronización con la carpeta compartida (ya no aplica, Fase 3 usa base
+de datos compartida real).

@@ -1,8 +1,33 @@
 import { crearPantallaCrud } from './crudGenerico.js';
+import { api } from '../api.js';
+import { leerArchivoComoWorkbook, parsearClientesExcel } from '../importacionExcel.js';
+import { panelErrores, panelResumen } from './resultadoImportacion.js';
+
+async function importarClientes(file, { contenedorResultado, recargar }) {
+  try {
+    const wb = await leerArchivoComoWorkbook(file);
+    const r = parsearClientesExcel(wb);
+    if (!r.ok) return panelErrores(contenedorResultado, r.errores);
+    const resultado = await api.post('/api/clientes/importar', { filas: r.filas });
+    panelResumen(contenedorResultado, {
+      resumen: `${r.filas.length} clientes procesados del Excel (${resultado.nuevos.length} nuevos, ${resultado.modificados.length} modificados, ${resultado.sin_cambios} sin cambios). Los clientes que ya tenías y no venían en el Excel se han conservado tal cual.`,
+      secciones: [
+        { titulo: '🆕 Nuevos', items: resultado.nuevos },
+        { titulo: '✏️ Modificados', items: resultado.modificados },
+      ],
+    });
+    await recargar();
+  } catch (err) {
+    panelErrores(contenedorResultado, [`Error inesperado al leer el archivo: ${err.message}. Los clientes actuales no se han modificado.`]);
+  }
+}
 
 export default crearPantallaCrud({
   titulo: 'Clientes',
   ruta: '/api/clientes',
+  importadores: [
+    { etiqueta: '📥 Importar desde Excel (hoja "CLIENTES")', manejar: importarClientes },
+  ],
   columnas: [
     { clave: 'codigo', etiqueta: 'Código' },
     { clave: 'nombre', etiqueta: 'Nombre' },

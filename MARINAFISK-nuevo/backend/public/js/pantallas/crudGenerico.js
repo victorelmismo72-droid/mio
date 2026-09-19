@@ -4,10 +4,33 @@
 import { api } from '../api.js';
 import { el, mostrarAviso, conBotonDeshabilitado } from '../utilidades.js';
 
-export function crearPantallaCrud({ titulo, ruta, columnas, camposFormulario }) {
+export function crearPantallaCrud({ titulo, ruta, columnas, camposFormulario, importadores }) {
   async function render(contenedor) {
     contenedor.innerHTML = '';
     contenedor.appendChild(el('h2', {}, titulo));
+
+    // Fase 6: uno o varios botones "Importar desde Excel" (catálogo real,
+    // no el import de etiquetas de Scanfisk — ver FASE_6). Cada importador
+    // se encarga de su propio parseo/validación y de llamar a la ruta del
+    // servidor; aquí solo se le da un sitio donde pintar el resultado y una
+    // forma de refrescar la tabla al terminar.
+    if (importadores && importadores.length) {
+      const divImport = el('div', { class: 'tarjeta' });
+      const divResultadoImport = el('div', {});
+      const botones = importadores.map((imp) => {
+        const inputFile = el('input', { type: 'file', accept: imp.accept || '.xlsx,.xls', style: 'display:none;' });
+        inputFile.addEventListener('change', async () => {
+          const file = inputFile.files[0];
+          inputFile.value = '';
+          if (!file) return;
+          await imp.manejar(file, { contenedorResultado: divResultadoImport, contenedorAviso: contenedor, recargar: cargarTabla });
+        });
+        return el('span', {}, [el('button', { class: 'secundario', onclick: () => inputFile.click() }, imp.etiqueta), inputFile]);
+      });
+      divImport.appendChild(el('div', { class: 'fila' }, botones));
+      divImport.appendChild(divResultadoImport);
+      contenedor.appendChild(divImport);
+    }
 
     const divFormulario = el('div', { class: 'tarjeta' });
     const divTitulo = el('h3', {}, 'Nuevo registro');
@@ -20,7 +43,11 @@ export function crearPantallaCrud({ titulo, ruta, columnas, camposFormulario }) 
     const inputs = {};
 
     function campoAInput(campo) {
-      if (campo.tipo === 'checkbox') return el('input', { type: 'checkbox', id: `c-${campo.clave}` });
+      if (campo.tipo === 'checkbox') {
+        const input = el('input', { type: 'checkbox', id: `c-${campo.clave}` });
+        input.checked = !!campo.defecto;
+        return input;
+      }
       if (campo.tipo === 'select') {
         return el('select', { id: `c-${campo.clave}` }, campo.opciones.map((o) => el('option', { value: o.valor }, o.etiqueta)));
       }
@@ -32,8 +59,8 @@ export function crearPantallaCrud({ titulo, ruta, columnas, camposFormulario }) 
       divTitulo.textContent = 'Nuevo registro';
       for (const campo of camposFormulario) {
         const input = inputs[campo.clave];
-        if (campo.tipo === 'checkbox') input.checked = false;
-        else input.value = '';
+        if (campo.tipo === 'checkbox') input.checked = !!campo.defecto;
+        else input.value = campo.defecto ?? '';
       }
     }
 
