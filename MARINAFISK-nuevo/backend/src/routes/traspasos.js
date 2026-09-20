@@ -6,6 +6,7 @@ const { obtenerModelo } = require('../modelosImpresion');
 const { valoresTransfrioTraspaso } = require('../logica/datosImpresion');
 const { datosEtiquetaTraspaso } = require('../logica/datosEtiquetas');
 const { obtenerDiasCaducidad } = require('../lib/configuracion');
+const { calcularTotalLinea } = require('../logica/calculosVenta');
 
 const router = express.Router();
 
@@ -97,6 +98,15 @@ async function asegurarPartidas(cliente, lineas) {
   }
 }
 
+// El total de cada línea (peso × precio) se calcula siempre aquí, nunca se
+// acepta el que mande la pantalla — mismo principio que ya usan Compras
+// (2% OP/IVA) y Pedidos (ver VERIFICACION_AGILIDAD_2026-09-20.md: un pedido
+// podía grabarse con importe 0€ si el navegador mandaba un total que
+// todavía no había terminado de calcularse). En Traspasos la pantalla SÍ
+// calcula el total de forma síncrona al grabar (no hay ningún cálculo
+// asíncrono de por medio), así que no había podido reproducirse ese fallo
+// exacto — pero tampoco tiene sentido que el servidor confíe en un importe
+// que él mismo puede calcular con los mismos datos que ya está validando.
 async function insertarLineasTraspaso(cliente, traspasoId, lineas) {
   const guardadas = [];
   for (const l of lineas) {
@@ -108,16 +118,22 @@ async function insertarLineasTraspaso(cliente, traspasoId, lineas) {
        RETURNING *`,
       [traspasoId, l.articulo_id || null, l.articulo_codigo_snapshot || null, l.descripcion_snapshot || null,
         l.descripcion_editada || null, l.cajas || null, l.peso || null, l.precio || null,
-        l.partida_texto || null, l.numero_partida || null, l.total || null]
+        l.partida_texto || null, l.numero_partida || null, calcularTotalLinea(l)]
     );
     guardadas.push(r.rows[0]);
   }
   return guardadas;
 }
 
+function calcularCabeceraTraspaso(lineasGuardadas) {
+  const totalKg = lineasGuardadas.reduce((s, l) => s + (Number(l.peso) || 0), 0);
+  const base = lineasGuardadas.reduce((s, l) => s + (Number(l.total) || 0), 0);
+  return { totalKg, base };
+}
+
 router.post('/', async (req, res, next) => {
   try {
-    const { uid, fecha, total_kg, base, total, lineas } = req.body;
+    const { uid, fecha, lineas } = req.body;
     const puesto_id = req.body.puesto_id || req.puestoId || null;
     if (!uid) return res.status(400).json({ error: 'Falta "uid": todo traspaso necesita una clave única generada por la pantalla que graba.' });
     if (!fecha) return res.status(400).json({ error: 'Falta "fecha".' });
@@ -129,10 +145,11 @@ router.post('/', async (req, res, next) => {
         tabla: 'traspasos',
         fn: async () => {
           await asegurarPartidas(cliente, lineas);
+          const { totalKg, base } = calcularCabeceraTraspaso(lineas.map((l) => ({ peso: l.peso, total: calcularTotalLinea(l) })));
           const cab = await cliente.query(
             `INSERT INTO traspasos (fecha, total_kg, base, total, puesto_id, uid)
              VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
-            [fecha, total_kg || null, base || null, total || null, puesto_id || null, uid]
+            [fecha, totalKg || null, base || null, base || null, puesto_id || null, uid]
           );
           const traspaso = cab.rows[0];
           const lineasGuardadas = await insertarLineasTraspaso(cliente, traspaso.id, lineas);
@@ -154,13 +171,14 @@ router.post('/', async (req, res, next) => {
 
 router.put('/:id', async (req, res, next) => {
   try {
-    const { fecha, total_kg, base, total, lineas } = req.body;
+    const { fecha, lineas } = req.body;
     if (!Array.isArray(lineas) || !lineas.length) return res.status(400).json({ error: 'Un traspaso necesita al menos una línea.' });
     const resultado = await conTransaccion(async (cliente) => {
       await asegurarPartidas(cliente, lineas);
+      const { totalKg, base } = calcularCabeceraTraspaso(lineas.map((l) => ({ peso: l.peso, total: calcularTotalLinea(l) })));
       const cab = await cliente.query(
         `UPDATE traspasos SET fecha=$1, total_kg=$2, base=$3, total=$4 WHERE id=$5 RETURNING *`,
-        [fecha, total_kg || null, base || null, total || null, req.params.id]
+        [fecha, totalKg || null, base || null, base || null, req.params.id]
       );
       if (!cab.rows.length) return null;
       await cliente.query('DELETE FROM traspaso_lineas WHERE traspaso_id = $1', [req.params.id]);

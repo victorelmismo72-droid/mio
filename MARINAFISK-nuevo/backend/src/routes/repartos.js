@@ -81,6 +81,16 @@ router.post('/:id/marcar-etiquetas-impresas', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// total_cajas/total_kg se calculan siempre aquí, sumando las líneas —
+// mismo principio que ya usan Compras/Pedidos/Traspasos: el servidor nunca
+// se fía de un total ya sumado por la pantalla, aunque aquí no haya ningún
+// importe de dinero de por medio (Reparto Super no lleva IVA ni partida).
+function calcularCabeceraReparto(lineas) {
+  const totalCajas = lineas.reduce((s, l) => s + (Number(l.cajas) || 0), 0);
+  const totalKg = lineas.reduce((s, l) => s + (Number(l.kg) || 0), 0);
+  return { totalCajas, totalKg };
+}
+
 async function insertarLineasReparto(cliente, repartoId, lineas) {
   const guardadas = [];
   for (const l of lineas) {
@@ -101,7 +111,7 @@ async function insertarLineasReparto(cliente, repartoId, lineas) {
 
 router.post('/', async (req, res, next) => {
   try {
-    const { uid, fecha, destinatario_nombre, destinatario_ciudad, conductor, total_cajas, total_kg, lineas } = req.body;
+    const { uid, fecha, destinatario_nombre, destinatario_ciudad, conductor, lineas } = req.body;
     const puesto_id = req.body.puesto_id || req.puestoId || null;
     if (!uid) return res.status(400).json({ error: 'Falta "uid": todo reparto necesita una clave única generada por la pantalla que graba.' });
     if (!fecha) return res.status(400).json({ error: 'Falta "fecha".' });
@@ -112,11 +122,12 @@ router.post('/', async (req, res, next) => {
         clave: uid,
         tabla: 'repartos',
         fn: async () => {
+          const { totalCajas, totalKg } = calcularCabeceraReparto(lineas);
           const cab = await cliente.query(
             `INSERT INTO repartos (fecha, destinatario_nombre, destinatario_ciudad, conductor, total_cajas, total_kg, puesto_id, uid)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
             [fecha, destinatario_nombre || null, destinatario_ciudad || null, conductor || null,
-              total_cajas || null, total_kg || null, puesto_id || null, uid]
+              totalCajas || null, totalKg || null, puesto_id || null, uid]
           );
           const reparto = cab.rows[0];
           const lineasGuardadas = await insertarLineasReparto(cliente, reparto.id, lineas);
@@ -138,13 +149,14 @@ router.post('/', async (req, res, next) => {
 
 router.put('/:id', async (req, res, next) => {
   try {
-    const { fecha, destinatario_nombre, destinatario_ciudad, conductor, total_cajas, total_kg, lineas } = req.body;
+    const { fecha, destinatario_nombre, destinatario_ciudad, conductor, lineas } = req.body;
     if (!Array.isArray(lineas) || !lineas.length) return res.status(400).json({ error: 'Un reparto necesita al menos una línea.' });
     const resultado = await conTransaccion(async (cliente) => {
+      const { totalCajas, totalKg } = calcularCabeceraReparto(lineas);
       const cab = await cliente.query(
         `UPDATE repartos SET fecha=$1, destinatario_nombre=$2, destinatario_ciudad=$3, conductor=$4,
            total_cajas=$5, total_kg=$6 WHERE id=$7 RETURNING *`,
-        [fecha, destinatario_nombre || null, destinatario_ciudad || null, conductor || null, total_cajas || null, total_kg || null, req.params.id]
+        [fecha, destinatario_nombre || null, destinatario_ciudad || null, conductor || null, totalCajas || null, totalKg || null, req.params.id]
       );
       if (!cab.rows.length) return null;
       await cliente.query('DELETE FROM reparto_lineas WHERE reparto_id = $1', [req.params.id]);
