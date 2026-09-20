@@ -43,4 +43,19 @@ function calcularIvaVenta({ tipoIvaCliente, baseImponible }) {
   return { ivaPct, recargoPct, ivaImporte, recargoImporte, total };
 }
 
-module.exports = { calcularIvaVenta, IVA_PESCADO_PCT, RECARGO_EQUIVALENCIA_PCT };
+// Total de una línea de pedido (peso × precio, con el descuento aplicado)
+// — se calcula SIEMPRE aquí, en el servidor, a partir de peso/precio/
+// descuento ya validados; nunca se acepta un total ya calculado por la
+// pantalla (esta es la única fuente de verdad, igual que ya hacían OP2/IVA
+// en compras). En la pantalla, ese cálculo es solo una vista previa
+// mientras se teclea — puede no haber terminado todavía (está debounced)
+// en el instante en que se pulsa "Grabar", así que confiar en el total que
+// mande el navegador podía guardar un pedido con importe 0€ en silencio.
+function calcularTotalLinea({ peso, precio, descuento }) {
+  const p = Number(peso) || 0;
+  const pr = Number(precio) || 0;
+  const d = Number(descuento) || 0;
+  return p * pr * (1 - d / 100);
+}
+
+module.exports = { calcularIvaVenta, calcularTotalLinea, IVA_PESCADO_PCT, RECARGO_EQUIVALENCIA_PCT };

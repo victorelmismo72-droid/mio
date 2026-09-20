@@ -14,7 +14,7 @@ const { conTransaccion } = require('../db');
 const { registrarEscritura } = require('../lib/log');
 const { ejecutarIdempotente } = require('../lib/idempotencia');
 const { asignarPartidaAutomatica } = require('../logica/partidas');
-const { calcularIvaVenta } = require('../logica/calculosVenta');
+const { calcularIvaVenta, calcularTotalLinea } = require('../logica/calculosVenta');
 const { obtenerModelo } = require('../modelosImpresion');
 const { valoresTransfrioPedido, valoresCmr } = require('../logica/datosImpresion');
 const { formatoParaCliente } = require('../etiquetasFormatos');
@@ -333,7 +333,7 @@ async function insertarLineasPedido(cliente, pedidoId, lineas) {
        RETURNING *`,
       [pedidoId, l.articulo_id || null, l.articulo_codigo_snapshot || null, l.descripcion_snapshot || null,
         l.descripcion_editada || null, l.cantidad || null, l.peso || null, l.precio || null,
-        l.descuento || 0, l.iva_pct == null ? 10 : l.iva_pct, l.total || null,
+        l.descuento || 0, l.iva_pct == null ? 10 : l.iva_pct, calcularTotalLinea(l),
         numeroPartida, asignacionManual, estadoAsignacion]
     );
     guardadas.push(r.rows[0]);
@@ -351,7 +351,7 @@ async function calcularCabeceraVenta(cliente, { clienteId, lineas }) {
   const r = await cliente.query('SELECT * FROM clientes WHERE id = $1', [clienteId]);
   if (!r.rows.length) throw Object.assign(new Error(`No existe ningún cliente con id ${clienteId}.`), { status: 400 });
   const clienteFila = r.rows[0];
-  const base = lineas.reduce((s, l) => s + (Number(l.total) || 0), 0);
+  const base = lineas.reduce((s, l) => s + calcularTotalLinea(l), 0);
   const { ivaPct, recargoPct, ivaImporte, recargoImporte, total } = calcularIvaVenta({ tipoIvaCliente: clienteFila.tipo_iva, baseImponible: base });
   return {
     cliente: clienteFila,
