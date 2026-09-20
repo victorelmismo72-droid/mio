@@ -10,6 +10,16 @@ const pool = new Pool({
   password: process.env.PGPASSWORD || 'marinafisk_dev',
 });
 
+// Sin este manejador, un error en una conexión ya en reposo del pool (p.ej.
+// PostgreSQL reiniciándose, o un corte de red momentáneo entre los dos
+// puestos) tira TODO el proceso de Node abajo sin ningún aviso — es un
+// comportamiento conocido de node-postgres, no un caso hipotético. Con él,
+// el error se registra y el pool sigue funcionando con el resto de
+// conexiones.
+pool.on('error', (err) => {
+  console.error('Error en una conexión del pool de PostgreSQL (en reposo):', err.message);
+});
+
 async function consulta(texto, parametros) {
   return pool.query(texto, parametros);
 }

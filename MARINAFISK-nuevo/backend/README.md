@@ -312,6 +312,82 @@ algo que este proyecto deba fijar de antemano.
   falta añadir autenticación real antes de exponer esto a Internet**
   (Fase 5).
 
+### 9.6. Que el backend se recupere solo si el ordenador se reinicia o el proceso se cae
+
+Con `npm start` (o `node src/server.js` a mano), el backend solo funciona
+mientras esa ventana/terminal siga abierta. Si el ordenador se reinicia
+(un corte de luz, una actualización de Windows) o el proceso se cierra por
+cualquier motivo, **nadie puede usar el sistema hasta que alguien vuelva a
+arrancarlo a mano** — y como es el único ordenador que hace de servidor
+(9.1), esto afecta a los dos puestos a la vez, no solo a este.
+
+El propio proceso ya se protege de caerse por un error interno que antes lo
+habría tirado sin avisar (un fallo de conexión a la base de datos en el
+peor momento, una promesa sin capturar): queda escrito con claridad en el
+log y el proceso se cierra de forma controlada, en vez de quedarse
+colgado o morir en silencio. Pero **cerrarse de forma controlada no es lo
+mismo que volver a arrancar solo** — para eso hace falta algo por delante
+que lo vigile y lo reinicie, y que además lo arranque automáticamente
+cuando el ordenador se encienda. Igual que con la copia de seguridad (9.4),
+cuál de estas opciones usar y cuándo activarla es una decisión de Víctor,
+no algo que este proyecto deba fijar de antemano. Tres formas de hacerlo,
+de más sencilla (sin instalar nada más) a más robusta:
+
+**Windows — Programador de tareas** (no requiere instalar nada):
+crear una tarea nueva que se ejecute `Al iniciar sesión` (o `Al iniciar el
+equipo`), con acción "Iniciar un programa" apuntando a `node.exe` con el
+argumento `src/server.js` y el directorio de inicio en la carpeta
+`backend`. En la pestaña "Configuración" de la tarea, marcar "Si la tarea
+ya se está ejecutando, no iniciar una nueva instancia" y, en "Reiniciar si
+la tarea produce un error" (o similar según la versión de Windows), dejar
+que reintente cada pocos minutos — así, si el proceso se cierra por el
+motivo que sea, el propio Programador de tareas lo vuelve a levantar sin
+que nadie tenga que hacer nada.
+
+**Linux/Mac — `systemd`** (más robusto, ya viene instalado en casi
+cualquier distribución Linux moderna). Archivo de ejemplo
+`/etc/systemd/system/marinafisk-backend.service`:
+
+```ini
+[Unit]
+Description=MARINAFISK backend
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+WorkingDirectory=/ruta/a/MARINAFISK-nuevo/backend
+ExecStart=/usr/bin/node src/server.js
+Restart=on-failure
+RestartSec=5
+User=victor
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Y luego, una sola vez:
+
+```
+sudo systemctl enable --now marinafisk-backend
+```
+
+Con esto, `systemd` arranca el backend al encender el ordenador y lo
+reinicia solo si el proceso se cierra de forma inesperada.
+
+**`pm2`** (alternativa que funciona igual en Windows, Linux y Mac, pero
+añade una dependencia más al proyecto): `npm install -g pm2`, luego
+`pm2 start src/server.js --name marinafisk-backend` y `pm2 save`; con
+`pm2 startup` se configura además para arrancar solo al encender el
+ordenador. Útil si se prefiere no tocar la configuración del propio
+sistema operativo, a cambio de depender de una herramienta externa.
+
+Cualquiera de las tres opciones es válida — la elección depende de qué
+sistema operativo usa el ordenador que hace de servidor y de cuánta
+familiaridad tenga Víctor con cada una. Lo único importante es que, sea
+cual sea, quede realmente activada antes de depender del sistema a diario:
+un backend sin ningún supervisor por delante sigue funcionando bien día a
+día, pero no se recupera solo el día que algo lo tire.
+
 ---
 
 ## 10. La pantalla (Fase 4)
