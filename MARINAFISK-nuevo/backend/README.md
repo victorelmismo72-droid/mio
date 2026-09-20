@@ -182,18 +182,18 @@ pantalla.
 
 ---
 
-## 7. Qué NO hace todavía el sistema (tras Fase 1 + Fase 2)
+## 7. Qué NO hace todavía el sistema (histórico — ver estado real más abajo)
 
-- No hay ninguna pantalla — todo esto se usa hoy por API (`curl`, o algo
-  como Postman). La interfaz de verdad es la Fase 4.
-- No genera ningún documento (albarán, hoja Transfrío, CMR...) — eso
-  también es Fase 4.
-- No hay "asignación masiva de partidas de todos los pedidos de un día"
-  (la función `asignarPartidasDelDia()`/`autoAsignarPartidas()` del HTML
-  actual) — solo la asignación inline línea a línea. Se puede añadir cuando
-  haga falta.
-- Los listados de gestión (ventas por artículo separando traspasos, etc. —
-  corrección 02/09/2026 punto 3) todavía no existen como tales.
+Esta sección se escribió justo tras Fase 1+2, cuando todavía no existía
+ninguna pantalla. Se deja tal cual como registro histórico, pero varios de
+sus puntos ya están construidos desde entonces — ver §§10-14 para el estado
+real actual: hay interfaz completa (Fase 4), genera todos los documentos
+reales (albarán, Transfrío, CMR, etiquetas, ficha de envío/hoja de
+ruta/PDF completo de reparto), la asignación masiva de partidas existe
+(Excepciones → "Reasignar pendientes", versión que respeta el margen
+mínimo) y los listados de gestión ya existen (`#/listados`).
+
+Lo que sigue siendo cierto hoy:
 - Las listas de precio (`/api/listas-precio`) son una funcionalidad **nueva**
   (guardar un histórico real por día), porque hoy el programa actual no
   guarda ningún histórico de listas — solo un borrador del día que se pierde
