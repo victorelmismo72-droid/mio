@@ -498,3 +498,30 @@ HTML actual (aquí se recomienda usar el mecanismo real de copia de
 seguridad, `backend/scripts/backup.js`, antes de una importación grande) y
 la sincronización con la carpeta compartida (ya no aplica, Fase 3 usa base
 de datos compartida real).
+
+## 13. Fase 5: Documentos de transporte del reparto (20/09/2026)
+
+Uno de los tres puntos que `FASE_5_etiquetas_MARINAFISK.md` había dejado
+señalado como diferido. Réplica fiel de `generarPdfFichaEnvio`,
+`generarPdfHojaDeRutaReparto` y `generarPdfCompletoReparto` del HTML
+actual, misma librería jsPDF (extraída verbatim en
+`backend/public/js/vendor/jspdf.js`) y mismo dibujo vectorial de la
+etiqueta Scanfisk. Nuevo módulo `backend/public/js/impresion/documentosReparto.js`,
+con botones en la pantalla de Repartos: sobre el formulario sin grabar
+("📄 Ver ficha de envío", "🚚 Ver hoja de ruta") y sobre cada reparto ya
+grabado en "Repartos recientes" (los mismos dos, más "📦 Completo" y
+"⬇️ Descargar"). Ver `VERIFICACION_DOCUMENTOS_REPARTO_2026-09-20.md`.
+
+Un hallazgo real de plataforma durante la prueba con Playwright: el patrón
+de dos pasos de `impresion/motor.js` (abrir la ventana en blanco antes del
+`await`, rellenarla después) sirve para HTML pero NO para un PDF — Chrome
+bloquea en silencio la navegación de una ventana ya abierta hacia una URL
+`blob:`/`data:` si la ordena un documento distinto del que la creó. La
+solución, comprobada con Playwright, es la contraria para este caso: pedir
+los datos primero y abrir la ventana después, ya con el PDF listo
+(`window.open(doc.output('bloburl'), '_blank')`) — eso no se bloquea ni
+con una petición real al servidor de por medio. Queda documentado en el
+propio código (`documentosReparto.js`, función `abrirDocumentoPdf`).
+
+Sigue pendiente, como último punto de FASE_5: el envío de la muestra en
+PDF por WhatsApp/email a Scanfisk Celeiro.

@@ -5,6 +5,7 @@ import { el, numero, fechaHoy, mostrarAviso, conBotonDeshabilitado } from '../ut
 import { crearCampoArticulo } from './buscadorArticulo.js';
 import { abrirVentanaImpresion, mostrarErrorEnVentana } from '../impresion/motor.js';
 import { rellenarEtiquetas } from '../impresion/etiquetas.js';
+import { generarPdfFichaEnvio, generarPdfHojaDeRutaReparto, generarPdfCompletoReparto, nombreArchivoCompletoReparto, abrirDocumentoPdf } from '../impresion/documentosReparto.js';
 
 async function render(contenedor) {
   contenedor.innerHTML = '';
@@ -34,7 +35,15 @@ async function render(contenedor) {
 
   const botonAnadir = el('button', { class: 'secundario', onclick: () => anadirLinea() }, '+ Añadir línea');
   const botonGrabar = el('button', { onclick: grabar }, '💾 Grabar reparto');
-  tarjeta.appendChild(el('div', { class: 'fila' }, [botonAnadir, botonGrabar]));
+  // Igual que verPdfCompletoActual()/verHojaDeRutaActual() del HTML actual:
+  // funcionan sobre las líneas que hay ahora mismo en el formulario, SIN
+  // necesidad de grabar antes. El "PDF completo" (con las etiquetas visuales
+  // de muestra) no está aquí porque necesita datos que solo resuelve el
+  // servidor una vez grabado el reparto (caducidad según los días
+  // configurados, datos del catálogo…) — está en "Repartos recientes".
+  const botonFichaActual = el('button', { class: 'secundario', onclick: verFichaEnvioActual }, '📄 Ver ficha de envío');
+  const botonHojaActual = el('button', { class: 'secundario', onclick: verHojaDeRutaActual }, '🚚 Ver hoja de ruta');
+  tarjeta.appendChild(el('div', { class: 'fila' }, [botonAnadir, botonGrabar, botonFichaActual, botonHojaActual]));
 
   const filas = [];
 
@@ -57,6 +66,52 @@ async function render(contenedor) {
     ]);
     cuerpoTabla.appendChild(tr);
     filas.push(fila);
+  }
+
+  // Réplica de construirRepartoTmpDesdeFormulario() del HTML actual: un
+  // "reparto" con la misma forma que devuelve la API, pero sin grabar nada,
+  // para poder ver el documento antes de decidir si se graba.
+  function construirRepartoDesdeFormulario() {
+    const lineas = filas
+      .filter((f) => f.campoArt.obtener() && (Number(f.inputCajas.value) || 0) > 0)
+      .map((f) => {
+        const art = f.campoArt.obtener();
+        return {
+          lote: f.inputLote.value || null,
+          articulo_codigo_snapshot: art.codigo,
+          descripcion_snapshot: art.descripcion,
+          barco: f.barco, subzona: f.subzona, arte_pesca: f.artePesca,
+          cajas: Number(f.inputCajas.value) || 0,
+          kg: Number(f.inputKg.value) || 0,
+        };
+      });
+    if (!lineas.length) return null;
+    return {
+      numero: 0,
+      fecha: campoFecha.value,
+      destinatario_nombre: campoDestNombre.value,
+      destinatario_ciudad: campoDestCiudad.value,
+      conductor: campoConductor.value,
+      lineas,
+      total_cajas: lineas.reduce((s, l) => s + l.cajas, 0),
+      total_kg: lineas.reduce((s, l) => s + l.kg, 0),
+    };
+  }
+
+  async function verFichaEnvioActual() {
+    const reparto = construirRepartoDesdeFormulario();
+    if (!reparto) return mostrarAviso(contenedor, 'Añade al menos una línea con cajas antes de ver el documento.', 'error');
+    try {
+      abrirDocumentoPdf(await generarPdfFichaEnvio(reparto));
+    } catch (err) { mostrarAviso(contenedor, err.message, 'error'); }
+  }
+
+  async function verHojaDeRutaActual() {
+    const reparto = construirRepartoDesdeFormulario();
+    if (!reparto) return mostrarAviso(contenedor, 'Añade al menos una línea con cajas antes de ver el documento.', 'error');
+    try {
+      abrirDocumentoPdf(await generarPdfHojaDeRutaReparto(reparto));
+    } catch (err) { mostrarAviso(contenedor, err.message, 'error'); }
   }
 
   async function grabar() {
@@ -105,13 +160,17 @@ async function render(contenedor) {
     const tbody = el('tbody');
     for (const r of repartos.slice(0, 30)) {
       const botonEtiquetas = el('button', { class: 'pequeno secundario', onclick: () => imprimirEtiquetasReparto(r.id) }, '🏷️ Etiquetas');
+      const botonFicha = el('button', { class: 'pequeno secundario', onclick: () => verFichaEnvioReparto(r.id) }, '📄 Ficha');
+      const botonHoja = el('button', { class: 'pequeno secundario', onclick: () => verHojaDeRutaReparto(r.id) }, '🚚 Hoja ruta');
+      const botonCompleto = el('button', { class: 'pequeno secundario', onclick: () => verPdfCompletoReparto(r.id) }, '📦 Completo');
+      const botonDescargar = el('button', { class: 'pequeno secundario', onclick: () => descargarPdfCompletoReparto(r.id, botonDescargar) }, '⬇️ Descargar');
       tbody.appendChild(el('tr', {}, [
         el('td', { 'data-etiqueta': 'Nº' }, String(r.numero)),
         el('td', { 'data-etiqueta': 'Fecha' }, String(r.fecha).slice(0, 10)),
         el('td', { 'data-etiqueta': 'Destinatario' }, `${r.destinatario_nombre || ''} ${r.destinatario_ciudad ? '(' + r.destinatario_ciudad + ')' : ''}`),
         el('td', { 'data-etiqueta': 'Cajas' }, numero(r.total_cajas, 0)),
         el('td', { 'data-etiqueta': 'Kg' }, numero(r.total_kg, 3)),
-        el('td', {}, botonEtiquetas),
+        el('td', {}, [botonEtiquetas, botonFicha, botonHoja, botonCompleto, botonDescargar]),
       ]));
     }
     tabla.appendChild(tbody);
@@ -148,6 +207,53 @@ async function render(contenedor) {
       }
     })();
   }
+
+  async function verFichaEnvioReparto(repartoId) {
+    try {
+      const reparto = await api.get(`/api/repartos/${repartoId}`);
+      abrirDocumentoPdf(await generarPdfFichaEnvio(reparto));
+    } catch (err) { mostrarAviso(contenedor, err.message, 'error'); }
+  }
+
+  async function verHojaDeRutaReparto(repartoId) {
+    try {
+      const reparto = await api.get(`/api/repartos/${repartoId}`);
+      abrirDocumentoPdf(await generarPdfHojaDeRutaReparto(reparto));
+    } catch (err) { mostrarAviso(contenedor, err.message, 'error'); }
+  }
+
+  // El "PDF completo" necesita, además del reparto, los datos ya resueltos
+  // de cada etiqueta (caducidad según los días configurados, datos del
+  // catálogo…) — se reutiliza el mismo endpoint que ya usa el botón
+  // "🏷️ Etiquetas" en vez de duplicar esa lógica de negocio aquí, y se
+  // deduplica por producto+lote en generarPdfCompletoReparto porque esto es
+  // una muestra visual (una etiqueta por producto distinto), no las
+  // etiquetas reales para pegar en cada caja.
+  async function obtenerRepartoParaPdfCompleto(repartoId) {
+    const [reparto, resultado] = await Promise.all([
+      api.get(`/api/repartos/${repartoId}`),
+      api.get(`/api/repartos/${repartoId}/etiquetas?modo=todas`),
+    ]);
+    return { reparto, datosEtiquetas: resultado.datos };
+  }
+
+  async function verPdfCompletoReparto(repartoId) {
+    try {
+      const { reparto, datosEtiquetas } = await obtenerRepartoParaPdfCompleto(repartoId);
+      abrirDocumentoPdf(await generarPdfCompletoReparto(reparto, datosEtiquetas));
+    } catch (err) { mostrarAviso(contenedor, err.message, 'error'); }
+  }
+
+  async function descargarPdfCompletoReparto(repartoId, boton) {
+    await conBotonDeshabilitado(boton, '⏳', async () => {
+      try {
+        const { reparto, datosEtiquetas } = await obtenerRepartoParaPdfCompleto(repartoId);
+        const doc = await generarPdfCompletoReparto(reparto, datosEtiquetas);
+        doc.save(nombreArchivoCompletoReparto(reparto));
+      } catch (err) { mostrarAviso(contenedor, err.message, 'error'); }
+    });
+  }
+
   await cargarRecientes();
 }
 
