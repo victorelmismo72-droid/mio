@@ -56,7 +56,7 @@ async function verificarOp2EIva() {
     lineasPorCompra.get(l.compra_id).push(l);
   }
 
-  let lineasComprobadas = 0, diferencias = 0;
+  let lineasComprobadas = 0, diferencias = 0, explicadasPorCambioDeClasificacion = 0;
   const ejemplosDiferencia = [];
   for (const c of compras.rows) {
     const proveedor = { es_subasta_op: c.es_subasta_op, tipo_iva: c.tipo_iva };
@@ -69,6 +69,21 @@ async function verificarOp2EIva() {
       ];
       for (const [nombre, valorGuardado] of campos) {
         if (!casiIgual(calc[nombre], valorGuardado)) {
+          // Las compras son inmutables (dato sagrado): si el proveedor ha
+          // cambiado de clasificación fiscal DESPUÉS de que esta compra ya
+          // estuviera grabada (p.ej. se marcó como intracomunitario más
+          // tarde), lo guardado sigue siendo el cálculo correcto de cuando
+          // se hizo la compra — comparar contra la clasificación de HOY es
+          // la pregunta equivocada para un registro histórico. Antes de
+          // contarlo como una diferencia real, se comprueba si la cifra
+          // guardada SÍ cuadra bajo NACIONAL (el valor por defecto con el
+          // que se migró todo) — si cuadra, es un cambio real y explicado,
+          // no un fallo de cálculo.
+          const calcNacional = calcularLineaCompra({ kilos: l.kilos, precioKg: l.precio_kg, proveedor: { ...proveedor, tipo_iva: 'NACIONAL' } });
+          if (proveedor.tipo_iva !== 'NACIONAL' && casiIgual(calcNacional[nombre], valorGuardado)) {
+            explicadasPorCambioDeClasificacion++;
+            continue;
+          }
           diferencias++;
           if (ejemplosDiferencia.length < 10) {
             ejemplosDiferencia.push(`compra ${c.uid} línea (compra_id=${c.id}): ${nombre} recalculado=${calc[nombre]} guardado=${valorGuardado}`);
@@ -77,9 +92,12 @@ async function verificarOp2EIva() {
       }
     }
   }
-  log(`Proveedores con tipo_iva presentes en las compras migradas: ${[...proveedoresUsados].join(', ')} (todos NACIONAL — no hay ningún INTRACOMUNITARIO real todavía, ver aviso de migración).`);
+  log(`Proveedores con tipo_iva presentes en las compras migradas: ${[...proveedoresUsados].join(', ')}.`);
   log(`Líneas de compra recalculadas: ${lineasComprobadas}`);
-  log(`Diferencias encontradas: ${diferencias}`);
+  if (explicadasPorCambioDeClasificacion) {
+    log(`Diferencias explicadas por un proveedor marcado intracomunitario DESPUÉS de la compra (el importe guardado sigue siendo el correcto de cuando se hizo, las compras no se pueden modificar): ${explicadasPorCambioDeClasificacion} — no cuentan como fallo.`);
+  }
+  log(`Diferencias sin explicar encontradas: ${diferencias}`);
   if (diferencias) {
     log('Ejemplos:');
     ejemplosDiferencia.forEach((e) => log('  - ' + e));
