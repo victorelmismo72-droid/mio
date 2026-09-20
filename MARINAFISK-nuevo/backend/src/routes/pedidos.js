@@ -183,13 +183,99 @@ router.post('/asignar-partida', async (req, res, next) => {
 // "pantalla de excepciones" del programa actual (Fase 0, punto 3).
 router.get('/excepciones/lista', async (req, res, next) => {
   try {
-    const r = await conTransaccion((cliente) => cliente.query(
-      `SELECT pl.*, p.numero AS pedido_numero, p.fecha AS pedido_fecha
-       FROM pedido_lineas pl JOIN pedidos p ON p.id = pl.pedido_id
-       WHERE pl.estado_asignacion IN ('AVISO_MARGEN', 'PENDIENTE_MANUAL')
-       ORDER BY p.fecha DESC, p.numero DESC`
-    ));
-    res.json(r.rows);
+    const filas = await conTransaccion(async (cliente) => {
+      const r = await cliente.query(
+        `SELECT pl.*, p.numero AS pedido_numero, p.fecha AS pedido_fecha
+         FROM pedido_lineas pl JOIN pedidos p ON p.id = pl.pedido_id
+         WHERE pl.estado_asignacion IN ('AVISO_MARGEN', 'PENDIENTE_MANUAL')
+         ORDER BY p.fecha DESC, p.numero DESC`
+      );
+      // Se calculan ya aquí las candidatas de cada línea (sin guardar nada)
+      // para que la pantalla pueda ofrecer "asignar a mano" sin que el
+      // usuario tenga que pulsar antes "Reasignar pendientes".
+      for (const l of r.rows) {
+        const { codigo, descripcion } = await resolverArticuloParaFamilia(cliente, l);
+        l.candidatas = codigo
+          ? (await asignarPartidaAutomatica(cliente, { articuloCodigo: codigo, articuloDescripcion: descripcion, precioVenta: l.precio }))
+            .candidatas.map((c) => ({ numero_partida: c.numeroPartida, fecha: c.fecha, coste_medio_kg: c.costeMedioKg, margen: c.margen }))
+          : [];
+      }
+      return r.rows;
+    });
+    res.json(filas);
+  } catch (err) { next(err); }
+});
+
+// "Asignar partidas pendientes en bloque" (FASE_2, adaptación de
+// asignarPartidasDelDia() del HTML actual — ver FASE_2_logica_de_negocio
+// punto de "asignación automática"). A diferencia del HTML actual, aquí no
+// se limita a los pedidos de un día: reintenta TODAS las líneas que hoy
+// están pendientes de revisión (pueden llevar semanas ahí si nadie las
+// mira), porque puede haber llegado compra nueva desde entonces que ya
+// cumpla el margen. Nunca fuerza una partida sin margen — eso es
+// precisamente lo que hace este bloque, a diferencia de la función
+// autoAsignarPartidas() (esa otra sí caía a la más antigua sin margen; no
+// se ha reproducido a propósito, porque contradice la regla ya construida
+// y probada en Fase 2 de "si nadie llega al margen, no se asigna sola").
+router.post('/excepciones/reasignar', async (req, res, next) => {
+  try {
+    const resultado = await conTransaccion(async (cliente) => {
+      const pendientesR = await cliente.query(
+        `SELECT pl.*, p.numero AS pedido_numero, p.fecha AS pedido_fecha
+         FROM pedido_lineas pl JOIN pedidos p ON p.id = pl.pedido_id
+         WHERE pl.estado_asignacion IN ('AVISO_MARGEN', 'PENDIENTE_MANUAL')
+         ORDER BY p.fecha, p.numero`
+      );
+      let asignadas = 0;
+      let sinCambios = 0;
+      const pendientes = [];
+      for (const l of pendientesR.rows) {
+        const { codigo, descripcion } = await resolverArticuloParaFamilia(cliente, l);
+        if (!codigo) { sinCambios++; continue; }
+        const auto = await asignarPartidaAutomatica(cliente, { articuloCodigo: codigo, articuloDescripcion: descripcion, precioVenta: l.precio });
+        if (auto.estadoAsignacion === 'OK') {
+          await cliente.query(
+            'UPDATE pedido_lineas SET numero_partida = $1, estado_asignacion = $2, asignacion_manual = false WHERE id = $3',
+            [auto.numeroPartida, auto.estadoAsignacion, l.id]
+          );
+          asignadas++;
+        } else {
+          if (auto.estadoAsignacion !== l.estado_asignacion) {
+            await cliente.query('UPDATE pedido_lineas SET estado_asignacion = $1 WHERE id = $2', [auto.estadoAsignacion, l.id]);
+          }
+          sinCambios++;
+          pendientes.push({
+            id: l.id, pedido_numero: l.pedido_numero, pedido_fecha: l.pedido_fecha,
+            articulo_codigo_snapshot: l.articulo_codigo_snapshot, descripcion_snapshot: l.descripcion_snapshot,
+            peso: l.peso, precio: l.precio, estado_asignacion: auto.estadoAsignacion,
+            candidatas: auto.candidatas.map((c) => ({ numero_partida: c.numeroPartida, fecha: c.fecha, coste_medio_kg: c.costeMedioKg, margen: c.margen })),
+          });
+        }
+      }
+      return { asignadas, sin_cambios: sinCambios, pendientes };
+    });
+    res.json(resultado);
+  } catch (err) { next(err); }
+});
+
+// Resolver a mano una línea concreta de las excepciones (elegir una de sus
+// partidas candidatas, aunque no llegue al margen mínimo) — igual que
+// aplicarExcepcionesPartidas() del HTML actual, línea a línea en vez de en
+// bloque, porque aquí cada una puede necesitar un juicio distinto.
+router.post('/excepciones/:lineaId/asignar', async (req, res, next) => {
+  try {
+    const { numero_partida: numeroPartida } = req.body;
+    if (!numeroPartida) return res.status(400).json({ error: 'Falta "numero_partida".' });
+    const resultado = await conTransaccion(async (cliente) => {
+      await cliente.query('INSERT INTO partidas (numero_partida) VALUES ($1) ON CONFLICT DO NOTHING', [numeroPartida]);
+      const r = await cliente.query(
+        `UPDATE pedido_lineas SET numero_partida = $1, estado_asignacion = 'OK', asignacion_manual = true WHERE id = $2 RETURNING *`,
+        [numeroPartida, req.params.lineaId]
+      );
+      return r.rows[0] || null;
+    });
+    if (!resultado) return res.status(404).json({ error: `No existe ninguna línea de pedido con id ${req.params.lineaId}` });
+    res.json(resultado);
   } catch (err) { next(err); }
 });
 
