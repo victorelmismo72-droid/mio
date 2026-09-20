@@ -1,1 +1,4 @@
 MARINAFISK-nuevo/Backup_*.json
+MARINAFISK-nuevo/backend/node_modules/
+MARINAFISK-nuevo/backend/.env
+MARINAFISK-nuevo/backend/backups/

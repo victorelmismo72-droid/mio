@@ -74,6 +74,7 @@ Recoge cómo funciona HOY el programa HTML (`CARGA_DE_ALBARANES_MARINAFISK`), pa
   - Los contadores correlativos (nextPedido, nextPartida, nextReparto, nextTrp) deben ser siempre consistentes entre puestos — un contador desincronizado puede causar números de albarán duplicados (ya ocurrió: 667 duplicados en un incidente de 5 minutos el 28/07/2026).
   - Los backups deben **siempre** leer el estado real y completo de ambos puestos, sin usar cachés/atajos de rendimiento — un fallo pasado hizo que backups se generaran con datos "congelados" y omitieran cientos de pedidos de un puesto.
   - Las altas nuevas de clientes/artículos/proveedores en un puesto deben propagarse siempre al otro (no solo las actualizaciones de registros ya existentes).
+- **Incidente relacionado (01/09/2026):** un mismo clic sin bloqueo de botón generó el mismo pedido tres veces (números 13786-13788), y por separado se detectó que solo la caché de Pedidos se refrescaba automáticamente al abrir el programa, no las otras seis. Ambos fallos y sus correcciones en el HTML actual están documentados en detalle en `CORRECCIONES_2026-09-02_HTML_actual_MARINAFISK.md` (puntos 1 y 2) — el sistema nuevo debe verificar explícitamente, en la Fase 3, que ninguno de los dos puede repetirse con una base de datos real compartida (protección de guardado duplicado a nivel de servidor, no solo de pantalla; contadores siempre consistentes sin necesidad de ningún refresco manual).
 
 ---
 
