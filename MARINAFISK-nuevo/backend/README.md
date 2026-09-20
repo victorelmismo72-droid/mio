@@ -198,11 +198,13 @@ Lo que sigue siendo cierto hoy:
   (guardar un histórico real por día), porque hoy el programa actual no
   guarda ningún histórico de listas — solo un borrador del día que se pierde
   al día siguiente. No sustituye nada existente, se añade.
-- Todos los proveedores se migraron marcados como `NACIONAL` (el campo
-  `tipo_iva` no existía antes) — hay que revisar a mano cuáles son
-  intracomunitarios; mientras tanto, ningún proveedor real prueba todavía la
-  rama de código del IVA intracomunitario con datos reales (sí está probada
-  con un proveedor de prueba, ver `VERIFICACION_FASE2_*.md`).
+- ~~Todos los proveedores se migraron marcados como `NACIONAL`~~ —
+  **revisado el 20/09/2026** (ver `VERIFICACION_IVA_PROVEEDORES_2026-09-20.md`):
+  de los 51 proveedores reales, 4 son intracomunitarios de verdad
+  (confirmado por internet, no por intuición) y ya están marcados como tal:
+  `AZORFISK UNIPERSONAL LDA` (Portugal), `URK-EXPORT B.V` (Países Bajos),
+  `FURIC MAREE` y `FORO-MAREE` (Francia). El resto se confirmó que son
+  entidades españolas reales (S.L./autónomos de A Coruña o de la lonja).
 - El 1,4% de recargo de equivalencia está pendiente de confirmación por la
   asesoría fiscal de Víctor (ver `src/logica/calculosVenta.js`).
 
