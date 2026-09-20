@@ -23,7 +23,7 @@ function cargarSelloBase64() {
   return selloBase64Promesa;
 }
 
-function fechaCorta(fechaIso) {
+export function fechaCorta(fechaIso) {
   if (!fechaIso) return '';
   const iso = String(fechaIso).slice(0, 10);
   const [anio, mes, dia] = iso.split('-');

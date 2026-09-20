@@ -523,5 +523,24 @@ los datos primero y abrir la ventana después, ya con el PDF listo
 con una petición real al servidor de por medio. Queda documentado en el
 propio código (`documentosReparto.js`, función `abrirDocumentoPdf`).
 
-Sigue pendiente, como último punto de FASE_5: el envío de la muestra en
-PDF por WhatsApp/email a Scanfisk Celeiro.
+## 14. Fase 5: Envío del PDF completo del reparto por WhatsApp/Email (20/09/2026)
+
+Último punto que quedaba diferido en FASE_5. Al construirlo se encontró que
+la función pedida literalmente (`enviarMuestraScanfiskPorWhatsapp/Email`
+del HTML actual) depende de la importación de Excel "CARGA [super]", ya
+señalada como código muerto — es decir, tampoco es alcanzable de verdad en
+el HTML actual. Se construyó en su lugar su función hermana, esa sí con
+botón real: `enviarPdfCompletoDeReparto(uid, canal)`, que envía el PDF
+completo (ficha + etiquetas de muestra) de un reparto real ya grabado. Ver
+`VERIFICACION_ENVIO_SCANFISK_2026-09-20.md`.
+
+Nuevo `backend/public/js/envioScanfisk.js` y `GET`/`PUT
+/api/configuracion/contacto-scanfisk-celeiro` (el contacto de
+administración de Scanfisk Celeiro pasa de `localStorage` por ordenador a
+la tabla `configuracion` compartida, igual que ya se hizo con los días de
+caducidad de las etiquetas). Botones nuevos en Repartos: "📞 Contacto
+Scanfisk Celeiro" y, por cada reparto grabado, "📲 WhatsApp"/"✉️ Email".
+
+Con esto se cierran los tres puntos diferidos de FASE_5, salvo la
+importación de hojas Excel "CARGA [super]" de Scanfisk, que sigue
+pendiente si Víctor la sigue necesitando de verdad.

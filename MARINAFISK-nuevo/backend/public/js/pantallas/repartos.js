@@ -5,11 +5,21 @@ import { el, numero, fechaHoy, mostrarAviso, conBotonDeshabilitado } from '../ut
 import { crearCampoArticulo } from './buscadorArticulo.js';
 import { abrirVentanaImpresion, mostrarErrorEnVentana } from '../impresion/motor.js';
 import { rellenarEtiquetas } from '../impresion/etiquetas.js';
-import { generarPdfFichaEnvio, generarPdfHojaDeRutaReparto, generarPdfCompletoReparto, nombreArchivoCompletoReparto, abrirDocumentoPdf } from '../impresion/documentosReparto.js';
+import { generarPdfFichaEnvio, generarPdfHojaDeRutaReparto, generarPdfCompletoReparto, nombreArchivoCompletoReparto, abrirDocumentoPdf, fechaCorta } from '../impresion/documentosReparto.js';
+import { abrirWhatsappMultiple, abrirEmail, pedirYGuardarContactoScanfiskCeleiro, obtenerContactoScanfiskCeleiro } from '../envioScanfisk.js';
 
 async function render(contenedor) {
   contenedor.innerHTML = '';
-  contenedor.appendChild(el('h2', {}, 'Repartos (Reparto Super)'));
+  const cabecera = el('h2', {}, 'Repartos (Reparto Super)');
+  const botonContacto = el('button', { class: 'pequeno secundario', onclick: cambiarContacto, style: 'float:right;' }, '📞 Contacto Scanfisk Celeiro');
+  contenedor.appendChild(el('div', {}, [cabecera, botonContacto]));
+
+  async function cambiarContacto() {
+    try {
+      const guardado = await pedirYGuardarContactoScanfiskCeleiro();
+      if (guardado) mostrarAviso(contenedor, '✅ Contacto de Scanfisk Celeiro actualizado (vale para los dos puestos).', 'ok');
+    } catch (err) { mostrarAviso(contenedor, err.message, 'error'); }
+  }
 
   const articulos = (await api.get('/api/articulos')).filter((a) => a.activo);
   const tarjeta = el('div', { class: 'tarjeta' });
@@ -164,13 +174,15 @@ async function render(contenedor) {
       const botonHoja = el('button', { class: 'pequeno secundario', onclick: () => verHojaDeRutaReparto(r.id) }, '🚚 Hoja ruta');
       const botonCompleto = el('button', { class: 'pequeno secundario', onclick: () => verPdfCompletoReparto(r.id) }, '📦 Completo');
       const botonDescargar = el('button', { class: 'pequeno secundario', onclick: () => descargarPdfCompletoReparto(r.id, botonDescargar) }, '⬇️ Descargar');
+      const botonWhatsapp = el('button', { class: 'pequeno secundario', onclick: () => enviarPorWhatsapp(r.id, botonWhatsapp) }, '📲 WhatsApp');
+      const botonEmail = el('button', { class: 'pequeno secundario', onclick: () => enviarPorEmail(r.id, botonEmail) }, '✉️ Email');
       tbody.appendChild(el('tr', {}, [
         el('td', { 'data-etiqueta': 'Nº' }, String(r.numero)),
         el('td', { 'data-etiqueta': 'Fecha' }, String(r.fecha).slice(0, 10)),
         el('td', { 'data-etiqueta': 'Destinatario' }, `${r.destinatario_nombre || ''} ${r.destinatario_ciudad ? '(' + r.destinatario_ciudad + ')' : ''}`),
         el('td', { 'data-etiqueta': 'Cajas' }, numero(r.total_cajas, 0)),
         el('td', { 'data-etiqueta': 'Kg' }, numero(r.total_kg, 3)),
-        el('td', {}, [botonEtiquetas, botonFicha, botonHoja, botonCompleto, botonDescargar]),
+        el('td', {}, [botonEtiquetas, botonFicha, botonHoja, botonCompleto, botonDescargar, botonWhatsapp, botonEmail]),
       ]));
     }
     tabla.appendChild(tbody);
@@ -250,6 +262,45 @@ async function render(contenedor) {
         const { reparto, datosEtiquetas } = await obtenerRepartoParaPdfCompleto(repartoId);
         const doc = await generarPdfCompletoReparto(reparto, datosEtiquetas);
         doc.save(nombreArchivoCompletoReparto(reparto));
+      } catch (err) { mostrarAviso(contenedor, err.message, 'error'); }
+    });
+  }
+
+  // Réplica de enviarPdfCompletoDeReparto(uid, canal) del HTML actual: el
+  // navegador no puede adjuntar el PDF solo con un enlace, así que se
+  // descarga primero y se abre WhatsApp/el correo con el mensaje ya escrito
+  // — la propia alerta se lo recuerda al usuario, igual que antes.
+  async function enviarPorWhatsapp(repartoId, boton) {
+    await conBotonDeshabilitado(boton, '⏳', async () => {
+      try {
+        const contacto = await obtenerContactoScanfiskCeleiro();
+        if (!contacto.tel) return mostrarAviso(contenedor, 'Todavía no has puesto el teléfono de administración de Scanfisk en Celeiro. Usa el botón "📞 Contacto Scanfisk Celeiro" primero.', 'error');
+        const { reparto, datosEtiquetas } = await obtenerRepartoParaPdfCompleto(repartoId);
+        const doc = await generarPdfCompletoReparto(reparto, datosEtiquetas);
+        const nombreArchivo = nombreArchivoCompletoReparto(reparto);
+        doc.save(nombreArchivo);
+        const destino = `${reparto.destinatario_nombre || ''} ${reparto.destinatario_ciudad || ''}`.trim();
+        const mensaje = `Hola, adjuntamos la ficha de envío y las etiquetas del reparto Nº ${reparto.numero} de ${destino} (${fechaCorta(reparto.fecha)}). Un saludo.`;
+        alert(`Archivo "${nombreArchivo}" descargado.\n\nAhora se abrirá WhatsApp con el mensaje preparado — solo tienes que ADJUNTAR ese PDF (lo tienes en tu carpeta de Descargas) y pulsar enviar.`);
+        abrirWhatsappMultiple(contacto.tel, mensaje);
+      } catch (err) { mostrarAviso(contenedor, err.message, 'error'); }
+    });
+  }
+
+  async function enviarPorEmail(repartoId, boton) {
+    await conBotonDeshabilitado(boton, '⏳', async () => {
+      try {
+        const contacto = await obtenerContactoScanfiskCeleiro();
+        if (!contacto.email) return mostrarAviso(contenedor, 'Todavía no has puesto el email de administración de Scanfisk en Celeiro. Usa el botón "📞 Contacto Scanfisk Celeiro" primero.', 'error');
+        const { reparto, datosEtiquetas } = await obtenerRepartoParaPdfCompleto(repartoId);
+        const doc = await generarPdfCompletoReparto(reparto, datosEtiquetas);
+        const nombreArchivo = nombreArchivoCompletoReparto(reparto);
+        doc.save(nombreArchivo);
+        const destino = `${reparto.destinatario_nombre || ''} ${reparto.destinatario_ciudad || ''}`.trim();
+        const asunto = `Reparto Nº ${reparto.numero} - ${destino}`;
+        const cuerpo = `Buenos días,\n\nAdjuntamos la ficha de envío y las etiquetas del reparto Nº ${reparto.numero} de ${destino} de fecha ${fechaCorta(reparto.fecha)}.\n\nUn saludo,\nMARINAFISK PESCADOS, S.A.`;
+        alert(`Archivo "${nombreArchivo}" descargado.\n\nAhora se abrirá tu programa de correo con el mensaje preparado — solo tienes que ADJUNTAR ese PDF (lo tienes en tu carpeta de Descargas) y pulsar enviar.`);
+        abrirEmail(contacto.email, asunto, cuerpo);
       } catch (err) { mostrarAviso(contenedor, err.message, 'error'); }
     });
   }
