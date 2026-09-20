@@ -89,12 +89,29 @@ function texto(f, mapa, nombreCol) {
   return v == null ? '' : String(v).trim();
 }
 
+// Tipo de IVA por Excel (nuevo, pedido por Víctor el 20/09/2026 — el Excel
+// original no traía esta columna, se añade como opcional): admite tanto el
+// valor exacto de la base de datos como algunos sinónimos razonables en
+// español, para no obligar a escribir el nombre técnico. Si la columna
+// "TIPO IVA" está presente pero el texto no es reconocible, es un error de
+// fila (igual que un PVP no numérico), no se adivina ni se ignora en
+// silencio — un tipo de IVA equivocado se nota en la factura de verdad.
+function normalizarTipoIva(v, sinonimos) {
+  const norm = String(v == null ? '' : v).normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim().toUpperCase();
+  return sinonimos[norm] || null;
+}
+
 // ---- CLIENTES (hoja "CLIENTES") ----
 const COLS_OBLIGATORIAS_CLIENTES = ['CODIGO', 'NOMBRE / RAZON SOCIAL'];
-const COLS_OPCIONALES_CLIENTES = ['CIF/NIF', 'DIRECCION', 'C.P.', 'POBLACION', 'PROVINCIA', 'TELEFONO', 'EMAIL', 'FORMA PAGO', 'AGENCIA HABITUAL'];
+const COLS_OPCIONALES_CLIENTES = ['CIF/NIF', 'DIRECCION', 'C.P.', 'POBLACION', 'PROVINCIA', 'TELEFONO', 'EMAIL', 'FORMA PAGO', 'AGENCIA HABITUAL', 'TIPO IVA'];
 const MAPA_CAMPO_CLIENTE = {
   'CIF/NIF': 'cif', DIRECCION: 'direccion', 'C.P.': 'cp', POBLACION: 'poblacion',
   PROVINCIA: 'provincia', TELEFONO: 'telefono', EMAIL: 'email', 'FORMA PAGO': 'forma_pago', 'AGENCIA HABITUAL': 'agencia',
+};
+const SINONIMOS_IVA_CLIENTE = {
+  NORMAL: 'NORMAL',
+  INTRACOMUNITARIO: 'INTRACOMUNITARIO', 'INTRA COMUNITARIO': 'INTRACOMUNITARIO', UE: 'INTRACOMUNITARIO',
+  'RECARGO EQUIVALENCIA': 'RECARGO_EQUIVALENCIA', 'RECARGO DE EQUIVALENCIA': 'RECARGO_EQUIVALENCIA', RECARGO: 'RECARGO_EQUIVALENCIA', 'RECARGO_EQUIVALENCIA': 'RECARGO_EQUIVALENCIA',
 };
 
 export function parsearClientesExcel(wb) {
@@ -111,7 +128,15 @@ export function parsearClientesExcel(wb) {
     if (vistos.has(cod)) { errores.push(`Código repetido "${cod}" en la fila ${fila} (ya aparecía antes en el Excel).`); return; }
     vistos.add(cod);
     const c = { codigo: cod, nombre };
-    COLS_OPCIONALES_CLIENTES.forEach((col) => { if (r.mapa[col]) c[MAPA_CAMPO_CLIENTE[col]] = texto(f, r.mapa, col); });
+    COLS_OPCIONALES_CLIENTES.filter((col) => col !== 'TIPO IVA').forEach((col) => { if (r.mapa[col]) c[MAPA_CAMPO_CLIENTE[col]] = texto(f, r.mapa, col); });
+    if (r.mapa['TIPO IVA']) {
+      const bruto = texto(f, r.mapa, 'TIPO IVA');
+      if (bruto) {
+        const tipo = normalizarTipoIva(bruto, SINONIMOS_IVA_CLIENTE);
+        if (!tipo) { errores.push(`Fila ${fila} (código ${cod}): tipo de IVA "${bruto}" no reconocido (usa Normal, Intracomunitario o Recargo de Equivalencia).`); return; }
+        c.tipo_iva = tipo;
+      }
+    }
     candidatos.push(c);
   });
   if (errores.length) return { ok: false, errores };
@@ -121,7 +146,11 @@ export function parsearClientesExcel(wb) {
 
 // ---- PROVEEDORES (hoja "PROVEEDORES") ----
 const COLS_OBLIGATORIAS_PROVEEDORES = ['CODIGO', 'NOMBRE PROVEEDOR'];
-const COLS_OPCIONALES_PROVEEDORES = ['OP 2% (S/N)', 'NOTAS'];
+const COLS_OPCIONALES_PROVEEDORES = ['OP 2% (S/N)', 'NOTAS', 'TIPO IVA'];
+const SINONIMOS_IVA_PROVEEDOR = {
+  NACIONAL: 'NACIONAL',
+  INTRACOMUNITARIO: 'INTRACOMUNITARIO', 'INTRA COMUNITARIO': 'INTRACOMUNITARIO', UE: 'INTRACOMUNITARIO',
+};
 
 export function parsearProveedoresExcel(wb) {
   const r = prepararHoja(wb, { nombreHoja: 'PROVEEDORES', columnasObligatorias: COLS_OBLIGATORIAS_PROVEEDORES, columnasOpcionales: COLS_OPCIONALES_PROVEEDORES });
@@ -136,11 +165,20 @@ export function parsearProveedoresExcel(wb) {
     if (!nombre) { errores.push(`Fila ${fila} (código ${cod}): falta el nombre.`); return; }
     if (vistos.has(cod)) { errores.push(`Código repetido "${cod}" en la fila ${fila}.`); return; }
     vistos.add(cod);
-    candidatos.push({
+    const c = {
       codigo: cod, nombre,
       es_subasta_op: texto(f, r.mapa, 'OP 2% (S/N)').toUpperCase() === 'S',
       notas: texto(f, r.mapa, 'NOTAS'),
-    });
+    };
+    if (r.mapa['TIPO IVA']) {
+      const bruto = texto(f, r.mapa, 'TIPO IVA');
+      if (bruto) {
+        const tipo = normalizarTipoIva(bruto, SINONIMOS_IVA_PROVEEDOR);
+        if (!tipo) { errores.push(`Fila ${fila} (código ${cod}): tipo de IVA "${bruto}" no reconocido (usa Nacional o Intracomunitario).`); return; }
+        c.tipo_iva = tipo;
+      }
+    }
+    candidatos.push(c);
   });
   if (errores.length) return { ok: false, errores };
   if (!candidatos.length) return { ok: false, errores: ['No se ha encontrado ningún proveedor válido en la hoja PROVEEDORES.'] };
