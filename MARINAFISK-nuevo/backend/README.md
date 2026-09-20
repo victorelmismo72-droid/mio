@@ -199,12 +199,7 @@ Lo que sigue siendo cierto hoy:
   guarda ningún histórico de listas — solo un borrador del día que se pierde
   al día siguiente. No sustituye nada existente, se añade.
 - ~~Todos los proveedores se migraron marcados como `NACIONAL`~~ —
-  **revisado el 20/09/2026** (ver `VERIFICACION_IVA_PROVEEDORES_2026-09-20.md`):
-  de los 51 proveedores reales, 4 son intracomunitarios de verdad
-  (confirmado por internet, no por intuición) y ya están marcados como tal:
-  `AZORFISK UNIPERSONAL LDA` (Portugal), `URK-EXPORT B.V` (Países Bajos),
-  `FURIC MAREE` y `FORO-MAREE` (Francia). El resto se confirmó que son
-  entidades españolas reales (S.L./autónomos de A Coruña o de la lonja).
+  **revisado el 20/09/2026, ver §16.**
 - El 1,4% de recargo de equivalencia está pendiente de confirmación por la
   asesoría fiscal de Víctor (ver `src/logica/calculosVenta.js`).
 
@@ -546,3 +541,65 @@ Scanfisk Celeiro" y, por cada reparto grabado, "📲 WhatsApp"/"✉️ Email".
 Con esto se cierran los tres puntos diferidos de FASE_5, salvo la
 importación de hojas Excel "CARGA [super]" de Scanfisk, que sigue
 pendiente si Víctor la sigue necesitando de verdad.
+
+## 15. Revisión completa: ¿algún importe podía guardarse a 0€ o sin avisar? (20/09/2026)
+
+Al comparar la agilidad del sistema nuevo frente al HTML actual con datos
+reales (`VERIFICACION_AGILIDAD_2026-09-20.md`, tarea pendiente desde FASE_2
+punto 7), se encontró un fallo real: un **pedido podía grabarse con importe
+0€** si se pulsaba "Grabar" justo después de teclear la última línea. La
+pantalla calcula el total de cada línea con un pequeño retraso (350 ms,
+para no llamar al servidor en cada tecla) y el servidor se fiaba de ese
+cálculo en vez de recalcularlo él mismo — al contrario de lo que ya hacía
+Compras con el 2% de OP y el IVA. **Corregido**: nueva `calcularTotalLinea()`
+en `backend/src/logica/calculosVenta.js` — el servidor calcula siempre el
+total de cada línea (y la base del IVA) a partir de peso/precio/descuento,
+nunca acepta el de la pantalla. Aplica a `POST`/`PUT /api/pedidos`.
+
+A partir de ahí, a petición de Víctor, se revisó la misma familia de fallo
+en el resto de la aplicación, pantalla por pantalla — con datos reales
+donde tenía sentido probarlo, no solo leyendo el código:
+
+| Pantalla | Resultado | Informe |
+|---|---|---|
+| Compras | Nunca lo tuvo — ya calculaba todo en el servidor desde siempre | `VERIFICACION_COMPRAS_TOTAL0_2026-09-20.md` |
+| Pedidos | **Sí lo tenía — corregido** | `VERIFICACION_AGILIDAD_2026-09-20.md` |
+| Traspasos, Repartos | Mismo defecto de fondo (el servidor aceptaba el total/base de la pantalla) sin ser explotable — corregidos por coherencia | `VERIFICACION_TRASPASOS_REPARTOS_TOTAL0_2026-09-20.md` |
+| Listas de precio (modo MANUAL) | **Sí lo tenía, más grave**: el aviso de "precio por debajo del coste" podía saltarse en silencio por la misma carrera de tiempos — corregido en servidor y en pantalla | `VERIFICACION_LISTAS_PRECIO_2026-09-20.md` |
+| Partidas, Listados de gestión | No aplica (sin ningún total guardado: vista SQL en vivo / pantalla de solo lectura) | `VERIFICACION_LISTADOS_PARTIDAS_TOTAL0_2026-09-20.md` |
+| Excepciones, Clientes, Artículos, Proveedores | No aplica (asignación manual sin "valor correcto" que recalcular / formularios sin ningún campo calculado) | `VERIFICACION_EXCEPCIONES_CATALOGO_TOTAL0_2026-09-20.md` |
+
+Efecto colateral de las propias pruebas: una compra de prueba quedó grabada
+de verdad (las compras son inmutables por diseño, no se puede deshacer con
+un `DELETE`) — con permiso explícito de Víctor se reconstruyó la base de
+datos desde el backup real y se volvió a aplicar el único cambio de datos
+real hecho desde entonces (los 4 proveedores intracomunitarios, ver §16).
+De paso apareció y se corrigió un falso positivo, este sí solo en el propio
+script `scripts/verificar_fase2.js` (no en la aplicación): comparaba el IVA
+histórico de compras reales contra la clasificación fiscal *actual* del
+proveedor en vez de la de cuando se grabó cada compra.
+
+**Principio que queda consistente en toda la aplicación**: el servidor
+calcula siempre lo que él mismo puede calcular con datos ya validados
+(peso, precio, descuento, kilos…) — nunca acepta un total, base o coste ya
+calculado por la pantalla, salvo las decisiones que son explícitamente una
+elección manual de Víctor (como elegir una partida a mano en Excepciones),
+donde no hay ningún "valor correcto" que recalcular.
+
+## 16. Revisión real del tipo de IVA de proveedores (20/09/2026)
+
+A petición de Víctor ("en la carga de clientes y proveedores debe existir
+la opción de marcar qué IVA/RE tienen"): esa opción ya existía desde
+FASE_0/FASE_2 (desplegable "Tipo de IVA" en los formularios de Clientes y
+Proveedores) — lo que faltaba era la propia revisión de los 51 proveedores
+reales, migrados todos como `NACIONAL` por defecto (§7). Se identificaron y
+confirmaron con fuentes reales (no por intuición) 4 proveedores
+intracomunitarios de verdad: `AZORFISK UNIPERSONAL LDA` (Portugal),
+`URK-EXPORT B.V` (Países Bajos), `FURIC MAREE` y `FORO-MAREE` (Francia).
+Ver `VERIFICACION_IVA_PROVEEDORES_2026-09-20.md`.
+
+Además, se añadió una columna opcional "TIPO IVA" a la importación por
+Excel de Clientes y Proveedores (pieza nueva, el Excel original de Víctor
+no la traía) — con sinónimos razonables en español y validación estricta:
+un valor no reconocido bloquea toda la importación, nunca se adivina ni se
+ignora en silencio. Ver `VERIFICACION_IVA_IMPORTACION_EXCEL_2026-09-20.md`.
