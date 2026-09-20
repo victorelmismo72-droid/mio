@@ -679,3 +679,44 @@ Excel de Clientes y Proveedores (pieza nueva, el Excel original de Víctor
 no la traía) — con sinónimos razonables en español y validación estricta:
 un valor no reconocido bloquea toda la importación, nunca se adivina ni se
 ignora en silencio. Ver `VERIFICACION_IVA_IMPORTACION_EXCEL_2026-09-20.md`.
+
+## 17. Preparación para producción: resumen honesto del estado (20/09/2026)
+
+A petición de Víctor ("sigue con lo que falta para que esté listo para
+producción"). No hay un único cambio grande pendiente — es un repaso de
+qué queda resuelto, qué es un límite conocido y aceptado a propósito, y qué
+sigue siendo una decisión que solo puede tomar Víctor.
+
+**Resuelto en esta revisión:**
+- El backend ya no se cae en silencio por un error de conexión a la base
+  de datos en reposo, ni por una excepción/promesa sin capturar en
+  cualquier otro punto del código — queda escrito con claridad en el log
+  antes de cerrarse de forma controlada (`src/db.js`, `src/server.js`).
+- Documentado cómo hacer que, además, se **recupere solo** si el
+  ordenador se reinicia o el proceso se cae: §9.6 (Programador de tareas
+  en Windows, `systemd` en Linux/Mac, o `pm2` como alternativa). Activarlo
+  de verdad en el ordenador que haga de servidor sigue siendo una acción
+  manual de Víctor — este proyecto no puede tocar la configuración de su
+  sistema operativo por él.
+
+**Límites conocidos, ya documentados a propósito, sin cambios en esta
+revisión** (no son descuidos — son decisiones ya explicadas en su sitio y
+que no se pueden ni se deben forzar desde el código):
+- Un único ordenador hace de servidor; si está apagado, nadie puede
+  trabajar (§9.1). Cuál sea ese ordenador es una decisión de Víctor.
+- No hay usuarios ni contraseñas en la API — aceptable en una red local de
+  confianza, pero hace falta antes de exponer esto a Internet (§9.5).
+- La copia de seguridad (`scripts/backup.js`) existe y funciona, pero
+  programarla para que se ejecute sola (cada cuánto, con qué herramienta)
+  sigue siendo una decisión de Víctor (§9.4) — igual que activar §9.6.
+
+**Verificado, no solo revisado por encima:** tras los cambios de esta
+sección se reinició el backend de verdad (parada y arranque limpios, sin
+errores en el log) y se repitió una prueba real con navegador (Playwright)
+por las 7 pantallas que escriben datos (pedidos, compras, repartos,
+traspasos, partidas, excepciones, listas de precio): sin errores.
+
+No queda ningún cambio de código pendiente para esta revisión. Lo que
+queda son las decisiones señaladas arriba, que son de Víctor por
+naturaleza (qué ordenador, cuándo programar qué tarea) — no algo que este
+proyecto pueda ni deba decidir en su lugar.
