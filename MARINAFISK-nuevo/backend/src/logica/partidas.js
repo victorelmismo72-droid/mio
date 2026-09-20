@@ -119,4 +119,12 @@ async function asignarPartidaAutomatica(db, { articuloCodigo, articuloDescripcio
   return { numeroPartida: null, estadoAsignacion: 'AVISO_MARGEN', margen: null, candidatas: conMargen };
 }
 
-module.exports = { partidasCandidatas, asignarPartidaAutomatica, MARGEN_MINIMO_EUR_KG };
+// Coste de referencia de un artículo (el de la partida que se asignaría
+// ahora mismo) — solo el número, para pantallas que ya han resuelto el
+// artículo y solo necesitan el coste (p.ej. Listas de precio, ver punto 4).
+async function costeReferenciaPorArticulo(db, { articuloCodigo, articuloDescripcion }) {
+  const candidatas = await partidasCandidatas(db, { articuloCodigo, articuloDescripcion });
+  return candidatas.length ? candidatas[0].costeMedioKg : null;
+}
+
+module.exports = { partidasCandidatas, asignarPartidaAutomatica, costeReferenciaPorArticulo, MARGEN_MINIMO_EUR_KG };

@@ -134,6 +134,22 @@ async function render(contenedor) {
 
   async function guardarManual() {
     if (!filasManual.length) return mostrarAviso(contenedor, 'Añade al menos una línea.', 'error');
+    // El coste de cada fila se comprueba en vivo mientras se teclea, pero
+    // está "debounced" (espera un poco antes de llamar al servidor) — si se
+    // pulsa "Guardar" justo después de elegir el artículo o cambiar el
+    // precio, esa comprobación puede no haber terminado, y el aviso de
+    // "por debajo del coste" se saltaría en silencio precisamente para el
+    // caso que más importa avisar. Se vuelve a comprobar aquí, de verdad,
+    // justo antes de decidir si hace falta preguntar — nunca se confía en
+    // el valor que ya hubiera en pantalla en ese instante.
+    await Promise.all(filasManual.map(async (f) => {
+      const art = f.campoArt.obtener();
+      if (!art) { f.costeReferencia = null; return; }
+      try {
+        const r = await api.get(`/api/articulos/${art.id}/coste-referencia`);
+        f.costeReferencia = r.coste_referencia;
+      } catch (err) { f.costeReferencia = null; }
+    }));
     const conPerdida = filasManual.filter((f) => f.costeReferencia != null && Number(f.inputPrecio.value) < f.costeReferencia);
     if (conPerdida.length) {
       const seguir = confirm(`${conPerdida.length} producto(s) tienen el precio por debajo del coste. ¿Seguro que quieres guardar así?`);

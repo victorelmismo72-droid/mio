@@ -7,6 +7,7 @@ const express = require('express');
 const { conTransaccion } = require('../db');
 const { registrarEscritura } = require('../lib/log');
 const { calcularListaAuto } = require('../logica/listaPrecioAuto');
+const { costeReferenciaPorArticulo } = require('../logica/partidas');
 
 const router = express.Router();
 
@@ -69,10 +70,26 @@ router.post('/', async (req, res, next) => {
       await cliente.query('DELETE FROM lista_precio_lineas WHERE lista_precio_id = $1', [lista.id]);
       const lineasGuardadas = [];
       for (const l of lineas) {
+        // En modo MANUAL, el coste que manda la pantalla viene de una
+        // comprobación en vivo mientras se teclea (debounced) — si se
+        // pulsa "Guardar" justo después de elegir el artículo o cambiar el
+        // precio, esa comprobación puede no haber terminado todavía y
+        // llegar aquí a null (ver VERIFICACION_LISTAS_PRECIO_2026-09-20.md).
+        // Igual que ya se hace en Compras/Pedidos/Traspasos/Repartos, el
+        // servidor recalcula siempre el coste de referencia él mismo en
+        // vez de aceptar el de la pantalla — nunca se guarda un coste
+        // desactualizado o en blanco pudiendo calcularlo de verdad.
+        let coste = l.coste || null;
+        if (modo === 'MANUAL' && l.articulo_id) {
+          const art = await cliente.query('SELECT codigo, descripcion FROM articulos WHERE id = $1', [l.articulo_id]);
+          if (art.rows.length) {
+            coste = await costeReferenciaPorArticulo(cliente, { articuloCodigo: art.rows[0].codigo, articuloDescripcion: art.rows[0].descripcion });
+          }
+        }
         const r = await cliente.query(
           `INSERT INTO lista_precio_lineas (lista_precio_id, articulo_id, descripcion, precio, coste, existencias)
            VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
-          [lista.id, l.articulo_id || null, l.descripcion || null, l.precio || null, l.coste || null,
+          [lista.id, l.articulo_id || null, l.descripcion || null, l.precio || null, coste,
             l.existencias === undefined ? null : String(l.existencias)]
         );
         lineasGuardadas.push(r.rows[0]);
