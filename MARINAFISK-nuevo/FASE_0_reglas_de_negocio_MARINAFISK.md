@@ -164,12 +164,30 @@ Según `CORRECCIONES_02-09-2026_para_Code.md` (guardado en este repo), Víctor y
 
 ---
 
-## 12. Pendiente de confirmar / decidir en el diseño nuevo
+## 13. Correcciones de `CORRECCIONES_02-09-2026_para_Code_6.md` (13/09/2026)
+
+Once puntos aplicados directamente al HTML actual, fuera del proyecto de migración. Ya resueltos en el backend nuevo (nada que hacer, solo constancia) / pendientes para cuando se construya la pantalla correspondiente:
+
+- **Punto 1 (doble grabación por clic repetido)** — [x] resuelto en el backend desde el 12/09/2026, y de forma más robusta que el HTML (protección de servidor con `idempotencyKey` + `UNIQUE`, no solo el botón deshabilitado en pantalla — ver Fase 1 punto 5).
+- **Punto 2 (refresco de cachés al empezar el día)** — ya recogido en el punto 11 de este documento; con base de datos real desaparece de raíz. Pendiente solo la verificación explícita en Fase 3 (dos sesiones a la vez, mismos contadores sin refresco).
+- **Punto 3 (traspasos aparte en listados)** — [x] resuelto en el backend el 13/09/2026 (`GET /listados/gestion`, ver Fase 2 punto 6).
+- **Punto 4 (aviso de margen negativo contra coste real)** — [x] backend resuelto el 13/09/2026 (`GET /listas-precio/coste-referencia`, ver Fase 2 punto 5); falta conectarlo a una pantalla.
+- **Punto 5 (existencias en texto libre)** — [x] backend resuelto el 13/09/2026 (campo `existencias` de `ListaPrecioLinea`, ver Fase 2 punto 5); mismo criterio pendiente de aplicar también en la pantalla de partidas cuando exista.
+- **Punto 6 (Hoja Transfrío también en Traspasos, destinatario fijo "MARINA FISH ZARAGOZA")** — pendiente, Fase 4 (interfaz/impresión). Nuevo: el destinatario de un traspaso es una entidad fija interna, nunca una búsqueda en el catálogo de Clientes.
+- **Punto 7 (Hoja CMR/Carta de Porte para clientes con agencia "MOZO")** — pendiente, Fase 4. **Responde a la pregunta pendiente que teníamos anotada aquí** (verificación campo a campo de la Hoja CMR): casillas 1/2/3/4/5/6/11/21 del formulario CMR oficial, con datos fijos (remitente Marinafisk, entrega en Portugal, carga en A Coruña) como constantes del sistema, no texto libre repetido cada vez. Solo visible cuando el cliente tiene agencia "MOZO". Diseñar como un "diccionario" transportista→plantilla, para poder añadir otras plantillas CMR sin rehacer la lógica.
+- **Punto 8 (catálogo de modelos de impresión siempre actualizado)** — pendiente, Fase 4. Mejor generado automáticamente desde una lista central de modelos en el código, no mantenido a mano en dos sitios (causa real de que se olvidara documentar la Hoja CMR al añadirla).
+- **Punto 9 (imprimir en lote varios pedidos seleccionados)** — pendiente, Fase 4. Transversal a cualquier listado/historial: casillas de marcar + filtro como alternativa si no se marca nada; avisar cuántos documentos se van a generar antes de imprimir.
+- **Punto 10 (copias por cliente dentro del PDF, no del diálogo de impresión; nunca abrir pestañas automáticamente)** — pendiente, Fase 4. Dos reglas de diseño para cuando se construya cualquier impresión en lote: (a) las copias por documento se repiten dentro del propio PDF generado, nunca vía la opción "copias" del navegador (repite el documento entero, no cada parte); (b) cualquier apertura de pestaña/ventana nueva en secuencia debe ser siempre respuesta directa a un clic ("un paso, un clic"), nunca automática tras una espera — el navegador bloquea en silencio las que no lo son.
+- **Punto 11 (nombre/ciudad de destinatario de Reparto se duplicaba en cada ciclo abrir-grabar)** — pendiente para cuando se construya la pantalla de Repartos. Regla general de diseño: si se separa un dato combinado en varios campos, la reconstrucción debe ser siempre reversible sin duplicar ni perder nada; un caso no reconocido debe dejar el resto de campos vacíos, nunca copiar el texto completo en más de uno. Y en general: abrir un registro para editarlo (sin cambiar nada) y grabarlo debe dejarlo exactamente igual, nunca alterarlo por el simple hecho de abrirlo.
+
+---
+
+## 14. Pendiente de confirmar / decidir en el diseño nuevo
 
 - [x] Tratamiento correcto del IVA en compras a proveedores extranjeros (ver punto 4) — resuelto: intracomunitario = sin IVA; no existen proveedores extracomunitarios, no hace falta tercer caso.
 - [ ] Confirmar con Víctor si hay más proveedores o casos especiales de OP aparte de "subasta/lonja marcados como tal".
 - [ ] Revisar si existen otras reglas de mermas/pérdida de peso además de la ya mencionada en cierre de partidas.
-- [ ] Pedir a Víctor la versión del HTML que ya tiene la Hoja CMR/Carta de Porte (punto 11), para verificarla campo a campo igual que se hizo con CORREGIDO_4.
+- [x] Pedir a Víctor la versión del HTML que ya tiene la Hoja CMR/Carta de Porte — recibido el 13/09/2026 como `CORRECCIONES_02-09-2026_para_Code_6.md` punto 7 (ver punto 13 de este documento); queda pendiente construirla en Fase 4, no verificarla de nuevo.
 
 ---
 

@@ -13,6 +13,7 @@ const express = require('express');
 // para todos los usuarios - fallo real encontrado el 12/09/2026 al añadir
 // una ruta nueva por error DESPUES de "/:id" (ver compras.js).
 require('express-async-errors');
+const path = require('path');
 const cors = require('cors');
 
 const { crearRouterCatalogo } = require('./routes/crudCatalogo');
@@ -29,6 +30,12 @@ const listadosRouter = require('./routes/listados');
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+// Frontend nuevo (Fase 4, empezado el 21/09/2026 por la pantalla de
+// Compras): ficheros estáticos servidos directamente por este mismo
+// backend, sin build ni framework - un HTML/CSS/JS por pantalla, igual de
+// simple que el HTML actual, para que Víctor pueda seguir entendiéndolo.
+app.use(express.static(path.join(__dirname, '..', 'public')));
 
 // Log sencillo en consola de cada peticion - ayuda a ver que esta pasando
 // mientras Victor prueba el programa, sin necesidad de herramientas extra.

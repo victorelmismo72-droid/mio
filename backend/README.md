@@ -11,6 +11,13 @@ listas) y los **listados de gestión** que separan venta real de traspaso
 sigue funcionando exactamente igual mientras tanto — esto se prueba aparte,
 en paralelo.
 
+**Frontend nuevo (desde el 21/09/2026):** este mismo backend sirve también
+las pantallas del programa nuevo, en `public/` — sin build ni framework,
+un HTML/CSS/JS por pantalla (empezado por Compras). Con el servidor
+arrancado (ver sección 2 más abajo), se abren en
+`http://localhost:3000/<pantalla>.html`. Ver
+`MARINAFISK-nuevo/03_FRONTEND_MARINAFISK.md` para el detalle.
+
 Ver `MARINAFISK-nuevo/FASE_1_base_de_datos_backend_MARINAFISK.md` para el
 detalle de qué debía cumplir esta fase, y
 `MARINAFISK-nuevo/02_ESQUEMA_BASE_DATOS_PROPUESTO.md` para la explicación de
