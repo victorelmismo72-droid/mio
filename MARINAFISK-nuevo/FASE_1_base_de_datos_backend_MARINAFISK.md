@@ -53,6 +53,7 @@ Para cada tabla: crear, leer, y (salvo `compras`, ver arriba) actualizar y borra
 Debe incluir también:
 - Un endpoint de **exportación** que genere un JSON con la misma estructura que el backup actual, para poder comparar fácilmente contra el original durante la verificación.
 - Un log básico de qué se ha escrito y cuándo (útil para depurar problemas de sincronización más adelante, en la Fase 3).
+- **Protección contra escrituras duplicadas concurrentes**: un fallo real en el HTML actual (tres clics seguidos en "GRABAR" mientras la petición anterior seguía en curso) creó tres pedidos idénticos con números correlativos distintos. El backend debe rechazar o ignorar una segunda petición de creación idéntica/concurrente mientras la primera sigue en curso (token de idempotencia, o transacción que serialice la generación del siguiente número correlativo) — no basta con deshabilitar el botón en el frontend. Ver detalle en `03_CORRECCIONES_APRENDIDAS_HTML_2026-09-02.md`, punto 1.
 
 ---
 
@@ -77,6 +78,7 @@ No pasar a la Fase 2 hasta que:
 - [ ] El backend permite leer y escribir cada tabla correctamente.
 - [ ] El backup de prueba está migrado y verificado sin discrepancias.
 - [ ] `compras` no tiene forma de modificarse por error desde el backend.
+- [ ] Disparar la misma operación de guardado varias veces en rápida sucesión (simulando clics repetidos o llamadas concurrentes) y comprobar que solo se crea un registro — ver `03_CORRECCIONES_APRENDIDAS_HTML_2026-09-02.md`, punto 1.
 - [ ] El HTML/programa actual sigue funcionando exactamente igual, sin tocar, en paralelo.
 - [ ] Víctor ha revisado y entendido (en términos sencillos, no técnicos) qué se ha construido, antes de seguir.
 

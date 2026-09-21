@@ -90,7 +90,11 @@ Recoge cómo funciona HOY el programa HTML (`CARGA_DE_ALBARANES_MARINAFISK`), pa
 
 ---
 
-## 9. Pendiente de confirmar / decidir en el diseño nuevo
+## 9. Correcciones aprendidas del HTML en producción (02/09/2026)
+
+Ver `03_CORRECCIONES_APRENDIDAS_HTML_2026-09-02.md` — once fallos y mejoras que Víctor aplicó directamente al HTML en producción tras este documento, fuera del proyecto de migración. No están reflejadas en el HTML de referencia de este repositorio (versión 20260821I, anterior a esas correcciones), pero el sistema nuevo debe evitar los mismos fallos y, donde tenga sentido, ofrecer las mismas mejoras. Afectan directamente a: protección contra doble grabación (punto 1 del documento), consistencia de contadores sin refresco manual (punto 2, relacionado con la sección 6 de este documento), aviso de precio por debajo de coste real de partida (punto 4, relacionado con la sección 3), y reversibilidad de campos combinados como nombre/ciudad (punto 11).
+
+## 10. Pendiente de confirmar / decidir en el diseño nuevo
 
 - [x] Tratamiento correcto del IVA en compras a proveedores extranjeros (ver punto 4) — resuelto: intracomunitario = sin IVA; no existen proveedores extracomunitarios, no hace falta tercer caso.
 - [ ] Confirmar con Víctor si hay más proveedores o casos especiales de OP aparte de "subasta/lonja marcados como tal".

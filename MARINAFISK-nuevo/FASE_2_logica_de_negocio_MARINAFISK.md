@@ -46,6 +46,7 @@ Esto es lógica nueva que no existe correctamente en el sistema actual — hay q
 - Cierre de partidas: manual, con opción de cierre masivo por fecha; una partida puede cerrarse sin llegar a cero kilos (mermas).
 - **Las partidas nunca deben mostrarse en documentos de cliente** — solo en la versión interna con precios.
 - Compras siguen siendo inmutables (ver Fase 1) — el cálculo de margen se hace leyendo la compra original, nunca modificándola.
+- **Listados de ventas/movimientos por artículo y fecha**: cualquier listado que sume kilos vendidos por artículo debe mostrar por defecto solo ventas reales (pedidos), nunca traspasos internos. Ofrecer una opción explícita para incluir también los traspasos a Zaragoza, mostrados siempre en una categoría claramente diferenciada (sin precio ni importe, nunca mezclados silenciosamente con las ventas), con los totales separados en tres cifras: ventas reales (kg + importe), traspasado a Zaragoza (solo kg), y total de pescado movido (suma de ambos, solo a efectos estadísticos). Este criterio aplica a cualquier informe de gestión que trate kilos/artículos, no solo a un buscador concreto. Ver `03_CORRECCIONES_APRENDIDAS_HTML_2026-09-02.md`, punto 3.
 
 ---
 
@@ -54,6 +55,8 @@ Esto es lógica nueva que no existe correctamente en el sistema actual — hay q
 - Confirmar que la lógica de independencia entre listas (cada una autónoma, copia de arranque opcional desde la otra si está vacía) se traslada igual que en el HTML actual (ver Fase 0, punto 5).
 - Modo automático (relleno desde compras del día) y modo manual (entrada libre), igual que hoy.
 - La versión interna (con coste, margen real, existencias en cajas) debe seguir estando claramente separada de la versión de cliente, y nunca mezclarse.
+- **Aviso de precio por debajo del coste real**: en modo manual, comparar en vivo cada precio introducido contra el coste real de la partida asignada (no un coste tecleado a mano) y avisar con claridad si el margen resultante es negativo o queda por debajo del margen mínimo de referencia (1,30 €/kg). No debe bloquear el guardado, pero sí exigir confirmación explícita si queda algún producto en pérdida antes de dar la lista por generada. Ver `03_CORRECCIONES_APRENDIDAS_HTML_2026-09-02.md`, punto 4.
+- **Campo de existencias/stock**: debe admitir tanto cantidades numéricas ("X cajas") como texto libre (p. ej. "AGOTADO", "POCAS"), mostrando cada caso tal cual en la imagen/documento generado. Ver punto 5 del mismo documento.
 
 ---
 
@@ -72,6 +75,9 @@ No pasar a la Fase 3 hasta que:
 - [ ] El caso conocido de falsos positivos en emparejamiento de partidas (ej. C144 vs C1444) se ha probado explícitamente y no reaparece.
 - [ ] Las partidas no aparecen en ningún documento de cliente generado por el sistema nuevo.
 - [ ] Comparación de agilidad frente al Excel realizada y documentada (ver punto 5).
+- [ ] Los listados de ventas/movimientos separan siempre ventas reales de traspasos internos, con los tres totales indicados (ver punto 3 y `03_CORRECCIONES_APRENDIDAS_HTML_2026-09-02.md`, punto 3).
+- [ ] El aviso de precio por debajo del coste real de partida funciona en la lista de precios manual (ver punto 4 y el mismo documento, punto 4).
+- [ ] Cualquier campo que el sistema separe en varios sub-campos a partir de un texto combinado (p. ej. nombre/ciudad de un destinatario) es reversible sin pérdida ni duplicación: abrir un registro y volver a grabarlo sin tocar nada nunca altera sus datos. Ver `03_CORRECCIONES_APRENDIDAS_HTML_2026-09-02.md`, punto 11.
 - [ ] El HTML/programa actual sigue intacto y en uso normal, en paralelo.
 - [ ] Víctor ha revisado y entendido, en términos sencillos, qué se ha construido y qué puntos quedaron pendientes de confirmación normativa (IVA).
 
