@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MARINAFISK — Compras</title>
+<link rel="stylesheet" href="estilos.css">
+</head>
+<body>
+
+<div class="barra">
+  <h1>🐟 MARINAFISK — Registrar compra</h1>
+  <button class="puesto" id="btn-puesto"></button>
+</div>
+
+<div class="wrap">
+
+  <div class="card">
+    <div class="card-header">Datos de la compra</div>
+    <div class="card-body">
+      <div class="fila-campos">
+        <div class="fg">
+          <label for="cp-fecha">Fecha</label>
+          <input type="date" id="cp-fecha">
+        </div>
+        <div class="fg autocompletar" style="flex:2 1 260px;">
+          <label for="cp-prov-buscar">Proveedor</label>
+          <input type="text" id="cp-prov-buscar" placeholder="Código o nombre..." autocomplete="off">
+          <div class="sugerencias" id="cp-prov-sugerencias"></div>
+        </div>
+        <div class="fg">
+          <label for="cp-albprov">Albarán proveedor</label>
+          <input type="text" id="cp-albprov" placeholder="opcional">
+        </div>
+      </div>
+
+      <div class="partida-info" id="cp-partida-info" style="display:none;">
+        <span>Partida: <strong id="cp-partida-texto">—</strong></span>
+        <div class="fg" id="cp-partida-elegir-wrap" style="display:none;">
+          <label for="cp-partida-elegir" style="font-weight:400;">Elegir partida existente</label>
+          <select id="cp-partida-elegir"></select>
+        </div>
+        <label>
+          <input type="checkbox" id="cp-partida-nueva">
+          Partida nueva para esta compra (excepción)
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <span>Líneas</span>
+      <button class="btn btn-secundario btn-mini" id="btn-add-linea" type="button">+ Añadir línea</button>
+    </div>
+    <div class="card-body" style="overflow-x:auto;">
+      <table class="lineas">
+        <thead>
+          <tr>
+            <th class="col-producto">Producto</th>
+            <th class="col-estrecha">Cajas</th>
+            <th>Kilos</th>
+            <th class="col-estrecha">€/Kg</th>
+            <th class="col-check" title="Control">✓</th>
+            <th class="num">Base Zgz</th>
+            <th class="num">2% OP</th>
+            <th class="num">Base real</th>
+            <th class="num">IVA</th>
+            <th class="num">Total</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="cp-lineas"></tbody>
+      </table>
+      <div class="pie-totales">
+        <span>Kilos: <b id="cp-tot-kilos">0,00</b></span>
+        <span>Base real: <b id="cp-tot-base">0,00</b> €</span>
+        <span>IVA: <b id="cp-tot-iva">0,00</b> €</span>
+        <span>Total: <b id="cp-tot-total">0,00</b> €</span>
+      </div>
+    </div>
+  </div>
+
+  <div id="cp-aviso" class="aviso"></div>
+
+  <div style="margin-top:16px; display:flex; justify-content:flex-end;">
+    <button class="btn btn-exito" id="btn-grabar" style="font-size:15px; padding:10px 22px;">💾 Grabar compra</button>
+  </div>
+
+</div>
+
+<script src="api.js"></script>
+<script src="compras.js"></script>
+</body>
+</html>
