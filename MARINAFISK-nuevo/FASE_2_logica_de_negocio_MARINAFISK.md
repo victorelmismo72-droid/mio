@@ -54,6 +54,17 @@ Esto es lógica nueva que no existe correctamente en el sistema actual — hay q
 - Confirmar que la lógica de independencia entre listas (cada una autónoma, copia de arranque opcional desde la otra si está vacía) se traslada igual que en el HTML actual (ver Fase 0, punto 5).
 - Modo automático (relleno desde compras del día) y modo manual (entrada libre), igual que hoy.
 - La versión interna (con coste, margen real, existencias en cajas) debe seguir estando claramente separada de la versión de cliente, y nunca mezclarse.
+- **Precio de venta por debajo del coste (corrección 4 del 02/09/2026).** En modo manual, el backend compara cada precio de venta con el **coste real de la partida asignada** (no con un coste escrito a mano) y marca las líneas en pérdida con el producto, precio, coste y pérdida por kg. La pantalla (Fase 4) usa ese dato para avisar en vivo, al salir del campo y antes de generar la imagen. No bloquea: se puede confirmar a propósito, pero queda confirmado de forma explícita.
+- **Existencias en texto (corrección 5).** El campo de existencias admite un número de cajas o texto libre ("AGOTADO", "POCAS"). Se guarda en `existencias_texto` (ver esquema). Si es un número, se muestra "X cajas"; si es texto, tal cual en mayúsculas. Solo aparece en la versión interna.
+
+---
+
+## 5bis. Listados de ventas / movimientos por artículo (corrección 3 del 02/09/2026)
+
+- Por defecto, los listados de ventas por artículo, cliente y fechas muestran **solo ventas reales** (pedidos).
+- Opción "Incluir también los traspasos internos a Zaragoza". Si se marca, los traspasos aparecen como categoría aparte y claramente diferenciada ("TRASPASO A ZARAGOZA (interno, no es venta)"), sin precio ni importe.
+- Totales en tres líneas: **Ventas reales** (kg + importe), **Traspasado a Zaragoza** (solo kg) y **Total pescado movido** (kg de ambos, solo para estadística). El importe de los traspasos nunca se suma a las ventas.
+- El mismo criterio se aplica a **cualquier** otro listado o informe de kilos/artículos: venta real y movimiento interno nunca se mezclan sin distinguirlos.
 
 ---
 
@@ -71,6 +82,8 @@ No pasar a la Fase 3 hasta que:
 - [ ] El tratamiento de IVA/Recargo de Equivalencia está implementado y documentado para las cuatro clasificaciones fiscales de proveedores y las combinaciones de clientes — con las dudas normativas señaladas explícitamente a Víctor, no asumidas.
 - [ ] El caso conocido de falsos positivos en emparejamiento de partidas (ej. C144 vs C1444) se ha probado explícitamente y no reaparece.
 - [ ] Las partidas no aparecen en ningún documento de cliente generado por el sistema nuevo.
+- [ ] Probado: una lista de precios manual con un precio por debajo del coste real de su partida queda marcada como pérdida (producto, precio, coste, pérdida), y una con precio por encima no.
+- [ ] Probado: el listado de un artículo con ventas y traspasos da los mismos kg e importe de "Ventas reales" con y sin la opción de traspasos; con la opción, "Total pescado movido" = ventas + traspasos (kg) y el importe no cambia.
 - [ ] Comparación de agilidad frente al Excel realizada y documentada (ver punto 5).
 - [ ] El HTML/programa actual sigue intacto y en uso normal, en paralelo.
 - [ ] Víctor ha revisado y entendido, en términos sencillos, qué se ha construido y qué puntos quedaron pendientes de confirmación normativa (IVA).

@@ -3,7 +3,7 @@
 Documento de referencia para el desarrollo del nuevo sistema con base de datos.
 Recoge cómo funciona HOY el programa HTML (`CARGA_DE_ALBARANES_MARINAFISK`), para que el sistema nuevo reproduzca exactamente el mismo comportamiento antes de añadir nada.
 
-Última versión de referencia del programa actual: **2026-08-21-I**
+Última versión de referencia del programa actual: **2026-09-02-CORREGIDO** (incluye las correcciones de `CORRECCIONES_2026-09-02_programa_actual.md`; el HTML guardado en este repositorio sigue siendo la versión anterior, 2026-08-21-I)
 Última versión corregida del Excel GESTION_CORRECTA: ver notas al final.
 
 ---
@@ -95,6 +95,17 @@ Recoge cómo funciona HOY el programa HTML (`CARGA_DE_ALBARANES_MARINAFISK`), pa
 - [x] Tratamiento correcto del IVA en compras a proveedores extranjeros (ver punto 4) — resuelto: intracomunitario = sin IVA; no existen proveedores extracomunitarios, no hace falta tercer caso.
 - [ ] Confirmar con Víctor si hay más proveedores o casos especiales de OP aparte de "subasta/lonja marcados como tal".
 - [ ] Revisar si existen otras reglas de mermas/pérdida de peso además de la ya mencionada en cierre de partidas.
+
+---
+
+## 10. Reglas aprendidas de las correcciones del 02/09/2026
+
+Detalle completo en `CORRECCIONES_2026-09-02_programa_actual.md`; dónde queda cada requisito, en `REQUISITOS_DERIVADOS_CORRECCIONES_2026-09-02.md`.
+
+- **Un clic = un registro.** El 01/09/2026 el mismo pedido se grabó tres veces (13786, 13787, 13788) por pulsar GRABAR varias veces mientras el guardado tardaba. Ninguna acción de grabar puede crear registros duplicados por repetirse la petición.
+- **Todos los puestos ven los mismos contadores y datos sin refrescar nada.** En el HTML hizo falta forzar un refresco completo de la carpeta compartida al empezar el día; en el sistema nuevo no debe hacer falta.
+- **Traspasos a Zaragoza ≠ ventas.** En listados e informes de kilos/artículos, las ventas reales y los traspasos internos van siempre separados. Los traspasos solo se suman en un total de kilos "estadístico", nunca en importes de venta.
+- **Abrir y grabar sin cambiar nada no altera el registro.** El destinatario de Reparto Super se duplicaba en cada apertura ("ECOMORA ECOMORA…") porque separar el texto en nombre/ciudad copiaba el texto completo en ambos campos.
 
 ---
 

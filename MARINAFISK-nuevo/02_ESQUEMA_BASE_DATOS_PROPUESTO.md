@@ -15,6 +15,7 @@ Este documento es un borrador de discusión, no una migración definitiva. Objet
   - `numero` (el correlativo de negocio visible al usuario, ej. nº de pedido/albarán)
   - `puesto_origen` (sustituye a `_uid`/etiqueta libre CORU/PANC — mejor como columna controlada que como texto libre)
   - `creado_en`, `modificado_en` (sustituyen a `_modTimestamp`)
+  - `clave_idempotencia` (texto, `UNIQUE`): la genera la pantalla una vez por intento de grabar. Si la misma petición llega dos veces, el servidor devuelve el registro ya creado en vez de crear otro (fallo real del 01/09/2026: pedidos 13786/13787/13788 idénticos). Ver Fase 1, punto 3bis.
 - La sincronización entre puestos deja de ser "archivos JSON en carpeta de red" y pasa a ser la propia base de datos compartida (un único origen de verdad) — esto elimina de raíz la clase de fallos de sync descritos en el punto 6 del documento Fase 0 (contadores desincronizados, backups con caché, altas no propagadas). Los contadores (`numero`) se generan con secuencias/transacciones de la BD, no con contadores en localStorage.
 
 ---
@@ -27,6 +28,7 @@ id, codigo (unique), nombre, cif, direccion, cp, poblacion, provincia,
 telefono, email, forma_pago, agencia, tipo_iva (NORMAL|INTRACOMUNITARIO|RECARGO_EQUIVALENCIA),
 formato_etiqueta, creado_en, modificado_en
 ```
+`agencia` (TRANSFRIO, HOLLANO, CARPIN, MOZO, FARIÑA) es el transportista del cliente y decide qué hojas de transporte se ofrecen: `MOZO` → Hoja CMR / Carta de Porte (corrección 7 del 02/09/2026). Conviene que sea una lista controlada (tabla `transportistas` o `enum`), no texto libre, porque de su valor depende qué se imprime.
 
 ### `proveedores`
 ```
@@ -108,6 +110,7 @@ id, traspaso_id (FK), articulo_id (FK), cantidad, peso, partida_id (FK nullable)
 id, numero (unique), fecha, destinatario_nombre, destinatario_ciudad,
 conductor, total_cajas, total_kg, puesto_origen, creado_en
 ```
+**Regla de `destinatario_nombre` / `destinatario_ciudad` (corrección 11 del 02/09/2026):** separar el texto elegido y volver a unirlo (`nombre + ' ' + ciudad`, sin espacio si la ciudad está vacía) debe dar siempre el texto original. Solo "ALCAMPO [ciudad]" se separa; cualquier otro destinatario, y "ALCAMPO" sin ciudad, va entero en `destinatario_nombre` con `destinatario_ciudad` vacía. Nunca el mismo texto en los dos campos.
 ### `reparto_lineas`
 ```
 id, reparto_id (FK), articulo_id (FK), cantidad, peso
@@ -119,9 +122,19 @@ id, tipo (MAYORISTA|PESCADERIA), fecha, modo (AUTO|MANUAL), creado_en
 ```
 ### `lista_precio_lineas`
 ```
-id, lista_precio_id (FK), articulo_id (FK), precio
+id, lista_precio_id (FK), articulo_id (FK), precio,
+existencias_cajas (numérico, nullable), existencias_texto (texto, nullable)
 ```
+Existencias: o número de cajas o texto libre ("AGOTADO", "POCAS"), nunca los dos (corrección 5). Solo para la versión interna. El aviso de precio por debajo del coste se calcula contra el coste real de la partida, no se guarda (corrección 4).
 Con `UNIQUE(tipo, fecha)` por lista, y lógica de aplicación: si `modo=AUTO`, las líneas se generan/recalculan desde las compras del día; si `MANUAL`, entrada libre pero cada lista (mayorista/pescadería) guarda de forma independiente — sin pisarse entre sí, solo se copian como plantilla inicial la primera vez que una lista está vacía en el día.
+
+### Constantes del sistema y plantillas de impresión (correcciones 6, 7 y 8 del 02/09/2026)
+
+No son datos de clientes, sino configuración:
+
+- **Constantes** (tabla `constantes_sistema` clave → valor, o archivo de configuración): datos de Marinafisk como remitente (nombre, dirección, teléfono, CIF, registro sanitario **12.01671/C**), destinatario fijo de traspasos ("MARINA FISH ZARAGOZA", destino "ZARAGOZA"), lugar de entrega CMR ("INSTALACIONES CUSTODIA - PORTUGAL") y lugar de carga ("A CORUÑA, ESPAÑA"). Los traspasos **no** usan una ficha falsa en `clientes`.
+- **Plantillas de impresión**: una lista central en el código (nombre, descripción, cuándo aparece, documento de origen, transportista que la activa) de la que se generan tanto los botones como la pantalla "Modelos de impresión". Así, añadir una plantilla sin que salga en el catálogo no es posible.
+- **Calibración** (tabla `plantilla_calibracion`): `plantilla`, `campo`, `x_mm`, `y_mm`, `modificado_en`. Los valores de fábrica van en el código; la tabla guarda solo los ajustes, para poder "Restaurar de fábrica".
 
 ---
 

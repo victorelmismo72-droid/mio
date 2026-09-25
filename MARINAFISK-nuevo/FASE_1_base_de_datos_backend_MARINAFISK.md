@@ -48,11 +48,20 @@ Basadas en lo que ya existe en el localStorage del programa actual (confirmar no
 
 ## 3. Backend mínimo — qué debe saber hacer
 
-Para cada tabla: crear, leer, y (salvo `compras`, ver arriba) actualizar y borrar. Nada más en esta fase — sin cálculos, sin validaciones de negocio todavía.
+Para cada tabla: crear, leer, y (salvo `compras`, ver arriba) actualizar y borrar. Nada más en esta fase — sin cálculos, sin validaciones de negocio todavía (salvo las garantías de grabación del punto 3bis).
 
 Debe incluir también:
 - Un endpoint de **exportación** que genere un JSON con la misma estructura que el backup actual, para poder comparar fácilmente contra el original durante la verificación.
 - Un log básico de qué se ha escrito y cuándo (útil para depurar problemas de sincronización más adelante, en la Fase 3).
+
+---
+
+## 3bis. Garantías de grabación (añadido tras las correcciones del 02/09/2026)
+
+Aunque esta fase no lleva lógica de negocio, estas dos garantías son de la capa de datos y deben existir desde el principio (ver `CORRECCIONES_2026-09-02_programa_actual.md`, puntos 1 y 11):
+
+- **Grabación sin duplicados, protegida en el servidor.** El 01/09/2026 el mismo pedido se creó tres veces (13786, 13787, 13788) por pulsar GRABAR varias veces. Toda operación de crear (pedidos, repartos, traspasos, compras, partidas y cualquier otra que escriba) debe aceptar una **clave de idempotencia** que genera la pantalla una vez por intento de grabar (columna `clave_idempotencia` única, ver esquema). Si llega una segunda petición con la misma clave —repetida o en paralelo— el servidor devuelve el registro ya creado, sin crear otro ni gastar otro número. Esto se garantiza en la base de datos (restricción `UNIQUE` dentro de la misma transacción que asigna el número), no solo bloqueando el botón en la pantalla.
+- **Guardar sin cambios no altera nada.** Leer un registro y volver a enviarlo tal cual debe dejarlo idéntico en la base de datos. En particular, en `repartos` el destinatario se guarda como `destinatario_nombre` + `destinatario_ciudad`: si un texto no encaja en un patrón conocido con ciudad (hoy solo "ALCAMPO [ciudad]"), va entero a `destinatario_nombre` y `destinatario_ciudad` queda vacía. Nunca se copia el mismo texto en los dos campos. Tampoco para "ALCAMPO" sin ciudad.
 
 ---
 
@@ -77,6 +86,8 @@ No pasar a la Fase 2 hasta que:
 - [ ] El backend permite leer y escribir cada tabla correctamente.
 - [ ] El backup de prueba está migrado y verificado sin discrepancias.
 - [ ] `compras` no tiene forma de modificarse por error desde el backend.
+- [ ] Probado: enviar la misma petición de grabar 3 veces seguidas y 3 veces en paralelo (con la misma clave de idempotencia) crea **un solo** pedido/reparto/traspaso/compra y un solo número (caso real 13786/13787/13788).
+- [ ] Probado: leer un reparto con destinatario no ALCAMPO (ej. ECOMORA), otro con "ALCAMPO" sin ciudad y otro con "ALCAMPO ZARAGOZA", y volver a grabarlos sin cambios 3 veces: los datos quedan idénticos.
 - [ ] El HTML/programa actual sigue funcionando exactamente igual, sin tocar, en paralelo.
 - [ ] Víctor ha revisado y entendido (en términos sencillos, no técnicos) qué se ha construido, antes de seguir.
 
