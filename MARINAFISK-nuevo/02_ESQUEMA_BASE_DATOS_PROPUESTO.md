@@ -16,6 +16,7 @@ Este documento es un borrador de discusión, no una migración definitiva. Objet
   - `puesto_origen` (sustituye a `_uid`/etiqueta libre CORU/PANC — mejor como columna controlada que como texto libre)
   - `creado_en`, `modificado_en` (sustituyen a `_modTimestamp`)
   - `clave_idempotencia` (texto, `UNIQUE`): la genera la pantalla una vez por intento de grabar. Si la misma petición llega dos veces, el servidor devuelve el registro ya creado en vez de crear otro (fallo real del 01/09/2026: pedidos 13786/13787/13788 idénticos). Ver Fase 1, punto 3bis.
+  - `version` (entero) en toda tabla modificable, para que dos puestos no se pisen al editar el mismo registro; los contadores de `numero` salen de una tabla `contadores` bloqueada en la transacción; y una tabla `usuarios` asigna `puesto_origen`. Ver Fase 3, "Cambios de esquema".
 - La sincronización entre puestos deja de ser "archivos JSON en carpeta de red" y pasa a ser la propia base de datos compartida (un único origen de verdad) — esto elimina de raíz la clase de fallos de sync descritos en el punto 6 del documento Fase 0 (contadores desincronizados, backups con caché, altas no propagadas). Los contadores (`numero`) se generan con secuencias/transacciones de la BD, no con contadores en localStorage.
 
 ---

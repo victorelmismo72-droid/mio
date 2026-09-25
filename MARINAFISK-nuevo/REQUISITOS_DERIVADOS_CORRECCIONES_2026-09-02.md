@@ -2,7 +2,7 @@
 
 Documento de trazabilidad para `CORRECCIONES_2026-09-02_programa_actual.md`. Indica, para cada uno de los 13 puntos, en qué documento de fase se ha integrado el requisito para el sistema nuevo.
 
-Los documentos de **Fase 3** (sincronización / varios puestos) y **Fase 4** (interfaz) todavía no existen en este repositorio. Hasta que se redacten, los requisitos de esas fases quedan guardados aquí, en la sección "Pendiente de pasar a Fase 3 / Fase 4". **Al redactar esos documentos, copiar estos puntos dentro y marcarlos aquí como trasladados.**
+La **Fase 3** ya está redactada (`FASE_3_sincronizacion_puestos_MARINAFISK.md`) y sus puntos están trasladados. El documento de **Fase 4** (interfaz) todavía no existe: hasta que se redacte, sus requisitos quedan guardados aquí, en la sección "Pendiente de pasar a Fase 4". **Al redactarlo, copiar estos puntos dentro y marcarlos aquí como trasladados.**
 
 ---
 
@@ -10,8 +10,8 @@ Los documentos de **Fase 3** (sincronización / varios puestos) y **Fase 4** (in
 
 | # | Corrección | Fase 0 | Esquema | Fase 1 | Fase 2 | Fase 3 | Fase 4 |
 |---|---|---|---|---|---|---|---|
-| 1 | Doble/triple grabación por el mismo clic | punto 10 | `clave_idempotencia` | punto 3bis + cierre | — | prueba concurrencia | botón bloqueado |
-| 2 | Refresco de carpeta compartida al empezar el día | punto 10 | — | — | — | prueba 2 usuarios | — |
+| 1 | Doble/triple grabación por el mismo clic | punto 10 | `clave_idempotencia` | punto 3bis + cierre | — | puntos 2, 6 y 12 | botón bloqueado |
+| 2 | Refresco de carpeta compartida al empezar el día | punto 10 | — | — | — | puntos 4 y 12 | — |
 | 3 | Traspasos a Zaragoza separados de ventas en listados | punto 10 | — | — | punto 5bis | — | presentación |
 | 4 | Aviso precio de venta < coste | — | — | — | punto 4 | — | aviso en vivo |
 | 5 | Existencias admiten texto | — | `existencias_texto` | — | punto 4 | — | campo |
@@ -26,10 +26,10 @@ Los documentos de **Fase 3** (sincronización / varios puestos) y **Fase 4** (in
 
 ---
 
-## Pendiente de pasar a Fase 3 (sincronización / varios puestos)
+## Fase 3 (varios puestos) — trasladado a `FASE_3_sincronizacion_puestos_MARINAFISK.md`
 
-- [ ] **(1, 2)** Prueba explícita con dos usuarios (puesto de Víctor y puesto de Pancho) que graban a la vez: ningún número de pedido, reparto o traspaso se repite ni se salta, y ambos ven los mismos contadores y el mismo estado **sin ningún refresco manual ni automático "por la mañana"**. Si hiciera falta un refresco para que cuadren, es un defecto de la fase.
-- [ ] **(1)** Prueba de "doble envío": mandar al backend la misma petición de grabar dos o tres veces seguidas (o en paralelo) debe producir **un único registro**, no varios. Reproducir el caso real del 01/09/2026 (pedidos 13786, 13787 y 13788, idénticos).
+- [x] **(1, 2)** Prueba explícita con dos usuarios (puesto de Víctor y puesto de Pancho) que graban a la vez: ningún número de pedido, reparto o traspaso se repite ni se salta, y ambos ven los mismos contadores y el mismo estado **sin ningún refresco manual ni automático "por la mañana"**. Si hiciera falta un refresco para que cuadren, es un defecto de la fase. → Fase 3, puntos 4 y 12.
+- [x] **(1)** Prueba de "doble envío": mandar al backend la misma petición de grabar dos o tres veces seguidas (o en paralelo) debe producir **un único registro**, no varios. Reproducir el caso real del 01/09/2026 (pedidos 13786, 13787 y 13788, idénticos). → Fase 3, puntos 2, 6 y 12.
 
 ## Pendiente de pasar a Fase 4 (interfaz)
 
