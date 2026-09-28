@@ -1,6 +1,6 @@
 # MARINAFISK — Dónde queda recogida cada corrección del 02/09/2026
 
-Documento de trazabilidad para `CORRECCIONES_2026-09-02_programa_actual.md`. Indica, para cada uno de los 13 puntos, en qué documento de fase se ha integrado el requisito para el sistema nuevo.
+Documento de trazabilidad para `CORRECCIONES_2026-09-02_programa_actual.md`. Indica, para cada uno de los 18 puntos (1-13 del programa HTML; 14-18 del Excel `GESTION_CORRECTA`), en qué documento de fase se ha integrado el requisito para el sistema nuevo.
 
 La **Fase 3** ya está redactada (`FASE_3_sincronizacion_puestos_MARINAFISK.md`) y sus puntos están trasladados. El documento de **Fase 4** (interfaz) todavía no existe: hasta que se redacte, sus requisitos quedan guardados aquí, en la sección "Pendiente de pasar a Fase 4". **Al redactarlo, copiar estos puntos dentro y marcarlos aquí como trasladados.**
 
@@ -23,6 +23,11 @@ La **Fase 3** ya está redactada (`FASE_3_sincronizacion_puestos_MARINAFISK.md`)
 | 11 | Destinatario de Reparto Super duplicándose | punto 10 | `repartos` | punto 3bis + cierre | — | — | — |
 | 12 | Imprimir sin precios / Transfrío desde la fila | — | — | — | — | — | 2 botones por fila |
 | 13 | Autosuma "+" en la casilla de peso | — | — | — | — | — | campos numéricos |
+| 14 | Buscador con filtrado en vivo en listas largas | — | — | — | — | — | todos los selectores |
+| 15 | Elegir por nombre; tipo de dato de los códigos | punto 10 | tipo de `codigo` | punto 4 + cierre | — | — | mostrar código |
+| 16 | Fórmulas de compras convertidas en valores fijos | punto 10 | columnas calculadas | puntos 3bis y 4 | punto 5ter | — | — |
+| 17 | Campos calculados no editables; fechas DD/MM/AAAA | puntos 7 y 10 | columnas calculadas | punto 3bis + cierre | — | — | no editables, fechas |
+| 18 | Bloqueo que impide ordenar; buscador que escribe solo | — | — | — | punto 5ter | — | buscador independiente |
 
 ---
 
@@ -40,6 +45,14 @@ La **Fase 3** ya está redactada (`FASE_3_sincronizacion_puestos_MARINAFISK.md`)
 **Precios**
 - [ ] **(4)** En cualquier pantalla donde se escriba a mano un precio de venta: aviso en vivo si queda por debajo del coste real de la partida (casilla en rojo), aviso al salir del campo (producto, precio, coste y pérdida) y confirmación antes de generar la imagen final si queda alguno en pérdida. No bloquea: obliga a confirmarlo.
 - [ ] **(5)** El campo de existencias admite número o texto libre ("AGOTADO", "POCAS"). Número → "X cajas"; texto → tal cual en mayúsculas.
+
+**Selectores, códigos y campos calculados**
+- [ ] **(14)** Todo selector con muchas opciones (proveedores, artículos, clientes y cualquier lista larga) lleva buscador con filtrado en vivo **por defecto**: al escribir unas letras, la lista se queda solo con lo que coincide (por nombre y por código). No es un añadido opcional.
+- [ ] **(15, 18b)** Donde un código se puede escribir a mano **y** también buscar por nombre, las dos formas son independientes: escribir el código a mano funciona siempre, y muestra al lado el nombre que le corresponde para comprobarlo. El buscador por nombre muestra el código y solo lo pone en el campo cuando el usuario lo elige de forma explícita; nunca escribe en el campo por su cuenta ni queda "enlazado" a él.
+- [ ] **(17)** Los campos calculados (nombre desde código, base, IVA, total…) se muestran pero **no se pueden editar**. Se edita el origen (código, kilos, precio) y el calculado se actualiza solo.
+- [ ] **(18a)** Esa protección no puede impedir ordenar, filtrar, buscar ni añadir filas en ningún listado. Probarlo en cada listado.
+- [ ] **(16, 18a)** La comprobación de coherencia de la Fase 2 (punto 5ter) tiene su pantalla: lista las incoherencias encontradas y las resalta en rojo en el registro afectado.
+- [ ] **(17)** Todas las fechas, en toda la aplicación y en todos los documentos y exportaciones, en formato `DD/MM/AAAA`. Al escribir una fecha, se interpreta como día/mes/año.
 
 **Campos numéricos**
 - [ ] **(13)** En peso, kilos, cajas y campos similares: escribir `12.4+8.1+6.3` y pulsar Enter o Ctrl+= deja el resultado (`26.8`). Admite restas y coma decimal. Un número normal funciona igual que siempre.

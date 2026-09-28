@@ -1,6 +1,6 @@
 # MARINAFISK — Correcciones aplicadas hoy al programa actual (02/09/2026)
 
-Este documento resume trece correcciones/mejoras aplicadas directamente al programa HTML que se usa a diario, **fuera del proyecto de migración**, tras detectar un problema real de duplicados y algunos fallos de usabilidad. Se entrega a Claude Code para que las tenga en cuenta en el diseño y verificación del sistema nuevo — no se han implementado en el proyecto nuevo, pero el sistema nuevo debe evitar los mismos fallos y, donde tenga sentido, ofrecer las mismas mejoras.
+Este documento resume dieciocho correcciones/mejoras aplicadas directamente al programa HTML y al Excel de gestión que se usan a diario, **fuera del proyecto de migración**, tras detectar un problema real de duplicados y algunos fallos de usabilidad. Se entrega a Claude Code para que las tenga en cuenta en el diseño y verificación del sistema nuevo — no se han implementado en el proyecto nuevo, pero el sistema nuevo debe evitar los mismos fallos y, donde tenga sentido, ofrecer las mismas mejoras.
 
 ---
 
@@ -175,4 +175,56 @@ Este documento resume trece correcciones/mejoras aplicadas directamente al progr
 
 ---
 
-*Estas correcciones ya están en producción en el HTML actual (versión `CARGA_DE_ALBARANES_MARINAFISK_2026-09-02-CORREGIDO.html`) y sirven de referencia de comportamiento esperado para el sistema nuevo — no como código a copiar literalmente, sino como especificación de qué debe hacer bien el sistema nuevo en estos puntos.*
+## 14. Nueva funcionalidad: buscador con filtrado en vivo para elegir proveedor/artículo (Panel de Compras, Excel)
+
+**Motivo:** en el Panel de Compras del Excel `GESTION_CORRECTA`, los desplegables para elegir un proveedor o un artículo concreto obligaban a buscar a ojo entre más de 200 nombres. Se pidió poder escribir las primeras letras y que la lista se filtrara sola, en vez de tener que desplazarse por toda la lista.
+
+**Corrección aplicada en el Excel actual:** encima de cada desplegable (proveedor y artículo) hay ahora una casilla de búsqueda. Al escribir unas letras, el desplegable de justo debajo se queda solo con los nombres que coinciden (más la opción "TODOS", siempre disponible). Si se borra la búsqueda, vuelven a aparecer todos. Técnicamente se resolvió con fórmulas de hoja de cálculo (sin macros), así que funciona igual en cualquier ordenador sin necesitar nada especial activado.
+
+**Requisito para el sistema nuevo:** cualquier desplegable/selector con muchas opciones (proveedores, artículos, clientes, y cualquier lista larga similar) debe llevar un buscador con filtrado en vivo por defecto, no como añadido opcional — con listas de 150-230 elementos como las de Marinafisk, buscar a ojo en una lista sin filtro es lento y propenso a error. Esto es mucho más sencillo de construir en una aplicación real con base de datos (un simple filtro de texto sobre la consulta) que en Excel con fórmulas, donde tuvo que resolverse con una fórmula matricial bastante compleja — en el sistema nuevo no hay excusa para no tenerlo en todos los selectores de este tipo.
+
+---
+
+## 15. Nueva funcionalidad: elegir proveedor/producto por nombre en COMPRAS y que el código se rellene solo
+
+**Motivo:** al grabar una compra nueva, había que saber de memoria (o ir a mirar) el código del proveedor y del producto para escribirlo en las columnas COD PROV / COD PROD. Se pidió poder buscar por nombre y que el código se rellenara solo.
+
+**Corrección aplicada en el Excel actual:** en la hoja COMPRAS, dos columnas de búsqueda (con desplegable filtrable, formato "NOMBRE | código") permiten elegir un proveedor o producto por su nombre; al elegir, las columnas reales COD PROV y COD PROD se rellenan solas mediante fórmula, sin tocar ni una sola fila de las compras ya grabadas (se aplica solo a partir de la primera fila libre en adelante).
+
+**Lección importante de tipos de dato:** el código de proveedor está guardado como **número** en su ficha, pero el texto extraído de una lista combinada ("nombre | código") es siempre **texto** — aunque a la vista "50232" y 50232 parezcan lo mismo, para una búsqueda exacta (VLOOKUP y equivalentes) son cosas distintas y la búsqueda falla en silencio o da "no encontrado". El código de producto, en cambio, es alfanumérico (ej. "C387") y sí es texto de forma nativa. **Requisito para el sistema nuevo:** cualquier extracción de un identificador desde un texto combinado debe convertirse explícitamente al mismo tipo de dato (número o texto) que tiene ese identificador en su tabla de origen, columna por columna — no asumir que todos los códigos son del mismo tipo.
+
+---
+
+## 16. Fallo grave: fórmulas de compras ya grabadas aparecieron convertidas en valores fijos
+
+**Qué pasó:** en algún momento, 51 filas de compras ya grabadas (de casi 2.500) tenían sus fórmulas de proveedor/producto/importes convertidas en texto o número fijo, en vez de la fórmula viva. No se detectó cómo ni cuándo ocurrió exactamente.
+
+**Cómo se diagnosticó y corrigió:** antes de tocar nada, se comprobó cada valor fijo contra el catálogo real (Proveedores/Productos) y contra el cálculo esperado (kilos × precio, etc.) — 49 de las 51 filas ya tenían el valor correcto (solo faltaba la fórmula), y 2 tenían un valor desactualizado (un nombre de producto viejo, un importe que no cuadraba con los kilos/precio actuales). Se restauró la fórmula estándar en las 51 filas, lo que corrigió automáticamente esas 2 discrepancias. Se verificó, fila por fila, que ninguna de las ~2.400 filas restantes cambió ni un solo carácter.
+
+**Requisito para el sistema nuevo:** esto es exactamente el tipo de fallo que una base de datos real con columnas calculadas (en vez de fórmulas de hoja de cálculo copiables/machacables) evita por diseño — un valor calculado (nombre de proveedor a partir de su código, importe a partir de kilos y precio) nunca debería poder "congelarse" ni desincronizarse de su origen. Además, cualquier proceso de importación/migración de datos debe incluir una comprobación de coherencia como la descrita aquí (contrastar cada valor calculado contra su fuente y su fórmula esperada) antes de dar por buena una carga de datos histórica.
+
+---
+
+## 17. Protección de celdas con fórmula, y formato de fecha europeo
+
+**Motivo (relacionado con el punto 16):** para que no se pueda repetir el fallo de fórmulas congeladas por accidente, se pidió bloquear las celdas calculadas. De paso, se detectó que la columna de fecha de COMPRAS estaba en formato americano (mes/día/año) en vez de europeo.
+
+**Corrección aplicada en el Excel actual:**
+- Todas las celdas con fórmula (proveedor, OP 2%, descripción, y los importes: base, IVA, total) quedaron **bloqueadas** con protección de hoja (sin contraseña — es para evitar despistes, no para restringir al equipo). El resto de columnas (fecha, códigos, cajas, kilos, precio, los buscadores) siguen totalmente editables.
+- La columna de fecha se cambió a formato `DD/MM/YYYY` en las casi 5.000 filas de la hoja.
+
+**Requisito para el sistema nuevo:**
+- Cualquier campo que se calcule a partir de otros (nombre desde código, importes desde cantidad y precio) debe ser **no editable directamente** por el usuario en la interfaz — se edita el origen (kilos, precio, código) y el calculado se actualiza solo, sin posibilidad de que alguien escriba encima y lo desincronice. Esto no es opcional: es precisamente el fallo del punto 16, y una base de datos con columnas calculadas lo evita de raíz.
+- Todas las fechas deben mostrarse siempre en formato español/europeo (día/mes/año), en toda la aplicación, sin excepción — nunca en formato americano.
+
+---
+
+## 18. Marcha atrás en dos diseños del Excel actual — lecciones para no repetir en el sistema nuevo
+
+**18a. La protección de hoja de Excel bloqueaba trabajo normal (ordenar, filtrar, insertar filas) por defecto.** Se probó a proteger la hoja COMPRAS (bloqueando solo las celdas con fórmula) para evitar el fallo del punto 16. Pero Excel bloquea **ordenar filas enteras** en cuanto el rango incluye una sola celda bloqueada, aunque el permiso "ordenar" esté activado — una limitación de Excel, no algo evitable manteniendo el bloqueo. Como ordenar es imprescindible para el trabajo diario, se revirtió: **la hoja ya no está protegida**, y en su lugar se añadió un **aviso visual automático** (formato condicional: la celda se pone roja si debería tener fórmula y no la tiene) para detectar el fallo del punto 16 al instante si se repite, en vez de impedirlo. **Requisito para el sistema nuevo:** no depender de "bloquear campos calculados" como mecanismo único de protección si eso puede chocar con operaciones básicas como ordenar — mejor una combinación de: (a) los campos calculados nunca son editables porque la interfaz no lo permite (no por un bloqueo de hoja de cálculo que tiene efectos secundarios), y (b) una validación/aviso que detecte y señale cualquier inconsistencia de datos.
+
+**18b. El autorrelleno de código al elegir por nombre (puntos 14-15) chocaba con escribir el código a mano.** Se había diseñado que las columnas COD PROV / COD PROD llevaran una fórmula ligada a un buscador (elegías el nombre, el código aparecía solo). Pero al mezclarlo con la costumbre de escribir el código directamente a mano (que Víctor necesita poder hacer siempre, indistintamente), el enlace por fórmula era frágil y podía romperse. **Solución final aplicada:** el buscador por nombre **ya no escribe nada automáticamente** — es un buscador fijo y independiente que solo **muestra el código en pantalla** para copiarlo a mano; las columnas COD PROV / COD PROD vuelven a ser siempre campos de escritura libre, sin fórmula ni enlace de ningún tipo. **Requisito para el sistema nuevo:** si se ofrece "elegir por nombre" como ayuda para rellenar un código, y el mismo campo también se puede escribir a mano libremente, **las dos formas no deben depender la una de la otra** — el buscador debe limitarse a mostrar/sugerir el valor para que el usuario lo confirme o lo copie, nunca escribirlo él solo de forma automática en el campo real, precisamente para que ambas formas de trabajar (buscando o a mano) sean independientes y no puedan interferir entre sí.
+
+---
+
+*Estas correcciones ya están en producción en el HTML actual (versión `CARGA_DE_ALBARANES_MARINAFISK_2026-09-02-CORREGIDO.html`) y en el Excel `GESTION_CORRECTA` (Panel de Compras y hoja COMPRAS), y sirven de referencia de comportamiento esperado para el sistema nuevo — no como código a copiar literalmente, sino como especificación de qué debe hacer bien el sistema nuevo en estos puntos.*

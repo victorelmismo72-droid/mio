@@ -74,6 +74,15 @@ Sigue aplicando aquí: cada flujo de esta fase (registrar compra, asignar partid
 
 ---
 
+## 5ter. Comprobación de coherencia de datos (correcciones 16 y 18a del 02/09/2026)
+
+En el Excel se probó a impedir el fallo de las fórmulas congeladas bloqueando celdas, pero el bloqueo impedía ordenar y hubo que quitarlo; se sustituyó por un aviso que marca en rojo lo que no cuadra. En el sistema nuevo se usan las dos cosas, sin efectos secundarios:
+
+- **Impedir:** los campos calculados no se pueden escribir (Fase 1, punto 3bis). Esto no depende de bloquear nada en pantalla, así que no interfiere con ordenar, filtrar ni buscar.
+- **Detectar:** una comprobación que se puede lanzar cuando se quiera (y automáticamente una vez al día) y que lista cualquier incoherencia: valores guardados a propósito en el momento de la compra (`op2_importe`, `iva_importe`) que no cuadren con la fórmula aplicada a los datos de esa compra, líneas sin proveedor/artículo válido, totales de cabecera que no sumen sus líneas, partidas con kilos asignados por encima de lo comprado. No corrige nada sola: informa, y Víctor decide.
+
+---
+
 ## 6. Verificación de esta fase
 
 No pasar a la Fase 3 hasta que:
@@ -84,6 +93,7 @@ No pasar a la Fase 3 hasta que:
 - [ ] Las partidas no aparecen en ningún documento de cliente generado por el sistema nuevo.
 - [ ] Probado: una lista de precios manual con un precio por debajo del coste real de su partida queda marcada como pérdida (producto, precio, coste, pérdida), y una con precio por encima no.
 - [ ] Probado: el listado de un artículo con ventas y traspasos da los mismos kg e importe de "Ventas reales" con y sin la opción de traspasos; con la opción, "Total pescado movido" = ventas + traspasos (kg) y el importe no cambia.
+- [ ] Probado: se introduce a propósito una incoherencia en una base de datos de prueba (ej. un total de cabecera que no suma sus líneas) y la comprobación de coherencia la detecta y la lista.
 - [ ] Comparación de agilidad frente al Excel realizada y documentada (ver punto 5).
 - [ ] El HTML/programa actual sigue intacto y en uso normal, en paralelo.
 - [ ] Víctor ha revisado y entendido, en términos sencillos, qué se ha construido y qué puntos quedaron pendientes de confirmación normativa (IVA).

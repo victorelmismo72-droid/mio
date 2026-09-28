@@ -79,6 +79,7 @@ Recoge cómo funciona HOY el programa HTML (`CARGA_DE_ALBARANES_MARINAFISK`), pa
 
 ## 7. Fechas
 
+- Mostrar **siempre** las fechas en formato español `DD/MM/AAAA`, en pantallas, documentos, listados y exportaciones — nunca en formato americano (corrección 17 del 02/09/2026: la columna de fecha de COMPRAS del Excel estaba en mes/día/año).
 - Usar siempre **fecha local (España/Madrid)**, nunca conversión a UTC antes de recortar la fecha — un fallo pasado (`toISOString().split('T')[0]`) causaba que pedidos introducidos después de medianoche se registraran con la fecha del día anterior. El sistema nuevo debe calcular la fecha "de hoy" en huso horario local de forma centralizada y consistente.
 
 ---
@@ -106,6 +107,8 @@ Detalle completo en `CORRECCIONES_2026-09-02_programa_actual.md`; dónde queda c
 - **Todos los puestos ven los mismos contadores y datos sin refrescar nada.** En el HTML hizo falta forzar un refresco completo de la carpeta compartida al empezar el día; en el sistema nuevo no debe hacer falta.
 - **Traspasos a Zaragoza ≠ ventas.** En listados e informes de kilos/artículos, las ventas reales y los traspasos internos van siempre separados. Los traspasos solo se suman en un total de kilos "estadístico", nunca en importes de venta.
 - **Abrir y grabar sin cambiar nada no altera el registro.** El destinatario de Reparto Super se duplicaba en cada apertura ("ECOMORA ECOMORA…") porque separar el texto en nombre/ciudad copiaba el texto completo en ambos campos.
+- **Un valor calculado nunca se congela ni se escribe a mano.** En el Excel `GESTION_CORRECTA`, 51 de ~2.500 filas de COMPRAS tenían las fórmulas (proveedor, producto, importes) convertidas en valores fijos, y 2 ya no cuadraban. Nombres que salen de un código e importes que salen de kilos × precio se calculan siempre desde su origen y no se pueden editar directamente.
+- **Un identificador conserva su tipo.** El código de proveedor es un número; el de producto, texto (ej. "C387"). Al sacar un código de un texto combinado ("NOMBRE | código") hay que convertirlo al tipo de su tabla de origen, o la búsqueda falla en silencio.
 
 ---
 

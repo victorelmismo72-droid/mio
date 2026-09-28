@@ -58,10 +58,11 @@ Debe incluir también:
 
 ## 3bis. Garantías de grabación (añadido tras las correcciones del 02/09/2026)
 
-Aunque esta fase no lleva lógica de negocio, estas dos garantías son de la capa de datos y deben existir desde el principio (ver `CORRECCIONES_2026-09-02_programa_actual.md`, puntos 1 y 11):
+Aunque esta fase no lleva lógica de negocio, estas garantías son de la capa de datos y deben existir desde el principio (ver `CORRECCIONES_2026-09-02_programa_actual.md`, puntos 1, 11, 16 y 17):
 
 - **Grabación sin duplicados, protegida en el servidor.** El 01/09/2026 el mismo pedido se creó tres veces (13786, 13787, 13788) por pulsar GRABAR varias veces. Toda operación de crear (pedidos, repartos, traspasos, compras, partidas y cualquier otra que escriba) debe aceptar una **clave de idempotencia** que genera la pantalla una vez por intento de grabar (columna `clave_idempotencia` única, ver esquema). Si llega una segunda petición con la misma clave —repetida o en paralelo— el servidor devuelve el registro ya creado, sin crear otro ni gastar otro número. Esto se garantiza en la base de datos (restricción `UNIQUE` dentro de la misma transacción que asigna el número), no solo bloqueando el botón en la pantalla.
 - **Guardar sin cambios no altera nada.** Leer un registro y volver a enviarlo tal cual debe dejarlo idéntico en la base de datos. En particular, en `repartos` el destinatario se guarda como `destinatario_nombre` + `destinatario_ciudad`: si un texto no encaja en un patrón conocido con ciudad (hoy solo "ALCAMPO [ciudad]"), va entero a `destinatario_nombre` y `destinatario_ciudad` queda vacía. Nunca se copia el mismo texto en los dos campos. Tampoco para "ALCAMPO" sin ciudad.
+- **Los campos calculados no se escriben desde fuera (corrección 17).** Nombres que salen de un código (nombre de proveedor, descripción de producto) no se guardan copiados en la compra o el pedido: se obtienen del catálogo por su clave. Importes que salen de otros campos (base = kilos × precio) son columnas calculadas por la base de datos. Si una petición intenta enviar un valor para un campo calculado, el backend la rechaza con un error claro, en vez de guardarlo o ignorarlo en silencio.
 
 ---
 
@@ -73,6 +74,8 @@ Aunque esta fase no lleva lógica de negocio, estas dos garantías son de la cap
 4. **Verificación obligatoria antes de cerrar la fase:**
    - Mismo número de registros en cada tabla que en el JSON original (contar clientes, artículos, compras, pedidos, etc. uno a uno).
    - Comprobar una muestra representativa de registros (no solo los primeros) campo por campo.
+   - **Tipos de dato por columna (corrección 15):** cada código se convierte explícitamente al tipo de su tabla de origen, columna por columna (código de proveedor numérico, código de producto alfanumérico — confirmarlo leyendo el backup real). No asumir que todos los códigos son del mismo tipo. Ningún registro puede quedar sin enlazar con su proveedor/artículo por una diferencia "50232" (texto) frente a 50232 (número).
+   - **Coherencia de valores calculados (corrección 16):** para cada valor calculado que venga en los datos de origen (importes, nombre desde código), contrastarlo con su fuente y con su fórmula esperada. Listar las discrepancias y enseñárselas a Víctor antes de dar la carga por buena; no corregirlas en silencio. Esto aplica también si algún día se importa el histórico de COMPRAS del Excel `GESTION_CORRECTA`.
    - Revisar específicamente que ningún registro de `compras` haya sido alterado en el proceso (dato sagrado).
    - Documentar el resultado de esta verificación por escrito antes de continuar a la Fase 2.
 
@@ -87,6 +90,8 @@ No pasar a la Fase 2 hasta que:
 - [ ] El backup de prueba está migrado y verificado sin discrepancias.
 - [ ] `compras` no tiene forma de modificarse por error desde el backend.
 - [ ] Probado: enviar la misma petición de grabar 3 veces seguidas y 3 veces en paralelo (con la misma clave de idempotencia) crea **un solo** pedido/reparto/traspaso/compra y un solo número (caso real 13786/13787/13788).
+- [ ] Migración: cero registros sin enlazar por tipo de código distinto, y el informe de coherencia de valores calculados revisado con Víctor.
+- [ ] Probado: enviar un valor para un campo calculado (ej. base de una línea de compra) es rechazado por el backend.
 - [ ] Probado: leer un reparto con destinatario no ALCAMPO (ej. ECOMORA), otro con "ALCAMPO" sin ciudad y otro con "ALCAMPO ZARAGOZA", y volver a grabarlos sin cambios 3 veces: los datos quedan idénticos.
 - [ ] El HTML/programa actual sigue funcionando exactamente igual, sin tocar, en paralelo.
 - [ ] Víctor ha revisado y entendido (en términos sencillos, no técnicos) qué se ha construido, antes de seguir.

@@ -66,6 +66,8 @@ creado_en
 ```
 **Inmutabilidad**: `compras` y `compra_lineas` no permiten UPDATE ni DELETE a nivel de aplicación tras su creación (permiso de BD revocado o trigger que lo bloquee) — solo INSERT. Cualquier corrección se hace con un registro de ajuste enlazado, nunca sobrescribiendo. Esto sustituye a la garantía manual actual ("Compras = dato sagrado") por una garantía estructural.
 
+**Campos calculados (correcciones 16 y 17 del 02/09/2026):** `base_zgz` = `kilos × precio_kg` va como columna generada por la base de datos (`GENERATED ALWAYS AS … STORED`), no como valor que envía la pantalla. El nombre del proveedor y la descripción del artículo **no** se copian en `compras` ni en `compra_lineas`: se leen de su catálogo por la clave. Así no pueden quedar desfasados, como pasó en 51 filas del Excel. **Tipo de los códigos:** `proveedores.codigo` y `articulos.codigo` se definen con el tipo real que tengan en el backup (proveedor numérico y artículo alfanumérico, según el Excel; confirmarlo al migrar).
+
 `op2_importe` y `iva_importe` se calculan y **congelan en el momento de la compra** (son historial), pero el cálculo en sí (fórmula) debe ser código centralizado y testeado, no reimplementado en varios sitios — el fallo histórico de fórmula congelada vino de que el valor no se recalculaba nunca al vuelo, no de guardar el resultado.
 
 **Regla de IVA en compras (decidida):**
