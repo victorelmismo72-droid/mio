@@ -2,7 +2,7 @@
 
 Documento de trazabilidad para `CORRECCIONES_2026-09-02_programa_actual.md`. Indica, para cada uno de los 22 puntos (1-13 y 19-20 del programa HTML; 14-18, 21 y 22 del Excel `GESTION_CORRECTA`), en qué documento de fase se ha integrado el requisito para el sistema nuevo.
 
-La **Fase 3** ya está redactada (`FASE_3_sincronizacion_puestos_MARINAFISK.md`) y sus puntos están trasladados. El documento de **Fase 4** (interfaz) todavía no existe: hasta que se redacte, sus requisitos quedan guardados aquí, en la sección "Pendiente de pasar a Fase 4". **Al redactarlo, copiar estos puntos dentro y marcarlos aquí como trasladados.**
+Las **Fases 3 y 4** ya están redactadas (`FASE_3_sincronizacion_puestos_MARINAFISK.md` y `FASE_4_interfaz_MARINAFISK.md`) y todos los puntos pendientes están trasladados. Este documento queda como registro de dónde fue a parar cada corrección.
 
 ---
 
@@ -40,48 +40,48 @@ La **Fase 3** ya está redactada (`FASE_3_sincronizacion_puestos_MARINAFISK.md`)
 - [x] **(1, 2)** Prueba explícita con dos usuarios (puesto de Víctor y puesto de Pancho) que graban a la vez: ningún número de pedido, reparto o traspaso se repite ni se salta, y ambos ven los mismos contadores y el mismo estado **sin ningún refresco manual ni automático "por la mañana"**. Si hiciera falta un refresco para que cuadren, es un defecto de la fase. → Fase 3, puntos 4 y 12.
 - [x] **(1)** Prueba de "doble envío": mandar al backend la misma petición de grabar dos o tres veces seguidas (o en paralelo) debe producir **un único registro**, no varios. Reproducir el caso real del 01/09/2026 (pedidos 13786, 13787 y 13788, idénticos). → Fase 3, puntos 2, 6 y 12.
 
-## Pendiente de pasar a Fase 4 (interfaz)
+## Fase 4 (interfaz) — trasladado a `FASE_4_interfaz_MARINAFISK.md`, punto 4
 
 **Grabación**
-- [ ] **(1)** Todos los botones que escriben datos (pedidos, repartos, traspasos, compras, partidas, catálogos…) se desactivan al pulsarlos y muestran que están grabando, hasta que el servidor responde (bien o con error). Esto complementa la protección del servidor (Fase 1, punto 3bis), no la sustituye.
-- [ ] **(11)** Abrir un registro y grabarlo sin tocar nada lo deja exactamente igual. Probarlo con repartos cuyo destinatario no sea ALCAMPO (ECOMORA, AHORRAMAS, TORIODIS LEÓN, MARINA FISK CORUÑA, texto libre).
+- [x] **(1)** Todos los botones que escriben datos (pedidos, repartos, traspasos, compras, partidas, catálogos…) se desactivan al pulsarlos y muestran que están grabando, hasta que el servidor responde (bien o con error). Esto complementa la protección del servidor (Fase 1, punto 3bis), no la sustituye.
+- [x] **(11)** Abrir un registro y grabarlo sin tocar nada lo deja exactamente igual. Probarlo con repartos cuyo destinatario no sea ALCAMPO (ECOMORA, AHORRAMAS, TORIODIS LEÓN, MARINA FISK CORUÑA, texto libre).
 
 **Precios**
-- [ ] **(4)** En cualquier pantalla donde se escriba a mano un precio de venta: aviso en vivo si queda por debajo del coste real de la partida (casilla en rojo), aviso al salir del campo (producto, precio, coste y pérdida) y confirmación antes de generar la imagen final si queda alguno en pérdida. No bloquea: obliga a confirmarlo.
-- [ ] **(5)** El campo de existencias admite número o texto libre ("AGOTADO", "POCAS"). Número → "X cajas"; texto → tal cual en mayúsculas.
+- [x] **(4)** En cualquier pantalla donde se escriba a mano un precio de venta: aviso en vivo si queda por debajo del coste real de la partida (casilla en rojo), aviso al salir del campo (producto, precio, coste y pérdida) y confirmación antes de generar la imagen final si queda alguno en pérdida. No bloquea: obliga a confirmarlo.
+- [x] **(5)** El campo de existencias admite número o texto libre ("AGOTADO", "POCAS"). Número → "X cajas"; texto → tal cual en mayúsculas.
 
 **Selectores, códigos y campos calculados**
-- [ ] **(14)** Todo selector con muchas opciones (proveedores, artículos, clientes y cualquier lista larga) lleva buscador con filtrado en vivo **por defecto**: al escribir unas letras, la lista se queda solo con lo que coincide (por nombre y por código). No es un añadido opcional.
-- [ ] **(15, 18b)** Donde un código se puede escribir a mano **y** también buscar por nombre, las dos formas son independientes: escribir el código a mano funciona siempre, y muestra al lado el nombre que le corresponde para comprobarlo. El buscador por nombre muestra el código y solo lo pone en el campo cuando el usuario lo elige de forma explícita; nunca escribe en el campo por su cuenta ni queda "enlazado" a él.
-- [ ] **(17)** Los campos calculados (nombre desde código, base, IVA, total…) se muestran pero **no se pueden editar**. Se edita el origen (código, kilos, precio) y el calculado se actualiza solo.
-- [ ] **(18a)** Esa protección no puede impedir ordenar, filtrar, buscar ni añadir filas en ningún listado. Probarlo en cada listado.
-- [ ] **(16, 18a)** La comprobación de coherencia de la Fase 2 (punto 5ter) tiene su pantalla: lista las incoherencias encontradas y las resalta en rojo en el registro afectado.
-- [ ] **(17)** Todas las fechas, en toda la aplicación y en todos los documentos y exportaciones, en formato `DD/MM/AAAA`. Al escribir una fecha, se interpreta como día/mes/año.
+- [x] **(14)** Todo selector con muchas opciones (proveedores, artículos, clientes y cualquier lista larga) lleva buscador con filtrado en vivo **por defecto**: al escribir unas letras, la lista se queda solo con lo que coincide (por nombre y por código). No es un añadido opcional.
+- [x] **(15, 18b)** Donde un código se puede escribir a mano **y** también buscar por nombre, las dos formas son independientes: escribir el código a mano funciona siempre, y muestra al lado el nombre que le corresponde para comprobarlo. El buscador por nombre muestra el código y solo lo pone en el campo cuando el usuario lo elige de forma explícita; nunca escribe en el campo por su cuenta ni queda "enlazado" a él.
+- [x] **(17)** Los campos calculados (nombre desde código, base, IVA, total…) se muestran pero **no se pueden editar**. Se edita el origen (código, kilos, precio) y el calculado se actualiza solo.
+- [x] **(18a)** Esa protección no puede impedir ordenar, filtrar, buscar ni añadir filas en ningún listado. Probarlo en cada listado.
+- [x] **(16, 18a)** La comprobación de coherencia de la Fase 2 (punto 5ter) tiene su pantalla: lista las incoherencias encontradas y las resalta en rojo en el registro afectado.
+- [x] **(17)** Todas las fechas, en toda la aplicación y en todos los documentos y exportaciones, en formato `DD/MM/AAAA`. Al escribir una fecha, se interpreta como día/mes/año.
 
 **Palets, acciones por fila y listas de apoyo**
-- [ ] **(19)** Campo PALETS en el pedido, 0 por defecto. Al pulsar GRABAR se pregunta **siempre** cuántos palets lleva (con cliente, bultos y kg de contexto, 0 por defecto, Enter confirma, Esc cancela sin grabar). Rechaza negativos y decimales, y un segundo clic no abre otra pregunta ni graba dos veces.
-- [ ] **(19)** El nº de palets sale en **todos** los documentos y caminos de impresión: albarán con y sin precios (junto a total bultos y total kg), Hoja Transfrío (subrayado, junto al destino), impresión individual, en lote y desde la fila. Prueba: imprimir cada uno con un pedido de 2 palets y otro antiguo (debe salir 0).
-- [ ] **(19)** Regla general: todo dato que una norma haga obligatorio lleva valor por defecto para los registros antiguos, se confirma al grabar y se propaga a todos los documentos relacionados.
-- [ ] **(20)** Las filas con muchas acciones usan un menú "más acciones"; si se usan iconos en fila, la casilla de selección queda siempre fija y visible.
-- [ ] **(21a)** Ordenar cualquier listado mueve siempre la fila completa.
-- [ ] **(21b)** Las listas y datos de apoyo de buscadores viven aparte de los datos que el usuario edita.
-- [ ] **(22)** Al grabar una compra se muestra la partida que se va a asignar (reutilizada o nueva) y hay una casilla "partida nueva (otro puerto)". El número lo asigna el servidor; no se escribe a mano.
+- [x] **(19)** Campo PALETS en el pedido, 0 por defecto. Al pulsar GRABAR se pregunta **siempre** cuántos palets lleva (con cliente, bultos y kg de contexto, 0 por defecto, Enter confirma, Esc cancela sin grabar). Rechaza negativos y decimales, y un segundo clic no abre otra pregunta ni graba dos veces.
+- [x] **(19)** El nº de palets sale en **todos** los documentos y caminos de impresión: albarán con y sin precios (junto a total bultos y total kg), Hoja Transfrío (subrayado, junto al destino), impresión individual, en lote y desde la fila. Prueba: imprimir cada uno con un pedido de 2 palets y otro antiguo (debe salir 0).
+- [x] **(19)** Regla general: todo dato que una norma haga obligatorio lleva valor por defecto para los registros antiguos, se confirma al grabar y se propaga a todos los documentos relacionados.
+- [x] **(20)** Las filas con muchas acciones usan un menú "más acciones"; si se usan iconos en fila, la casilla de selección queda siempre fija y visible.
+- [x] **(21a)** Ordenar cualquier listado mueve siempre la fila completa.
+- [x] **(21b)** Las listas y datos de apoyo de buscadores viven aparte de los datos que el usuario edita.
+- [x] **(22)** Al grabar una compra se muestra la partida que se va a asignar (reutilizada o nueva) y hay una casilla "partida nueva (otro puerto)". El número lo asigna el servidor; no se escribe a mano.
 
 **Campos numéricos**
-- [ ] **(13)** En peso, kilos, cajas y campos similares: escribir `12.4+8.1+6.3` y pulsar Enter o Ctrl+= deja el resultado (`26.8`). Admite restas y coma decimal. Un número normal funciona igual que siempre.
-- [ ] **(13) Seguridad:** la operación se resuelve con un analizador propio que solo acepta dígitos, espacios, `.`/`,` y los operadores `+`/`-`. **Nunca `eval()`, `new Function()` ni nada equivalente.** Cualquier otro carácter → se deja el texto como está y se avisa, sin grabar un valor incorrecto. Si el valor se envía al backend, el backend también valida que sea un número (no confía en la pantalla).
+- [x] **(13)** En peso, kilos, cajas y campos similares: escribir `12.4+8.1+6.3` y pulsar Enter o Ctrl+= deja el resultado (`26.8`). Admite restas y coma decimal. Un número normal funciona igual que siempre.
+- [x] **(13) Seguridad:** la operación se resuelve con un analizador propio que solo acepta dígitos, espacios, `.`/`,` y los operadores `+`/`-`. **Nunca `eval()`, `new Function()` ni nada equivalente.** Cualquier otro carácter → se deja el texto como está y se avisa, sin grabar un valor incorrecto. Si el valor se envía al backend, el backend también valida que sea un número (no confía en la pantalla).
 
 **Hojas de transporte y documentos sobre papel pre-impreso**
-- [ ] **(6)** Hoja Transfrío también en Traspasos. Destinatario fijo **"MARINA FISH ZARAGOZA"**, destino **"ZARAGOZA"**, tomado de las constantes del sistema — nunca del catálogo de clientes ni de una ficha de cliente falsa. Fecha, bultos y kilos, de las líneas del traspaso.
-- [ ] **(7)** Hoja CMR / Carta de Porte, visible **solo** cuando el cliente tiene como transportista `MOZO` (hoy solo MARIA CUSTODIA ALVES E FILLOS, código 50540). Casillas: 1 (remitente Marinafisk, 4 líneas), 2 (cliente + dirección repartida en líneas), 3 ("INSTALACIONES CUSTODIA - PORTUGAL"), 4 ("A CORUÑA, ESPAÑA" + fecha), 5 (nº albarán), 6 ("VER ALBARÁN ADJUNTO" + nº cajas), 11 (peso bruto kg), 21 (A CORUÑA + fecha). Los textos fijos salen de las constantes del sistema.
-- [ ] **(7)** Diseño por "diccionario" transportista → plantilla de impresión, para añadir nuevos transportistas/formularios sin rehacer la lógica.
-- [ ] **(7)** Calibración en milímetros para cada plantilla sobre papel pre-impreso (editor X/Y por campo, "Ver con regla", "Restaurar de fábrica"), igual que hoy en Transfrío y CMR. Partir de las coordenadas ya calibradas en el HTML del 02/09/2026, no de cero.
-- [ ] **(8)** Pantalla "Modelos de impresión" **generada automáticamente** a partir de la lista central de plantillas del código (nombre, para qué sirve, cuándo aparece, ejemplo). Añadir una plantilla sin que aparezca en el catálogo no debe ser posible. Añadir una prueba automática que lo compruebe.
-- [ ] **(9)** Todo documento sobre papel pre-impreso (Transfrío, CMR y futuros) se puede imprimir de uno en uno y en lote, con el mecanismo común del listado: casillas marcadas, o el filtro si no se marca ninguna. Es una función transversal del listado, no algo que se repita para cada documento.
-- [ ] **(9)** Antes de imprimir en lote, avisar de cuántos documentos se van a generar ("Se van a imprimir X pedido(s)…") para preparar el papel físico, en el mismo orden.
-- [ ] **(10)** Las copias por cliente (Transfrío: 4 por defecto, se pregunta) se construyen **dentro del PDF**: 4 del cliente 1, luego 4 del cliente 2… Nunca depender de la opción "copias" del diálogo de impresión.
-- [ ] **(10)** Todo flujo que abra varias pestañas/ventanas lo hace **un clic → una pestaña** (panel con cliente actual, "Abrir PDF para imprimir", "Siguiente cliente", "Parar aquí"). Nunca con `setTimeout` ni aperturas automáticas, que el navegador bloquea sin avisar.
-- [ ] **(12)** En Historial de Pedidos y de Traspasos, cada fila tiene **dos botones separados**: "sin precios" (o documento del traspaso) y "Transfrío". Nunca combinados en un único PDF ni un único botón: van a impresoras distintas. Las mismas dos acciones también dentro del registro abierto.
+- [x] **(6)** Hoja Transfrío también en Traspasos. Destinatario fijo **"MARINA FISH ZARAGOZA"**, destino **"ZARAGOZA"**, tomado de las constantes del sistema — nunca del catálogo de clientes ni de una ficha de cliente falsa. Fecha, bultos y kilos, de las líneas del traspaso.
+- [x] **(7)** Hoja CMR / Carta de Porte, visible **solo** cuando el cliente tiene como transportista `MOZO` (hoy solo MARIA CUSTODIA ALVES E FILLOS, código 50540). Casillas: 1 (remitente Marinafisk, 4 líneas), 2 (cliente + dirección repartida en líneas), 3 ("INSTALACIONES CUSTODIA - PORTUGAL"), 4 ("A CORUÑA, ESPAÑA" + fecha), 5 (nº albarán), 6 ("VER ALBARÁN ADJUNTO" + nº cajas), 11 (peso bruto kg), 21 (A CORUÑA + fecha). Los textos fijos salen de las constantes del sistema.
+- [x] **(7)** Diseño por "diccionario" transportista → plantilla de impresión, para añadir nuevos transportistas/formularios sin rehacer la lógica.
+- [x] **(7)** Calibración en milímetros para cada plantilla sobre papel pre-impreso (editor X/Y por campo, "Ver con regla", "Restaurar de fábrica"), igual que hoy en Transfrío y CMR. Partir de las coordenadas ya calibradas en el HTML del 02/09/2026, no de cero.
+- [x] **(8)** Pantalla "Modelos de impresión" **generada automáticamente** a partir de la lista central de plantillas del código (nombre, para qué sirve, cuándo aparece, ejemplo). Añadir una plantilla sin que aparezca en el catálogo no debe ser posible. Añadir una prueba automática que lo compruebe.
+- [x] **(9)** Todo documento sobre papel pre-impreso (Transfrío, CMR y futuros) se puede imprimir de uno en uno y en lote, con el mecanismo común del listado: casillas marcadas, o el filtro si no se marca ninguna. Es una función transversal del listado, no algo que se repita para cada documento.
+- [x] **(9)** Antes de imprimir en lote, avisar de cuántos documentos se van a generar ("Se van a imprimir X pedido(s)…") para preparar el papel físico, en el mismo orden.
+- [x] **(10)** Las copias por cliente (Transfrío: 4 por defecto, se pregunta) se construyen **dentro del PDF**: 4 del cliente 1, luego 4 del cliente 2… Nunca depender de la opción "copias" del diálogo de impresión.
+- [x] **(10)** Todo flujo que abra varias pestañas/ventanas lo hace **un clic → una pestaña** (panel con cliente actual, "Abrir PDF para imprimir", "Siguiente cliente", "Parar aquí"). Nunca con `setTimeout` ni aperturas automáticas, que el navegador bloquea sin avisar.
+- [x] **(12)** En Historial de Pedidos y de Traspasos, cada fila tiene **dos botones separados**: "sin precios" (o documento del traspaso) y "Transfrío". Nunca combinados en un único PDF ni un único botón: van a impresoras distintas. Las mismas dos acciones también dentro del registro abierto.
 
 ---
 
