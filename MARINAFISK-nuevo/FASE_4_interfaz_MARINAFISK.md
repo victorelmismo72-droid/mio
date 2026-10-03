@@ -47,6 +47,22 @@ Debe poder demostrarse que:
 
 ---
 
+## 2bis. Navegador, tablet y móvil
+
+- **Navegador: Google Chrome** en los dos puestos (confirmado por Víctor). Todo se prueba en Chrome, que es también el que se usará en tablet o móvil Android. En iPhone/iPad se prueba en Safari si llega a usarse.
+- **Tablet y móvil (pedido por Víctor):** el sistema se diseña desde el principio para que **todas las pantallas se adapten** a tablet y móvil, no solo al ordenador:
+  - En pantallas pequeñas las tablas pasan a tarjetas o a pocas columnas con "ver más". Los botones e interruptores tienen tamaño de dedo (mínimo unos 44 píxeles). Nada se sale por los lados.
+  - Los campos numéricos abren el teclado numérico del móvil, y la autosuma (corrección 13) funciona igual.
+  - Funciona en vertical y en horizontal.
+- **Lo que hay que saber de la tablet y el móvil:**
+  - **Dónde funciona:** en la Fase 3 el servidor solo es accesible desde la red de la oficina. Con tablet o móvil se podrá trabajar **conectado al wifi de la oficina**. Desde fuera (en la lonja, en casa, con datos móviles) hace falta una conexión segura (VPN) o el alojamiento en la nube de la Fase 5. Nunca se abre el servidor a internet sin más.
+  - **Wifi:** debe estar protegido con contraseña (WPA2 o WPA3), y los invitados en una red aparte.
+  - **Imprimir:** desde la tablet o el móvil se abre el PDF igual que en el ordenador, pero imprimir en las láser o en las Toshiba depende de que el dispositivo las vea en la red. Para el día a día, imprimir sigue siendo cosa de los ordenadores. Si se quiere imprimir desde la tablet, se prueba con cada impresora.
+  - **Sesión:** se aplican los mismos 10 minutos y el mismo borrador guardado (punto 2). Si se pierde o roban un móvil o tablet, se cierra su sesión desde el ordenador.
+  - **Prioridad:** el ordenador sigue siendo el puesto principal y el que marca la agilidad (punto 7). En tablet y móvil, primero se comprueban las tareas de consulta y las cortas (ver pedidos, partidas y existencias, lista de precios, apuntar una compra en la lonja) y luego el resto.
+
+---
+
 ## 3. Pantallas
 
 Una por cada pestaña del HTML actual (`goPanel`: pedido, historial, traspasos, historial-traspasos, reparto, clientes, articulos, proveedores, compras, contactar, sueltas, modelos, sync), más las del Excel `GESTION_CORRECTA` que pasan al sistema nuevo. Los números entre paréntesis son los de las correcciones del 02/09/2026.
@@ -177,9 +193,19 @@ Lista inicial del catálogo (punto 3.9). Claude Code la completa revisando el HT
 
 **Impresoras (confirmado por Víctor): dos láser y dos de etiquetas.**
 - Albaranes, documentos de traspaso, fichas de envío y las hojas sobre papel pre-impreso (Transfrío, CMR) salen por las láser. Las etiquetas, por las de etiquetas.
-- Cada PDF se genera ya con el **tamaño exacto del papel al que va**: A4 para la láser y el tamaño de la etiqueta para las de etiquetas. Así no hay que tocar escalas en el diálogo de impresión. Hay que medir el tamaño de etiqueta de las dos impresoras antes de empezar (punto 8).
+- Cada PDF se genera ya con el **tamaño exacto del papel al que va**: A4 para la láser y el tamaño de la etiqueta para las de etiquetas. Así no hay que tocar escalas en el diálogo de impresión. Tamaños que usa el HTML actual:
+  - **A4** (210 × 297 mm) para albaranes, traspasos, fichas y Hoja Transfrío. La Transfrío tiene su tamaño de página en la calibración (`TRANSFRIO_COORDS_DEFECTO`, hoy A4 vertical).
+  - **Etiqueta Marina Fisk: 50 × 145 mm, en vertical.** Se imprimen **dos etiquetas una al lado de la otra** en cada hoja de 100 × 145 mm, con el contenido girado 90°.
+  - **Etiqueta Scanfisk (Reparto Super): 145 × 50 mm, en horizontal.**
+
+  El sistema nuevo genera exactamente esos tamaños. Antes de empezar, comprobar sobre las **Toshiba** de etiquetas, con una etiqueta impresa, que el rollo sigue siendo de 50 × 145 mm y si lleva dos etiquetas por fila. El modelo exacto de las Toshiba aparece en la etiqueta de la propia impresora o en "Dispositivos e impresoras" de Windows.
 - La impresora se elige en el diálogo de impresión del navegador, como hoy. Imprimir directamente en una impresora concreta sin diálogo es posible desde el servidor, pero es más complejo; solo se hace si Víctor lo pide.
 - Por eso el albarán sin precios y la Transfrío siguen siendo **dos acciones separadas** (corrección 12): aunque las dos vayan a láser, una lleva papel normal y la otra papel del transportista.
+- **Hoy se cambia el papel en la misma láser** para Transfrío y CMR (confirmado por Víctor). El sistema lo facilita:
+  - Primero se sacan en lote todos los albaranes sin precios del camión (papel normal).
+  - Después, con un solo cambio de papel, todas las Transfrío del mismo lote, en el mismo orden y con las copias por cliente ya dentro del PDF (correcciones 9 y 10).
+  - Antes de cada lote sobre papel pre-impreso, aviso: "Pon N hojas de papel Transfrío en la impresora".
+- **Recomendación: una impresora láser dedicada solo al papel pre-impreso** (Transfrío y CMR), como sugiere Víctor. Evita cambiar papel varias veces al día, el riesgo de imprimir un albarán sobre papel del transportista (o al revés) y los atascos del papel fino al cambiarlo. Con una impresora dedicada, la calibración en milímetros (corrección 7) se ajusta una vez para esa máquina y no se mueve. Si se compra, conviene que sea de bandeja manual o con bandeja para papel fino, y que se pruebe con el papel real antes de calibrar.
 
 Reglas comunes:
 - Registro sanitario **12.01671/C** en todo documento que va a terceros (Fase 0, punto 8). Se comprueba con una prueba automática que busque el texto en cada documento generado.
@@ -213,7 +239,8 @@ No dar la fase por cerrada hasta que:
 - [ ] **Compras:** una compra hecha en pantalla da los mismos importes, partida, coste y PVP que daría el Excel (`ESPECIFICACION_COMPRAS_EXCEL.md`, punto 11).
 - [ ] **Catálogo de modelos:** la prueba automática falla si se añade una plantilla sin entrada en el catálogo.
 - [ ] **Sesión:** tras 10 minutos sin tocar nada con un pedido a medias, se cierra la sesión con aviso previo. Al volver a entrar el pedido sigue ahí sin grabar, y al grabarlo sale bien y una sola vez.
-- [ ] **Impresoras:** cada documento impreso en su impresora real (láser o etiquetas) con el tamaño correcto, sin ajustar escala a mano.
+- [ ] **Impresoras:** cada documento impreso en su impresora real (láser o Toshiba) con el tamaño correcto, sin ajustar escala a mano. Etiqueta Marina Fisk: dos por fila en 50 × 145 mm, igual que hoy.
+- [ ] **Tablet y móvil:** con una tablet y un móvil Android en Chrome, conectados al wifi de la oficina, se hacen al menos: consultar un pedido, ver partidas y existencias, generar la lista de precios y apuntar una compra. Ninguna pantalla se sale por los lados.
 - [ ] **Uso en paralelo:** Víctor y Pancho trabajan al menos una semana real con el sistema nuevo en paralelo con el HTML, en modo prueba (Fase 3, punto 9), y apuntan todo lo que falte o moleste.
 - [ ] El HTML y el Excel siguen intactos y en uso normal.
 - [ ] Víctor ha revisado y aprobado las pantallas y los documentos.
@@ -229,11 +256,15 @@ Respondidas por Víctor (03/10/2026):
 - [x] Cierre de sesión: 10 minutos sin uso, sin perder lo escrito (punto 2).
 - [x] Se usa todo lo del HTML: no se deja nada fuera (punto 7).
 
+- [x] Navegador: Chrome (punto 2bis).
+- [x] Tablet y móvil: sí, todas las pantallas adaptadas; con el wifi de la oficina hasta que haya VPN o nube (punto 2bis).
+- [x] Impresoras de etiquetas: Toshiba (dos). Tamaños sacados del HTML: 50 × 145 mm (Marina Fisk, dos por fila) y 145 × 50 mm (Scanfisk) (punto 5).
+- [x] Papel de Transfrío y CMR: se cambia en la misma láser. Recomendada una láser dedicada (punto 5).
+
 Pendientes:
-- [ ] ¿Qué navegador se usa en cada puesto (Chrome, Edge…)?
-- [ ] ¿Alguien usaría el sistema desde una tablet o un móvil (por ejemplo, en el almacén)? Si no, se diseña solo para ordenador.
-- [ ] Marca y modelo de las impresoras de etiquetas y tamaño de la etiqueta (ancho × alto en mm) que lleva cada una.
-- [ ] ¿Qué láser se usa para el papel de Transfrío y CMR? ¿O se cambia el papel en la misma?
+- [ ] Modelo exacto de las dos Toshiba (en la pegatina de la impresora o en "Dispositivos e impresoras" de Windows) y confirmar sobre una etiqueta real el tamaño 50 × 145 mm.
+- [ ] ¿Se quiere trabajar con tablet o móvil también **fuera** de la oficina? Si es así, hay que decidir entre VPN o adelantar la nube (Fase 5).
+- [ ] ¿Se compra la láser dedicada al papel pre-impreso?
 
 ---
 
