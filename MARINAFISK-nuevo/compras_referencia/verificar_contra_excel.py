@@ -65,6 +65,17 @@ def main(ruta):
     forms = openpyxl.load_workbook(ruta)
     c = Contador()
 
+    # Un archivo guardado por un programa que no es Excel (p. ej. openpyxl) puede no llevar los
+    # resultados de las fórmulas: Excel los recalcula al abrirlo, pero aquí no hay con qué comparar.
+    muestra = [(r, col) for r in range(3, 200) for col in (5, 12, 15)
+               if isinstance(forms["COMPRAS"].cell(r, col).value, str)
+               and forms["COMPRAS"].cell(r, col).value.startswith("=")]
+    if muestra and all(vals["COMPRAS"].cell(r, col).value is None for r, col in muestra):
+        print("ESTE ARCHIVO NO TIENE GUARDADOS LOS RESULTADOS DE LAS FÓRMULAS.\n"
+              "Ábrelo en Excel, pulsa Guardar (así Excel los calcula y los guarda) y vuelve a ejecutar.\n"
+              "No se compara nada para no dar diferencias falsas.")
+        return -1
+
     # --- Catálogos -----------------------------------------------------------
     hp = vals["PROVEEDORES"]
     proveedores = {}

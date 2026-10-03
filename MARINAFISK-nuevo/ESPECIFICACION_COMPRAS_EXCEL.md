@@ -188,6 +188,16 @@ Estos datos los ha encontrado el script de verificación. **No se han tocado**: 
 
 ---
 
+### 10bis. Revisión del archivo `GESTION_CORRECTA_precio_medio_arreglado-1.xlsx` (enviado como corregido, 03/10/2026)
+
+Comparado celda a celda con el anterior (`…_40.xlsx`): **los valores, las fórmulas y los formatos de las 11 hojas son idénticos**. El único cambio es que las columnas de búsqueda de COMPRAS (S, "Buscar PROVEEDOR", y U, "Buscar PRODUCTO", desde la fila 2643) tienen ahora un desplegable con las listas de AUX_BUSCADOR.
+
+Por tanto, **todo lo del punto 10 sigue igual en este archivo**: PRODUCTOS!H104 sin fórmula, PRECIO MEDIO!C54 con el 145 fijo, la partida sugerida en 0, las 8 líneas de hoy sin partida, las filas 2645/2646 sin proveedor, el desajuste código/buscador de las filas 2650, 2651 y 2653, y la fecha en formato mes/día/año.
+
+Además, este archivo se guardó con un programa que no es Excel (openpyxl) y **no lleva guardados los resultados de las fórmulas**. Excel los recalcula al abrirlo, así que el uso diario no se ve afectado. Pero cualquier programa que lea el archivo sin Excel (visores, importaciones, este script) ve las celdas calculadas vacías. Antes de usarlo como fuente para migrar datos, abrirlo en Excel y guardarlo. El script de verificación ahora lo detecta y avisa, en vez de dar miles de diferencias falsas.
+
+---
+
 ## 11. Cómo se comprueba en el sistema nuevo (criterio de cierre de la Fase 2)
 
 1. Migrar las compras del Excel (o del backup del HTML) al sistema nuevo.
