@@ -75,7 +75,7 @@ Ejemplo real (fila 3): 25,5 kg × 3,80 €/kg, proveedor con OP → L = 96,90 ·
 - El usuario ve el número antes de confirmar y puede marcar "partida nueva (otro puerto)". El número no se escribe a mano.
 - Implementación de referencia: `partida_correcta()` en `compras_excel.py`.
 
-**No copiar la fórmula de la columna W tal cual.** Tiene un fallo que se ve en los datos de hoy: en las 9 líneas del 03/10 con buscador, la partida sugerida es **0**. La fórmula busca la primera fila con ese proveedor y ese día, y esa fila es la propia línea que se está escribiendo, que aún no tiene partida, así que devuelve una celda vacía (0). Ejemplo: para SUBASTAS RIVERA (50163) el 03/10 debería sugerir 56641, que es la que ya tiene en las filas 2650-2651. `partida_sugerida_excel()` reproduce este fallo solo para poder compararse con el Excel.
+**No copiar la fórmula de la columna W tal cual.** Tiene un fallo que se ve en los datos de hoy: en las 9 líneas del 03/10 con buscador, la partida sugerida es **0**. La fórmula busca la primera fila con ese proveedor y ese día, y esa fila es la propia línea que se está escribiendo, que aún no tiene partida, así que devuelve una celda vacía (0). Ejemplo: para SUBASTAS RIVERA (50163) el 03/10 debería sugerir 56641, que es la que ya tiene en las filas 2650-2651. Corregido en `GESTION_CORRECTA_precio_medio_arreglado-2.xlsx` (punto 10ter): la fórmula solo tiene en cuenta filas que ya tienen partida y usa el código real de proveedor de la fila (D). `partida_sugerida_excel()` reproduce la fórmula corregida, y el script de verificación avisa si un archivo todavía tiene la antigua.
 
 **Datos históricos que hay que respetar al migrar** (son dato sagrado, no se "arreglan"):
 - 327 líneas (13 a 25 de junio) tienen partidas de 4 cifras (5900-5973), mientras que el resto van de 55601 a 56642. El programa HTML empieza a contar en 5900 si no tiene contador (`nextPartida`, valor por defecto 5900), lo que probablemente lo explica.
@@ -195,6 +195,22 @@ Comparado celda a celda con el anterior (`…_40.xlsx`): **los valores, las fór
 Por tanto, **todo lo del punto 10 sigue igual en este archivo**: PRODUCTOS!H104 sin fórmula, PRECIO MEDIO!C54 con el 145 fijo, la partida sugerida en 0, las 8 líneas de hoy sin partida, las filas 2645/2646 sin proveedor, el desajuste código/buscador de las filas 2650, 2651 y 2653, y la fecha en formato mes/día/año.
 
 Además, este archivo se guardó con un programa que no es Excel (openpyxl) y **no lleva guardados los resultados de las fórmulas**. Excel los recalcula al abrirlo, así que el uso diario no se ve afectado. Pero cualquier programa que lea el archivo sin Excel (visores, importaciones, este script) ve las celdas calculadas vacías. Antes de usarlo como fuente para migrar datos, abrirlo en Excel y guardarlo. El script de verificación ahora lo detecta y avisa, en vez de dar miles de diferencias falsas.
+
+---
+
+### 10ter. Copia corregida preparada: `GESTION_CORRECTA_precio_medio_arreglado-2.xlsx` (03/10/2026)
+
+Hecha a partir de `…_arreglado-1.xlsx`. Solo cambia esto:
+
+| Dónde | Cambio |
+|---|---|
+| PRODUCTOS!H104 | Puesta la fórmula de COSTE, igual que en las filas de al lado |
+| PRECIO MEDIO!C54 | El 145 fijo sustituido por la fórmula de TOTAL KG, igual que en las filas de al lado |
+| COMPRAS!W2643:W4997 | Fórmula de "Partida sugerida" corregida (punto 3) |
+| COMPRAS!B3:B4997 | Formato de fecha `dd/mm/yyyy` en lugar de `m/d/yyyy` (solo el formato; las fechas no cambian) |
+| COMPRAS!C4 y D4 | Quitado el formato de fecha: se ven 31595 y 50106, que es lo que contienen |
+
+No se ha tocado ningún dato: ni compras, ni códigos, ni las líneas de hoy sin partida o sin proveedor. Esas las tiene que revisar Víctor con los albaranes.
 
 ---
 

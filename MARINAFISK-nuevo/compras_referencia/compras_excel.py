@@ -143,15 +143,17 @@ def calcular_linea(cod_prov, cod_prod, kilos, eur_kg, proveedores, productos):
 # ---------------------------------------------------------------------------
 
 def partida_sugerida_excel(filas, fila_actual, cod_prov, fecha, partida_nueva, hoy):
-    """W: reproduce la fórmula TAL CUAL está en el Excel, incluido su fallo.
+    """W: fórmula de "Partida sugerida" CORREGIDA (archivo ..._arreglado-2.xlsx, 03/10/2026).
 
-    =IF(T="","",IF(X="Sí",MAX(A)+1,
-       IF(COUNTIFS(D,T,B,fecha)>0, INDEX(A, primera fila con D=T y B=fecha), MAX(A)+1)))
+    =IF(D="","",IF(X="Sí",MAX(A)+1,
+       IF(COUNTIFS(D,D_fila,B,fecha,A,"<>")>0,
+          INDEX(A, primera fila con D=D_fila, B=fecha y partida ya escrita),
+          MAX(A)+1)))
     con fecha = B de la fila, o HOY() si está vacía.
 
-    OJO (fallo real): la primera fila que coincide puede ser la propia fila que se está
-    escribiendo (que aún no tiene partida). Entonces INDEX devuelve la celda vacía y el
-    Excel sugiere 0. Ver partida_correcta() para la regla que se pretende.
+    Diferencias con la fórmula anterior (que sugería 0):
+    - Solo cuenta filas que YA tienen número de partida, así que nunca se encuentra a sí misma.
+    - Usa el código de proveedor real de la fila (columna D), no el del buscador (T).
 
     `filas` es una lista de dicts con claves 'fila', 'partida', 'cod_prov', 'fecha'
     en el orden en que están en la hoja.
@@ -163,9 +165,9 @@ def partida_sugerida_excel(filas, fila_actual, cod_prov, fecha, partida_nueva, h
         return maximo + 1
     dia = _dia(fecha) if _hay(fecha) else hoy
     for f in filas:
-        if f["cod_prov"] == cod_prov and _dia(f["fecha"]) == dia:
-            p = f["partida"]
-            return p if isinstance(p, (int, float)) else 0
+        if (f["cod_prov"] == cod_prov and _dia(f["fecha"]) == dia
+                and isinstance(f["partida"], (int, float))):
+            return f["partida"]
     return maximo + 1
 
 

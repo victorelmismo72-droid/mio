@@ -115,11 +115,15 @@ def main(ruta):
     # --- COMPRAS: partida sugerida (columna W) --------------------------------
     hoy = None
     for x in compras:
-        if x["T"] not in (None, ""):
+        fw = hcf.cell(x["fila"], 23).value
+        if isinstance(fw, str) and fw.startswith("=IF($D"):  # fórmula corregida
             # HOY() del Excel = día en que se recalculó por última vez; solo importa si B está vacía
             hoy = hoy or (x["fecha"].date() if isinstance(x["fecha"], datetime) else None)
-            obt = cx.partida_sugerida_excel(compras, x["fila"], x["T"], x["fecha"], x["X"], hoy)
-            c.comprobar("COMPRAS col W (partida sugerida, fórmula tal cual)", f"W{x['fila']}", x["W"], obt)
+            obt = cx.partida_sugerida_excel(compras, x["fila"], x["cod_prov"], x["fecha"], x["X"], hoy)
+            c.comprobar("COMPRAS col W (partida sugerida)", f"W{x['fila']}", x["W"], obt)
+        elif isinstance(fw, str) and fw.startswith("=IF($T") and x["T"] not in (None, ""):
+            c.comprobar("COMPRAS col W (partida sugerida) - FÓRMULA ANTIGUA CON FALLO, sugiere 0",
+                        f"W{x['fila']}", "fórmula corregida", "fórmula antigua")
 
     # --- PRODUCTOS: última fecha, coste, PVP1, PVP2 ----------------------------
     for cod, p in productos.items():
