@@ -144,7 +144,7 @@ No son datos de clientes, sino configuración:
 
 - **Constantes** (tabla `constantes_sistema` clave → valor, o archivo de configuración): datos de Marinafisk como remitente (nombre, dirección, teléfono, CIF, registro sanitario **12.01671/C**), destinatario fijo de traspasos ("MARINA FISH ZARAGOZA", destino "ZARAGOZA"), lugar de entrega CMR ("INSTALACIONES CUSTODIA - PORTUGAL") y lugar de carga ("A CORUÑA, ESPAÑA"). Los traspasos **no** usan una ficha falsa en `clientes`.
 - **Plantillas de impresión**: una lista central en el código (nombre, descripción, cuándo aparece, documento de origen, transportista que la activa) de la que se generan tanto los botones como la pantalla "Modelos de impresión". Así, añadir una plantilla sin que salga en el catálogo no es posible.
-- **Calibración** (tabla `plantilla_calibracion`): `plantilla`, `campo`, `x_mm`, `y_mm`, `modificado_en`. Los valores de fábrica van en el código; la tabla guarda solo los ajustes, para poder "Restaurar de fábrica".
+- **Calibración** (tabla `plantilla_calibracion`): `plantilla`, `impresora`, `campo`, `x_mm`, `y_mm`, `modificado_en`. Los valores de fábrica van en el código; la tabla guarda solo los ajustes, para poder "Restaurar de fábrica". La calibración es **por impresora**: cuando se compre la láser dedicada al papel pre-impreso (prevista), se calibra una vez sin perder la de la actual.
 
 ---
 

@@ -55,7 +55,7 @@ Debe poder demostrarse que:
   - Los campos numéricos abren el teclado numérico del móvil, y la autosuma (corrección 13) funciona igual.
   - Funciona en vertical y en horizontal.
 - **Lo que hay que saber de la tablet y el móvil:**
-  - **Dónde funciona:** en la Fase 3 el servidor solo es accesible desde la red de la oficina. Con tablet o móvil se podrá trabajar **conectado al wifi de la oficina**. Desde fuera (en la lonja, en casa, con datos móviles) hace falta una conexión segura (VPN) o el alojamiento en la nube de la Fase 5. Nunca se abre el servidor a internet sin más.
+  - **Dónde funciona:** en la oficina por wifi y, como la tablet se usará **fuera de la oficina** (confirmado por Víctor), también desde fuera **a través de VPN** (Fase 3, punto 1bis). El servidor nunca se abre a internet sin más.
   - **Wifi:** debe estar protegido con contraseña (WPA2 o WPA3), y los invitados en una red aparte.
   - **Imprimir:** desde la tablet o el móvil se abre el PDF igual que en el ordenador, pero imprimir en las láser o en las Toshiba depende de que el dispositivo las vea en la red. Para el día a día, imprimir sigue siendo cosa de los ordenadores. Si se quiere imprimir desde la tablet, se prueba con cada impresora.
   - **Sesión:** se aplican los mismos 10 minutos y el mismo borrador guardado (punto 2). Si se pierde o roban un móvil o tablet, se cierra su sesión desde el ordenador.
@@ -205,7 +205,7 @@ Lista inicial del catálogo (punto 3.9). Claude Code la completa revisando el HT
   - Primero se sacan en lote todos los albaranes sin precios del camión (papel normal).
   - Después, con un solo cambio de papel, todas las Transfrío del mismo lote, en el mismo orden y con las copias por cliente ya dentro del PDF (correcciones 9 y 10).
   - Antes de cada lote sobre papel pre-impreso, aviso: "Pon N hojas de papel Transfrío en la impresora".
-- **Recomendación: una impresora láser dedicada solo al papel pre-impreso** (Transfrío y CMR), como sugiere Víctor. Evita cambiar papel varias veces al día, el riesgo de imprimir un albarán sobre papel del transportista (o al revés) y los atascos del papel fino al cambiarlo. Con una impresora dedicada, la calibración en milímetros (corrección 7) se ajusta una vez para esa máquina y no se mueve. Si se compra, conviene que sea de bandeja manual o con bandeja para papel fino, y que se pruebe con el papel real antes de calibrar.
+- **Recomendación: una impresora láser dedicada solo al papel pre-impreso** (no se compra por ahora, pero Víctor la tiene prevista) (Transfrío y CMR), como sugiere Víctor. Evita cambiar papel varias veces al día, el riesgo de imprimir un albarán sobre papel del transportista (o al revés) y los atascos del papel fino al cambiarlo. Con una impresora dedicada, la calibración en milímetros (corrección 7) se ajusta una vez para esa máquina y no se mueve. Si se compra, conviene que sea de bandeja manual o con bandeja para papel fino, y que se pruebe con el papel real antes de calibrar.
 
 Reglas comunes:
 - Registro sanitario **12.01671/C** en todo documento que va a terceros (Fase 0, punto 8). Se comprueba con una prueba automática que busque el texto en cada documento generado.
@@ -257,14 +257,16 @@ Respondidas por Víctor (03/10/2026):
 - [x] Se usa todo lo del HTML: no se deja nada fuera (punto 7).
 
 - [x] Navegador: Chrome (punto 2bis).
-- [x] Tablet y móvil: sí, todas las pantallas adaptadas; con el wifi de la oficina hasta que haya VPN o nube (punto 2bis).
+- [x] Tablet y móvil: sí, todas las pantallas adaptadas, en la oficina y fuera por VPN (punto 2bis).
 - [x] Impresoras de etiquetas: Toshiba (dos). Tamaños sacados del HTML: 50 × 145 mm (Marina Fisk, dos por fila) y 145 × 50 mm (Scanfisk) (punto 5).
 - [x] Papel de Transfrío y CMR: se cambia en la misma láser. Recomendada una láser dedicada (punto 5).
 
 Pendientes:
-- [ ] Modelo exacto de las dos Toshiba (en la pegatina de la impresora o en "Dispositivos e impresoras" de Windows) y confirmar sobre una etiqueta real el tamaño 50 × 145 mm.
-- [ ] ¿Se quiere trabajar con tablet o móvil también **fuera** de la oficina? Si es así, hay que decidir entre VPN o adelantar la nube (Fase 5).
-- [ ] ¿Se compra la láser dedicada al papel pre-impreso?
+- [x] Tablet fuera de la oficina: **sí** (confirmado por Víctor el 03/10/2026). Ver Fase 3, punto 1bis: acceso remoto solo por VPN.
+- [x] Láser dedicada al papel pre-impreso: **no por ahora, pero está prevista**. Mientras tanto se cambia el papel en la misma láser (punto 5). La calibración se guarda **por impresora**, para que al llegar la nueva baste con calibrarla una vez sin perder la de la actual.
+
+Pendientes:
+- [ ] Modelo exacto de las dos Toshiba: **Víctor lo pasa el lunes**. Confirmar entonces, sobre una etiqueta real, el tamaño 50 × 145 mm y si van dos por fila.
 
 ---
 

@@ -41,6 +41,23 @@ No se toca todavía: el HTML actual (sigue siendo el programa de trabajo real), 
 
 ---
 
+## 1bis. Acceso desde fuera de la oficina (tablet)
+
+Víctor ha confirmado (03/10/2026) que la tablet se usará **fuera de la oficina**. Por tanto, el acceso remoto entra en el diseño desde ya:
+
+- **Recomendación: VPN.** El servidor sigue en la oficina, nunca expuesto directamente a internet, y la tablet entra a la red de la oficina a través de un túnel cifrado (por ejemplo WireGuard, en el router o en el propio servidor). Es más barato y más sencillo que adelantar la nube, y los datos siguen en la oficina. La nube queda para la Fase 5.
+  - La VPN necesita **un único punto de entrada** autorizado (un puerto de la VPN, o un servicio de VPN que no abre puertos). Es la única excepción a "no abrir nada a internet", y solo deja pasar dispositivos con su clave.
+  - **Una clave por dispositivo** (tablet, móviles), que se puede anular por separado si se pierde o roban uno, sin tocar los demás.
+  - Por encima de la VPN se sigue entrando con usuario y contraseña (punto 1), con la misma sesión de 10 minutos (Fase 4, punto 2).
+- **La tablet:** bloqueo con PIN o huella, cifrado activado (viene por defecto en las actuales), sistema actualizado, y sin la contraseña del programa guardada en el navegador.
+- **Consecuencias de trabajar en remoto:**
+  - Si en la oficina se va la luz o internet, o el servidor está apagado, la tablet no puede trabajar. No hay modo sin conexión (punto 6), así que se avisa claramente y no deja grabar.
+  - Por eso pesa más tener el servidor en un equipo siempre encendido (punto 1), y conviene un pequeño SAI (batería) para el servidor y el router.
+  - Con mala cobertura la grabación puede tardar. La clave de idempotencia (Fase 1) evita duplicados si se reintenta.
+- **Prueba de cierre:** desde la tablet con datos móviles (fuera del wifi de la oficina), entrar por la VPN, consultar un pedido y grabar una compra. Después anular la clave de la tablet y comprobar que ya no puede entrar.
+
+---
+
 ## 2. Numeración correlativa sin duplicados
 
 - Cada número de negocio (pedido/albarán, reparto, traspaso, partida) se asigna **en el servidor, dentro de la misma transacción que crea el registro**. La pantalla nunca calcula ni propone el siguiente número.
@@ -119,7 +136,7 @@ El HTML sigue siendo el programa de trabajo real. El sistema nuevo se prueba en 
 
 ## 10. Preguntas para Víctor antes de cerrar la fase
 
-- [ ] ¿Los dos puestos están en la misma oficina/red local? Si Pancho trabaja desde otro sitio, hace falta una conexión segura (VPN) o adelantar la Fase 5 — **no** abrir el servidor a internet.
+- [ ] ¿Los dos puestos están en la misma oficina/red local? (La tablet sí estará fuera: resuelto con VPN, punto 1bis.)
 - [ ] ¿Dónde va el servidor: mini-PC dedicado, ordenador de Víctor, o nube (punto 1)?
 - [ ] ¿Es aceptable un hueco en la numeración de albaranes si una grabación falla, o tiene que ser estrictamente seguida (punto 2)?
 - [ ] Si el servidor no está disponible, ¿qué se hace (punto 6)?
