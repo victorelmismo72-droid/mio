@@ -1,6 +1,6 @@
 # MARINAFISK — Correcciones aplicadas hoy al programa actual (02/09/2026)
 
-Este documento resume dieciocho correcciones/mejoras aplicadas directamente al programa HTML y al Excel de gestión que se usan a diario, **fuera del proyecto de migración**, tras detectar un problema real de duplicados y algunos fallos de usabilidad. Se entrega a Claude Code para que las tenga en cuenta en el diseño y verificación del sistema nuevo — no se han implementado en el proyecto nuevo, pero el sistema nuevo debe evitar los mismos fallos y, donde tenga sentido, ofrecer las mismas mejoras.
+Este documento resume veintidós correcciones/mejoras aplicadas directamente al programa HTML y al Excel de gestión que se usan a diario, **fuera del proyecto de migración**, tras detectar un problema real de duplicados y algunos fallos de usabilidad. Se entrega a Claude Code para que las tenga en cuenta en el diseño y verificación del sistema nuevo — no se han implementado en el proyecto nuevo, pero el sistema nuevo debe evitar los mismos fallos y, donde tenga sentido, ofrecer las mismas mejoras.
 
 ---
 
@@ -224,6 +224,65 @@ Este documento resume dieciocho correcciones/mejoras aplicadas directamente al p
 **18a. La protección de hoja de Excel bloqueaba trabajo normal (ordenar, filtrar, insertar filas) por defecto.** Se probó a proteger la hoja COMPRAS (bloqueando solo las celdas con fórmula) para evitar el fallo del punto 16. Pero Excel bloquea **ordenar filas enteras** en cuanto el rango incluye una sola celda bloqueada, aunque el permiso "ordenar" esté activado — una limitación de Excel, no algo evitable manteniendo el bloqueo. Como ordenar es imprescindible para el trabajo diario, se revirtió: **la hoja ya no está protegida**, y en su lugar se añadió un **aviso visual automático** (formato condicional: la celda se pone roja si debería tener fórmula y no la tiene) para detectar el fallo del punto 16 al instante si se repite, en vez de impedirlo. **Requisito para el sistema nuevo:** no depender de "bloquear campos calculados" como mecanismo único de protección si eso puede chocar con operaciones básicas como ordenar — mejor una combinación de: (a) los campos calculados nunca son editables porque la interfaz no lo permite (no por un bloqueo de hoja de cálculo que tiene efectos secundarios), y (b) una validación/aviso que detecte y señale cualquier inconsistencia de datos.
 
 **18b. El autorrelleno de código al elegir por nombre (puntos 14-15) chocaba con escribir el código a mano.** Se había diseñado que las columnas COD PROV / COD PROD llevaran una fórmula ligada a un buscador (elegías el nombre, el código aparecía solo). Pero al mezclarlo con la costumbre de escribir el código directamente a mano (que Víctor necesita poder hacer siempre, indistintamente), el enlace por fórmula era frágil y podía romperse. **Solución final aplicada:** el buscador por nombre **ya no escribe nada automáticamente** — es un buscador fijo y independiente que solo **muestra el código en pantalla** para copiarlo a mano; las columnas COD PROV / COD PROD vuelven a ser siempre campos de escritura libre, sin fórmula ni enlace de ningún tipo. **Requisito para el sistema nuevo:** si se ofrece "elegir por nombre" como ayuda para rellenar un código, y el mismo campo también se puede escribir a mano libremente, **las dos formas no deben depender la una de la otra** — el buscador debe limitarse a mostrar/sugerir el valor para que el usuario lo confirme o lo copie, nunca escribirlo él solo de forma automática en el campo real, precisamente para que ambas formas de trabajar (buscando o a mano) sean independientes y no puedan interferir entre sí.
+
+---
+
+## 19. Nueva funcionalidad obligatoria: número de palets (documento electrónico de control, desde el 5/10/2026)
+
+**Motivo:** a partir del 5 de octubre de 2026 es obligatorio que la hoja de pedido sin precios para el conductor incluya cajas, kilos, productos y **número de palets** — de esto, solo faltaba el número de palets. Por definición es siempre 0; si el pedido lleva palets, se indica el número.
+
+**Corrección aplicada en el HTML actual:**
+- Nuevo campo **PALETS** en el formulario de pedido (junto a Fecha/Forma de pago/Agencia), con 0 por defecto.
+- Al pulsar **GRABAR**, el programa **siempre pregunta primero** cuántos palets lleva el pedido (aviso grande, con el cliente y los bultos/kg de contexto, 0 por defecto, Enter para confirmar) — así ningún pedido se graba sin haber confirmado el dato a conciencia. Un segundo clic en GRABAR mientras el aviso está abierto no abre otro ni graba dos veces; Esc/Volver cancela sin grabar; un valor negativo o decimal se rechaza.
+- El número de palets se imprime en el albarán (con y sin precios), en la misma línea que "Total bultos" y "Total kg", y en la Hoja Transfrío, **subrayado**, junto al destino — en todos los caminos de impresión (individual, listado de seleccionados, botón de fila).
+- Los pedidos antiguos que no tenían este campo salen con **0**, nunca en blanco.
+
+**Requisito para el sistema nuevo:** cualquier dato que pase a ser obligatorio por una norma externa (como este documento de control) debe: (a) tener un valor por defecto sensato para no romper los registros antiguos, (b) pedirse expresamente en el momento de confirmar/guardar cuando conviene que quede confirmado a conciencia (no solo como un campo más del formulario, fácil de pasar por alto), y (c) propagarse automáticamente a **todos** los documentos y caminos de impresión relacionados, no solo al principal — aquí hubo que revisar por separado el albarán con precios, el sin precios, la Hoja Transfrío, el listado de varios seleccionados y el botón de imprimir por fila.
+
+---
+
+## 20. Corrección: los iconos de acción de una fila dejaron de caber en pantalla al añadir más
+
+**Qué pasó:** cada fila de Historial de Pedidos tiene botones de acción (ver, editar, anular, etiquetas, imprimir, enviar...). Al añadir dos botones nuevos (imprimir sin precios e imprimir Transfrío directamente desde la fila, ver punto 12) la fila pasó de 6 a 8 botones y dejó de caber entera en pantallas normales — el último botón (enviar por email) quedaba fuera de la vista, y para verlo desplazándose hacia la derecha se perdía de vista la casilla de selección de la izquierda.
+
+**Corrección aplicada:** la columna de la casilla de selección se queda **fija** (no se mueve) al desplazarse horizontalmente por la fila, y los botones se hicieron un poco más compactos.
+
+**Requisito para el sistema nuevo:** cualquier fila de una tabla con varias acciones por elemento debe pensarse para que **crecer en número de acciones no rompa la usabilidad** — con una interfaz real (no una tabla HTML simple) esto se resuelve mejor con un menú desplegable de "más acciones" en vez de ir añadiendo iconos en horizontal sin límite, pero si se usan iconos en fila, cualquier columna de selección/checkbox debe quedar siempre fija con independencia de cuántas acciones haya.
+
+---
+
+## 21. Lecciones adicionales del buscador de proveedor/producto en Excel (continuación del punto 18b)
+
+Al revisar a fondo el buscador de la hoja COMPRAS, salieron dos problemas más, con su lección para el sistema nuevo:
+
+**21a. Ordenar rompía datos porque el filtro/rango no cubría todas las columnas con datos por fila.** La tabla tenía columnas con datos reales (miles de filas en la columna CONTROL) que quedaban **fuera** del rango que Excel usa al ordenar con la flechita del filtro — al ordenar, esas columnas no se movían junto con el resto de su fila y quedaban descuadradas respecto al resto de datos de esa fila. **Requisito para el sistema nuevo:** no aplica igual (una base de datos no tiene este problema, cada fila es una unidad atómica), pero es un recordatorio de que cualquier operación de reordenación debe mover **la fila completa**, campo por campo, sin dejar nada atrás por estar en una columna "no contemplada".
+
+**21b. Las listas de apoyo de un buscador deben vivir separadas de la zona de trabajo, no intercaladas en ella.** La primera versión guardaba las listas del buscador en columnas ocultas de la propia hoja de trabajo (COMPRAS) — al limpiar/rehacer esa zona para otro ajuste, se acabaron borrando por error las primeras filas de esas listas. Se solucionó moviéndolas a una **hoja aparte, completamente oculta**, dedicada solo a eso. **Requisito para el sistema nuevo:** los datos de apoyo de un buscador o selector (listas, índices, cachés) deben vivir en su propio espacio, claramente separado de los datos que el usuario edita o reorganiza — nunca intercalados en la misma tabla de trabajo, para que una operación sobre esa tabla (ordenar, limpiar, insertar) no pueda tocarlos por accidente.
+
+---
+
+## 22. Número de partida automático por proveedor+fecha, y dos referencias circulares encontradas por el camino
+
+**Regla de negocio:** el número de partida es siempre el mismo para un proveedor en un mismo día; si es otro día (aunque sea el mismo proveedor), es un número distinto; los números son siempre correlativos. Excepción real descubierta después: un mismo proveedor puede traer mercancía de **dos puertos distintos el mismo día**, y eso debe contar como dos partidas distintas, no una.
+
+**Diseño final (Excel):**
+- Cada fila de carga tiene su propia zona de ayuda a la derecha (columnas S-X de esa misma fila): buscador de proveedor → código automático; buscador de producto → código automático; número de partida sugerido (reutiliza el existente si coincide proveedor+fecha, o da el siguiente correlativo si no); y una casilla "¿Partida NUEVA?" para marcar el caso del puerto distinto, que fuerza un número nuevo aunque coincida proveedor+fecha.
+- Código de proveedor y de producto se rellenan **automáticamente** en la fila (son fórmulas que solo dependen de su propia fila — nunca de otras filas).
+- El número de partida, en cambio, **no se rellena solo**: se copia a mano desde la celda de "sugerida". Motivo: ver el fallo 22b.
+
+**22a. Referencia circular al encadenar la sugerencia con el relleno automático.** Al hacer que la celda de partida se rellenara sola a partir de la celda "sugerida" (que necesita mirar toda la columna de partidas para saber el máximo y si ya existe), la propia celda de partida pasó a formar parte del rango que la fórmula necesitaba mirar para calcularse a sí misma — bucle. Con un proveedor+fecha que ya existía antes en la tabla no se notaba (encontraba antes esa otra coincidencia), pero con una combinación totalmente nueva, sí daba error. **Requisito para el sistema nuevo:** cuidado con cualquier campo "autocalculado" cuyo cálculo necesite mirar una colección que incluye al propio registro que se está creando — en una base de datos esto se evita calculando el siguiente correlativo en el momento de insertar (consulta al motor, no una fórmula que se mira a sí misma), pero es un patrón a vigilar si se replica una lógica parecida.
+
+**22b. Referencia circular distinta, esta vez al ordenar.** Aun arreglado el punto anterior, **ordenar la tabla por partida de mayor a menor volvía a romperlo**: la fórmula de "sugerida" miraba solo "las filas de arriba mía" (para no repetir el bucle del punto 22a), pero al ordenar, las filas cambian de posición y "las de arriba" ya no son las mismas — daba números incorrectos o error. Se solucionó separando los dos problemas: el campo de partida real deja de estar enlazado por fórmula a la sugerencia (se copia a mano, rompiendo el bucle del 22a de raíz), y con eso la sugerencia ya puede mirar la tabla entera sin orden ninguno (MAX/CONTAR.SI.CONJUNTO sobre todo el rango, sin importar el orden de las filas). **Requisito para el sistema nuevo:** un correlativo o "siguiente número libre" debe calcularse siempre sobre el **conjunto completo de datos ya guardados**, nunca sobre "una posición relativa dentro de una lista que el usuario puede reordenar" — y si un campo autocalculado puede chocar con el campo que depende de él (como pasó aquí), es más seguro que el usuario confirme el valor antes de que quede grabado, en vez de encadenar los dos automáticamente.
+
+---
+
+## RESUMEN RÁPIDO DE PENDIENTES (para no releer todo el documento)
+
+- **Nada roto activo ahora mismo** en el HTML ni en el Excel — todo lo de los puntos 1 a 22 está ya corregido y en uso.
+- **Pendiente de decidir por Víctor** (no requiere acción de Code): si el backup con "Cerrar sesión" (que actualiza todo desde la carpeta compartida antes de guardar) debe hacerse más rápido a costa de poder quedarse sin la última actualización del otro puesto, o seguir tardando pero siempre 100% completo. Aún sin respuesta.
+- **Pendiente de calibrar con papel real** (no es un fallo de código, es un ajuste físico): las posiciones de la Hoja Transfrío y del CMR/Carta de Porte de Mouzo deben comprobarse imprimiendo sobre el papel de verdad, desde el editor de MODELOS DE IMPRESIÓN.
+- **Pendiente de revisar**: si la región de Windows está puesta en España en los dos ordenadores (para que las fechas salgan siempre en formato europeo sin ajustes manuales).
+- El resto de puntos del documento (1-22) son **lecciones ya aplicadas y cerradas**, documentadas para que el sistema nuevo no repita los mismos fallos — no son tareas pendientes de Víctor, son requisitos de diseño para Code.
 
 ---
 

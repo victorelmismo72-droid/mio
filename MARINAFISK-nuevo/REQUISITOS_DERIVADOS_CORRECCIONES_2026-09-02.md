@@ -1,6 +1,6 @@
 # MARINAFISK — Dónde queda recogida cada corrección del 02/09/2026
 
-Documento de trazabilidad para `CORRECCIONES_2026-09-02_programa_actual.md`. Indica, para cada uno de los 18 puntos (1-13 del programa HTML; 14-18 del Excel `GESTION_CORRECTA`), en qué documento de fase se ha integrado el requisito para el sistema nuevo.
+Documento de trazabilidad para `CORRECCIONES_2026-09-02_programa_actual.md`. Indica, para cada uno de los 22 puntos (1-13 y 19-20 del programa HTML; 14-18, 21 y 22 del Excel `GESTION_CORRECTA`), en qué documento de fase se ha integrado el requisito para el sistema nuevo.
 
 La **Fase 3** ya está redactada (`FASE_3_sincronizacion_puestos_MARINAFISK.md`) y sus puntos están trasladados. El documento de **Fase 4** (interfaz) todavía no existe: hasta que se redacte, sus requisitos quedan guardados aquí, en la sección "Pendiente de pasar a Fase 4". **Al redactarlo, copiar estos puntos dentro y marcarlos aquí como trasladados.**
 
@@ -28,6 +28,10 @@ La **Fase 3** ya está redactada (`FASE_3_sincronizacion_puestos_MARINAFISK.md`)
 | 16 | Fórmulas de compras convertidas en valores fijos | punto 10 | columnas calculadas | puntos 3bis y 4 | punto 5ter | — | — |
 | 17 | Campos calculados no editables; fechas DD/MM/AAAA | puntos 7 y 10 | columnas calculadas | punto 3bis + cierre | — | — | no editables, fechas |
 | 18 | Bloqueo que impide ordenar; buscador que escribe solo | — | — | — | punto 5ter | — | buscador independiente |
+| 19 | Nº de palets obligatorio (desde 05/10/2026) | — | `pedidos.palets` | migración → 0 | — | — | pregunta al grabar + todos los documentos |
+| 20 | Demasiados iconos de acción por fila | — | — | — | — | — | menú "más acciones", casilla fija |
+| 21 | Ordenar descuadraba columnas; listas de apoyo mezcladas | — | — | — | — | — | ordenar la fila entera; datos de apoyo aparte |
+| 22 | Partida automática por proveedor + día (+ otro puerto) | — | `numero_partida`, `partida_nueva_forzada` | — | punto 0 → `ESPECIFICACION_COMPRAS_EXCEL.md` | `contadores` | número visible antes de grabar, casilla "otro puerto" |
 
 ---
 
@@ -53,6 +57,15 @@ La **Fase 3** ya está redactada (`FASE_3_sincronizacion_puestos_MARINAFISK.md`)
 - [ ] **(18a)** Esa protección no puede impedir ordenar, filtrar, buscar ni añadir filas en ningún listado. Probarlo en cada listado.
 - [ ] **(16, 18a)** La comprobación de coherencia de la Fase 2 (punto 5ter) tiene su pantalla: lista las incoherencias encontradas y las resalta en rojo en el registro afectado.
 - [ ] **(17)** Todas las fechas, en toda la aplicación y en todos los documentos y exportaciones, en formato `DD/MM/AAAA`. Al escribir una fecha, se interpreta como día/mes/año.
+
+**Palets, acciones por fila y listas de apoyo**
+- [ ] **(19)** Campo PALETS en el pedido, 0 por defecto. Al pulsar GRABAR se pregunta **siempre** cuántos palets lleva (con cliente, bultos y kg de contexto, 0 por defecto, Enter confirma, Esc cancela sin grabar). Rechaza negativos y decimales, y un segundo clic no abre otra pregunta ni graba dos veces.
+- [ ] **(19)** El nº de palets sale en **todos** los documentos y caminos de impresión: albarán con y sin precios (junto a total bultos y total kg), Hoja Transfrío (subrayado, junto al destino), impresión individual, en lote y desde la fila. Prueba: imprimir cada uno con un pedido de 2 palets y otro antiguo (debe salir 0).
+- [ ] **(19)** Regla general: todo dato que una norma haga obligatorio lleva valor por defecto para los registros antiguos, se confirma al grabar y se propaga a todos los documentos relacionados.
+- [ ] **(20)** Las filas con muchas acciones usan un menú "más acciones"; si se usan iconos en fila, la casilla de selección queda siempre fija y visible.
+- [ ] **(21a)** Ordenar cualquier listado mueve siempre la fila completa.
+- [ ] **(21b)** Las listas y datos de apoyo de buscadores viven aparte de los datos que el usuario edita.
+- [ ] **(22)** Al grabar una compra se muestra la partida que se va a asignar (reutilizada o nueva) y hay una casilla "partida nueva (otro puerto)". El número lo asigna el servidor; no se escribe a mano.
 
 **Campos numéricos**
 - [ ] **(13)** En peso, kilos, cajas y campos similares: escribir `12.4+8.1+6.3` y pulsar Enter o Ctrl+= deja el resultado (`26.8`). Admite restas y coma decimal. Un número normal funciona igual que siempre.

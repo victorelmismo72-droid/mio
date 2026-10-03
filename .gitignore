@@ -1,1 +1,4 @@
 MARINAFISK-nuevo/Backup_*.json
+MARINAFISK-nuevo/*.xlsx
+MARINAFISK-nuevo/**/*.xlsx
+__pycache__/

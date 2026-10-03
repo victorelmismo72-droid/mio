@@ -162,7 +162,7 @@ Siguiendo la regla de la Fase 2 (no cambiar el esquema sin documentarlo y volver
 
 - Tabla `usuarios`: `id, nombre, usuario (unique), hash_contrasena, puesto (CORU|PANC), activo, creado_en`.
 - Columna `version` en cada tabla modificable (no en `compras` ni `compra_lineas`, que son inmutables).
-- Tabla `contadores`: `tipo (PEDIDO|REPARTO|TRASPASO|PARTIDA), siguiente`.
+- Tabla `contadores`: `tipo (PEDIDO|REPARTO|TRASPASO|PARTIDA), siguiente`. La partida **no** sale siempre del contador: si ya hay una partida grabada con el mismo proveedor y día, se reutiliza (salvo "partida nueva" por otro puerto). Ver `ESPECIFICACION_COMPRAS_EXCEL.md`, punto 3. La comprobación "¿ya existe?" y la asignación del número nuevo van en la misma transacción, para que dos puestos no creen dos partidas distintas para el mismo proveedor y día.
 - Log de auditoría ampliado con `usuario_id` y `puesto`.
 
 Después de añadirlos, repetir la verificación de migración de la Fase 1.

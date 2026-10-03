@@ -14,6 +14,12 @@ Al final de la Fase 2 debe poder demostrarse que, dado el mismo dato de entrada,
 
 ---
 
+## 0. Compras: exactamente como el Excel GESTION_CORRECTA (añadido 03/10/2026)
+
+Víctor pide que las compras del sistema nuevo funcionen **exactamente como en el Excel**. La especificación completa, sacada fórmula a fórmula y comprobada celda a celda contra el Excel, está en `ESPECIFICACION_COMPRAS_EXCEL.md`, con la implementación de referencia en `compras_referencia/`. Manda sobre cualquier descripción de compras de este documento que la contradiga. Las únicas diferencias admitidas con el Excel son las del punto 9 de esa especificación, y solo cuando Víctor las decida.
+
+---
+
 ## 1. Cálculo del 2% de OP (Obras del Puerto)
 
 - Se aplica **solo** a compras de proveedores marcados como subasta/lonja (campo ya creado en Fase 1).
@@ -87,6 +93,7 @@ En el Excel se probó a impedir el fallo de las fórmulas congeladas bloqueando 
 
 No pasar a la Fase 3 hasta que:
 
+- [ ] **Compras = Excel:** el sistema nuevo da los mismos resultados que el Excel `GESTION_CORRECTA` en todas las comprobaciones del punto 11 de `ESPECIFICACION_COMPRAS_EXCEL.md` (líneas, coste y PVP por producto, precio medio, totales por proveedor y asignación de partidas), y Víctor ha decidido las diferencias del punto 9.
 - [ ] Se ha tomado un conjunto de datos reales (un día completo de compras y ventas, por ejemplo) y se ha comparado el resultado del sistema nuevo contra el HTML actual: mismo coste real, mismas partidas asignadas, mismo margen.
 - [ ] El tratamiento de IVA/Recargo de Equivalencia está implementado y documentado para las cuatro clasificaciones fiscales de proveedores y las combinaciones de clientes — con las dudas normativas señaladas explícitamente a Víctor, no asumidas.
 - [ ] El caso conocido de falsos positivos en emparejamiento de partidas (ej. C144 vs C1444) se ha probado explícitamente y no reaparece.

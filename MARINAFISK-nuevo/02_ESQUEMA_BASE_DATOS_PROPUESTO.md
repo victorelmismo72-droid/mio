@@ -52,7 +52,7 @@ creado_en, modificado_en
 
 ### `compras` (cabecera de partida de compra)
 ```
-id, numero_partida (unique), fecha, albaran_proveedor, proveedor_id (FK),
+id, numero_partida, fecha, albaran_proveedor, proveedor_id (FK),
 total_kilos, total_base_zgz, total_base_real, total_iva, total_factura,
 puesto_origen, creado_en
 -- SIN modificado_en / SIN UPDATE permitido tras creación (ver más abajo)
@@ -64,6 +64,12 @@ id, compra_id (FK), articulo_id (FK), cajas, kilos, precio_kg,
 base_zgz, op2_importe, base_real, iva_importe, total_factura, control,
 creado_en
 ```
+**Compras como el Excel (03/10/2026):** las reglas exactas están en `ESPECIFICACION_COMPRAS_EXCEL.md`. Consecuencias para el esquema:
+- `numero_partida` **no es único** en `compras`: varios albaranes del mismo proveedor y día comparten partida. Se añade `partida_nueva_forzada` (bool) para el caso "otro puerto".
+- `numero_partida` debe admitir los 3 valores históricos con decimales (55906,7 · 55907,6 · 55908,5), o Víctor decide antes de migrar qué número les corresponde.
+- `compra_lineas` añade `kilos_detalle` (texto, opcional) para guardar la suma de pesadas tal como se escribió (`12+13,5`), además de `kilos` con el resultado, y `control` (marca "S" de la columna CONTROL del Excel).
+- Importes en `NUMERIC` con todos los decimales, sin redondear al guardar; se redondea solo al mostrar.
+
 **Inmutabilidad**: `compras` y `compra_lineas` no permiten UPDATE ni DELETE a nivel de aplicación tras su creación (permiso de BD revocado o trigger que lo bloquee) — solo INSERT. Cualquier corrección se hace con un registro de ajuste enlazado, nunca sobrescribiendo. Esto sustituye a la garantía manual actual ("Compras = dato sagrado") por una garantía estructural.
 
 **Campos calculados (correcciones 16 y 17 del 02/09/2026):** `base_zgz` = `kilos × precio_kg` va como columna generada por la base de datos (`GENERATED ALWAYS AS … STORED`), no como valor que envía la pantalla. El nombre del proveedor y la descripción del artículo **no** se copian en `compras` ni en `compra_lineas`: se leen de su catálogo por la clave. Así no pueden quedar desfasados, como pasó en 51 filas del Excel. **Tipo de los códigos:** `proveedores.codigo` y `articulos.codigo` se definen con el tipo real que tengan en el backup (proveedor numérico y artículo alfanumérico, según el Excel; confirmarlo al migrar).
@@ -88,8 +94,9 @@ Puede modelarse como vista calculada (`kilos_comprados - kilos_vendidos`) en vez
 ### `pedidos` (albaranes de venta)
 ```
 id, numero (unique), fecha, cliente_id (FK), tipo_iva_aplicado,
-base_imponible, iva, total, puesto_origen, creado_en, modificado_en
+base_imponible, iva, total, palets, puesto_origen, creado_en, modificado_en
 ```
+`palets` (corrección 19 del 02/09/2026, obligatorio desde el 05/10/2026 en el documento de control): entero, `NOT NULL`, `DEFAULT 0`, `CHECK (palets >= 0)`. Los pedidos migrados sin este dato quedan con 0, nunca vacíos.
 
 ### `pedido_lineas`
 ```
