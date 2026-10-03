@@ -21,6 +21,7 @@ Debe poder demostrarse que:
 
 ## 1. Principios para todas las pantallas
 
+- **Pantallas estándar de ordenador** (confirmado por Víctor). Todo debe verse y usarse sin desplazamiento horizontal desde 1366 × 768 píxeles, también las tablas con muchas columnas y acciones (corrección 20).
 - **Mismos nombres y misma organización que hoy.** Las pestañas, los nombres de los campos y el orden de trabajo se parecen todo lo posible al HTML actual. Lo que se cambie debe ser para mejorar, y explicado a Víctor antes.
 - **La pantalla no decide reglas de negocio.** Importes, IVA, 2 % OP, partidas, márgenes, costes y PVP los calcula siempre el backend (Fases 1 y 2). Si la pantalla enseña un cálculo en vivo mientras se escribe, usa la misma función del backend (una llamada al servidor, o el mismo código compartido), nunca una copia aparte que pueda dar otro resultado. Lo que se graba es siempre lo que calcula el servidor.
 - **Campos calculados: se ven, no se editan** (corrección 17). Se edita el origen (código, kilos, precio) y el resultado se actualiza solo.
@@ -35,7 +36,11 @@ Debe poder demostrarse que:
 
 - **Aplicación web** servida por el backend en la red de la oficina (Fase 3) y usada desde el navegador de cada puesto. Nada que instalar en los ordenadores.
 - Claude Code elige el framework, con el mismo criterio que en la Fase 1: lo más sencillo y mantenible, con el código comentado en español.
-- **Inicio de sesión** con el usuario de cada persona (Fase 3). La sesión caduca si no se usa durante un tiempo razonable (a confirmar con Víctor) y se puede cerrar a mano.
+- **Inicio de sesión** con el usuario de cada persona (Fase 3). Víctor y Pancho tienen los mismos permisos: los dos pueden hacerlo todo.
+- **La sesión se cierra tras 10 minutos sin uso** (decidido por Víctor). Como 10 minutos es poco en mitad de un pedido o una compra:
+  - Un minuto antes se avisa en pantalla ("La sesión se cerrará en 1 minuto") con un botón para seguir.
+  - Si se cierra, **no se pierde lo escrito y no grabado**. Al volver a entrar, el mismo usuario recupera el borrador en la misma pantalla. El borrador queda en el servidor, ligado al usuario, nunca en el navegador, y no cuenta como grabado hasta pulsar GRABAR.
+  - Una grabación que ya estaba en marcha cuando caduca la sesión termina bien, o falla con un mensaje claro; nunca queda a medias (Fase 3, punto 6).
 - **En el navegador no se guardan datos del negocio** (ni en `localStorage` ni en archivos): solo preferencias de pantalla (filtros, columnas). Es el origen de los problemas de sincronización actuales.
 - **Todo texto que venga de los datos** (nombres de clientes, descripciones, notas) se muestra escapado. El HTML actual monta mucho contenido con `innerHTML` y textos concatenados; el sistema nuevo no. Un nombre con `<` o comillas no puede romper la pantalla ni ejecutar nada.
 - Las acciones que borran o anulan piden confirmación y quedan en el registro de quién hizo qué (Fase 3, punto 8).
@@ -170,6 +175,12 @@ Lista inicial del catálogo (punto 3.9). Claude Code la completa revisando el HT
 | Lista de precios (cliente) | Imagen | Listas de precios |
 | Lista de precios (interna) | Imagen | Listas de precios; nunca para el cliente |
 
+**Impresoras (confirmado por Víctor): dos láser y dos de etiquetas.**
+- Albaranes, documentos de traspaso, fichas de envío y las hojas sobre papel pre-impreso (Transfrío, CMR) salen por las láser. Las etiquetas, por las de etiquetas.
+- Cada PDF se genera ya con el **tamaño exacto del papel al que va**: A4 para la láser y el tamaño de la etiqueta para las de etiquetas. Así no hay que tocar escalas en el diálogo de impresión. Hay que medir el tamaño de etiqueta de las dos impresoras antes de empezar (punto 8).
+- La impresora se elige en el diálogo de impresión del navegador, como hoy. Imprimir directamente en una impresora concreta sin diálogo es posible desde el servidor, pero es más complejo; solo se hace si Víctor lo pide.
+- Por eso el albarán sin precios y la Transfrío siguen siendo **dos acciones separadas** (corrección 12): aunque las dos vayan a láser, una lleva papel normal y la otra papel del transportista.
+
 Reglas comunes:
 - Registro sanitario **12.01671/C** en todo documento que va a terceros (Fase 0, punto 8). Se comprueba con una prueba automática que busque el texto en cada documento generado.
 - Las partidas no salen nunca en documentos de cliente (Fase 2, punto 3).
@@ -189,7 +200,7 @@ Reglas comunes:
 
 No dar la fase por cerrada hasta que:
 
-- [ ] **Cobertura:** lista de cada pantalla y cada botón del HTML actual con su equivalente en el sistema nuevo, revisada con Víctor. Lo que se elimine a propósito queda escrito y aceptado.
+- [ ] **Cobertura:** lista de cada pantalla y cada botón del HTML actual con su equivalente en el sistema nuevo, revisada con Víctor. **Víctor ha confirmado que se usa todo el HTML: no se elimina nada.**
 - [ ] **Agilidad:** medidos con cronómetro y con Víctor/Pancho los flujos diarios (pedido completo, compra completa de un albarán, imprimir Transfrío de los pedidos de un camión, reparto, lista de precios), comparados con el HTML y el Excel. Ninguno más lento ni con más pasos.
 - [ ] **Documentos iguales:** para un mismo pedido, traspaso o reparto real, cada documento del sistema nuevo comparado con el del HTML: mismos datos, mismo orden y registro sanitario correcto.
 - [ ] **Papel pre-impreso real:** Transfrío y CMR impresos sobre el papel físico del transportista y revisados por Víctor. Lote de 3 clientes con 4 copias: salen en orden 1-1-1-1, 2-2-2-2, 3-3-3-3.
@@ -201,6 +212,8 @@ No dar la fase por cerrada hasta que:
 - [ ] **Reparto:** abrir y grabar sin cambios 3 veces repartos con ECOMORA, "ALCAMPO" y "ALCAMPO ZARAGOZA" deja los datos idénticos.
 - [ ] **Compras:** una compra hecha en pantalla da los mismos importes, partida, coste y PVP que daría el Excel (`ESPECIFICACION_COMPRAS_EXCEL.md`, punto 11).
 - [ ] **Catálogo de modelos:** la prueba automática falla si se añade una plantilla sin entrada en el catálogo.
+- [ ] **Sesión:** tras 10 minutos sin tocar nada con un pedido a medias, se cierra la sesión con aviso previo. Al volver a entrar el pedido sigue ahí sin grabar, y al grabarlo sale bien y una sola vez.
+- [ ] **Impresoras:** cada documento impreso en su impresora real (láser o etiquetas) con el tamaño correcto, sin ajustar escala a mano.
 - [ ] **Uso en paralelo:** Víctor y Pancho trabajan al menos una semana real con el sistema nuevo en paralelo con el HTML, en modo prueba (Fase 3, punto 9), y apuntan todo lo que falte o moleste.
 - [ ] El HTML y el Excel siguen intactos y en uso normal.
 - [ ] Víctor ha revisado y aprobado las pantallas y los documentos.
@@ -209,12 +222,18 @@ No dar la fase por cerrada hasta que:
 
 ## 8. Preguntas para Víctor antes de empezar
 
-- [ ] ¿Qué navegador se usa en cada puesto (Chrome, Edge…)? ¿Pantallas de qué tamaño?
-- [ ] ¿Qué impresoras hay, y cuál se usa para cada documento (normal, Transfrío, CMR, etiquetas)?
-- [ ] ¿Alguien tendría que usar el sistema desde una tablet o un móvil (por ejemplo, en el almacén)? Si es así, ¿para qué pantallas?
-- [ ] ¿Qué pantallas usa Pancho y cuáles solo Víctor? ¿Hay algo que Pancho no deba poder ver o hacer?
-- [ ] ¿Cuánto tiempo sin uso antes de que se cierre la sesión?
-- [ ] ¿Hay algo del HTML actual que no se use y se pueda dejar fuera?
+Respondidas por Víctor (03/10/2026):
+- [x] Pantallas: estándar de ordenador → diseño desde 1366 × 768 (punto 1).
+- [x] Impresoras: dos láser y dos de etiquetas (punto 5).
+- [x] Pancho puede hacerlo todo: mismos permisos que Víctor (punto 2).
+- [x] Cierre de sesión: 10 minutos sin uso, sin perder lo escrito (punto 2).
+- [x] Se usa todo lo del HTML: no se deja nada fuera (punto 7).
+
+Pendientes:
+- [ ] ¿Qué navegador se usa en cada puesto (Chrome, Edge…)?
+- [ ] ¿Alguien usaría el sistema desde una tablet o un móvil (por ejemplo, en el almacén)? Si no, se diseña solo para ordenador.
+- [ ] Marca y modelo de las impresoras de etiquetas y tamaño de la etiqueta (ancho × alto en mm) que lleva cada una.
+- [ ] ¿Qué láser se usa para el papel de Transfrío y CMR? ¿O se cambia el papel en la misma?
 
 ---
 

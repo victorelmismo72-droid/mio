@@ -124,7 +124,7 @@ El HTML sigue siendo el programa de trabajo real. El sistema nuevo se prueba en 
 - [ ] ¿Es aceptable un hueco en la numeración de albaranes si una grabación falla, o tiene que ser estrictamente seguida (punto 2)?
 - [ ] Si el servidor no está disponible, ¿qué se hace (punto 6)?
 - [ ] ¿Dónde se guardan las copias de seguridad fuera del servidor, y cuánto tiempo (punto 7)?
-- [ ] ¿Qué usuarios hacen falta (Víctor, Pancho, alguien más) y si alguno debe tener permisos limitados (por ejemplo, no poder cerrar partidas)?
+- [x] Usuarios: Víctor y Pancho, **los dos con permisos completos** (respondido por Víctor el 03/10/2026). Si más adelante entra alguien más, se decide entonces si lleva permisos limitados. La sesión se cierra tras 10 minutos sin uso (Fase 4, punto 2).
 
 ---
 
