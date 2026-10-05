@@ -71,7 +71,10 @@ La migración se ensayó en la Fase 1 con un backup de prueba. Ahora se hace con
 1. **Fuentes:**
    - Último backup JSON completo del HTML, de los dos puestos y leyendo el estado real, sin cachés (Fase 0, punto 6).
    - Excel `GESTION_CORRECTA`, guardado en Excel para que lleve los resultados de las fórmulas (`ESPECIFICACION_COMPRAS_EXCEL.md`, punto 10bis).
-2. **Compras:** decidir con Víctor cuál es la fuente buena, el HTML o el Excel. Hoy se apuntan en los dos sitios. Comparar ambas, compra por compra (partida, fecha, proveedor, producto, kilos, precio), y resolver con Víctor cada diferencia **antes** de cargar. Una compra no puede entrar dos veces ni perderse.
+2. **Compras: la fuente buena es el Excel `GESTION_CORRECTA`** (decidido por Víctor el 05/10/2026). Las compras se cargan desde el Excel. Las del HTML solo se usan para comparar, compra por compra (partida, fecha, proveedor, producto, kilos, precio):
+   - Si coinciden: bien.
+   - Si hay diferencias, o compras que están en el HTML y no en el Excel: se listan para que Víctor las revise **antes** de cargar. No se cargan por su cuenta.
+   - Una compra no puede entrar dos veces ni perderse.
 3. **Verificación** (como en la Fase 1, punto 4, y la Fase 2, punto 6):
    - Mismos recuentos por tabla y **por puesto** (CORU y PANC).
    - Importes de compras iguales a los del Excel con `verificar_contra_excel.py` y la comparación del punto 11 de la especificación de compras.
@@ -108,8 +111,8 @@ La migración se ensayó en la Fase 1 con un backup de prueba. Ahora se hace con
 
 Zaragoza usa las cifras de compras para la contabilidad de beneficio por partida (Fase 0, punto 3). Hoy probablemente las saca del Excel.
 
-- [ ] **Preguntar a Víctor:** ¿qué le llega exactamente a Zaragoza, en qué formato y cada cuánto (el propio Excel, una hoja concreta, un resumen…)?
-- El sistema nuevo genera **lo mismo, en el mismo formato** (por ejemplo, un Excel con las mismas columnas que la hoja COMPRAS), para que en Zaragoza no cambie nada.
+- [x] Formato: a Zaragoza se le manda **PDF o Excel** (respondido por Víctor el 05/10/2026). El sistema nuevo genera los dos, con el mismo contenido y las mismas columnas que hoy, para que en Zaragoza no cambie nada.
+- [ ] **Pendiente:** un ejemplo real de cada uno (el último PDF y el último Excel enviados) y cada cuánto se mandan, para reproducirlos exactamente.
 - Antes del corte se compara un envío real del Excel con el que genera el sistema nuevo: tienen que coincidir cifra a cifra.
 
 Lo mismo para cualquier otro informe que hoy salga del Excel o del HTML hacia otra persona (asesoría, transportistas…): se lista con Víctor y se reproduce.
@@ -132,7 +135,7 @@ Lo de la Fase 3, punto 7, sigue en pie, ahora con datos reales:
 - **Actualizaciones de seguridad** del sistema operativo, la base de datos y las librerías: con una frecuencia fija (por ejemplo, una vez al mes) y siempre después de una copia de seguridad.
 - **Cambios en el programa:** primero se prueban en una copia (no en el sistema real). Cada cambio que añada un documento impreso lo añade también al catálogo de modelos (Fase 4, punto 3.9; la prueba automática lo exige).
 - **Registro de cambios** en el repositorio: qué se cambió, cuándo y por qué, en palabras que Víctor entienda.
-- **Avisos automáticos** a Víctor (correo o móvil) si falla la copia diaria, se llena el disco, el servidor no responde o la comprobación de coherencia encuentra algo.
+- **Avisos automáticos por correo a pgallego@marinafisk.com** (decidido por Víctor el 05/10/2026). La dirección va en la configuración del servidor, no escrita en el código, para poder cambiarla sin tocar el programa. Se avisa si falla la copia diaria, se llena el disco, el servidor no responde o la comprobación de coherencia encuentra algo.
 
 ---
 
@@ -175,10 +178,10 @@ Una guía corta en español (pocas páginas, con capturas), guardada en el repos
 ## 10. Preguntas para Víctor
 
 - [ ] ¿Qué fecha os viene bien para el corte, y en qué momento del día?
-- [ ] ¿Qué le mandáis a Zaragoza (y a la asesoría o a otros) a partir del Excel o del HTML, en qué formato y cada cuánto?
-- [ ] Hoy las compras se apuntan en el HTML y en el Excel: ¿cuál es la buena si no coinciden?
+- [x] A Zaragoza: PDF o Excel. Pendiente: un ejemplo de cada uno y la frecuencia (punto 5). ¿Se manda algo más a la asesoría o a otros?
+- [x] Compras: el Excel es el correcto (punto 3).
 - [ ] Oficina con VPN o nube: ¿hay algún presupuesto mensual pensado para la nube?
-- [ ] ¿Quién recibe los avisos automáticos, y en qué correo o móvil?
+- [x] Avisos automáticos: pgallego@marinafisk.com (punto 7).
 - [ ] ¿Quién se lleva una copia de seguridad fuera de la oficina, si el servidor se queda allí?
 
 ---
