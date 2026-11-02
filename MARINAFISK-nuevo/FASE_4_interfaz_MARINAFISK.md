@@ -73,7 +73,8 @@ Una por cada pestaña del HTML actual (`goPanel`: pedido, historial, traspasos, 
   - Columna entre CANT. y PESO KG, con "TOTAL PIEZAS". Orden de Intro: cantidad → piezas → peso → precio → descuento.
   - Si es 0, no se imprime.
   - Sale en los albaranes con y sin precios ("Piezas: N" junto a los palets), en la búsqueda de artículos, en el listado de pedidos impreso y como **última columna** de las exportaciones CSV/Excel.
-  - No va en Transfrío ni en CMR. De momento tampoco en traspasos ni repartos (preguntar si se quiere).
+  - No va en Transfrío ni en CMR.
+  - **También en traspasos y repartos** (decidido por Víctor el 02/11/2026), con las mismas reglas: columna entre cantidad y peso, total de piezas y "Piezas: N" en sus documentos, sin imprimirse si es 0. Las fichas de envío y etiquetas de Reparto Super no cambian salvo que Víctor lo pida.
 - Líneas: artículo (buscador), cajas, peso con autosuma `12,4+8,1+6,3` (13), precio, partida asignada automáticamente con su aviso de margen (Fase 2, punto 3). La partida no sale nunca en el documento del cliente.
 - GRABAR: botón bloqueado mientras graba (1). Antes de grabar se pregunta siempre por los palets (19).
 - Botones de impresión: albarán con precios, albarán sin precios, Hoja Transfrío y Hoja CMR (esta última **solo** si el transportista del cliente es MOZO, 7). Cada uno por separado (12).
@@ -121,7 +122,7 @@ Manda `ESPECIFICACION_COMPRAS_EXCEL.md`. En pantalla:
 - **Tercera lista "Dos portes"** (HTML del 24/10/2026):
   - Se escribe el precio normal y en la imagen se suma 1 € (constante del sistema, no escrita en el código). El margen y el aviso de pérdida ya cuentan ese euro.
   - Se rellena copiando de Pescaderías, con botón "Copiar precios de Pescaderías". Subtítulo de la imagen: "DOS PORTES — PRECIO EN DESTINO".
-  - **Confirmar con Víctor** que el +1 € es la intención (el resumen lo marca como suposición).
+  - **Confirmado por Víctor (02/11/2026):** el +1 € se suma al precio que se escribe en esa lista.
 - **Enviar la lista por WhatsApp** (HTML del 24/10/2026):
   - Se eligen clientes con teléfono y números sueltos, y la selección se recuerda por tipo de lista, en el servidor, no en el navegador.
   - Se guarda la imagen y se abre WhatsApp con un clic por cliente (corrección 10), adjuntando la imagen a mano. Con un enlace `wa.me` no se puede adjuntar una imagen automáticamente: solo se podría con la API de WhatsApp Business, que tiene coste y requisitos propios (solo si Víctor lo pide).

@@ -35,6 +35,11 @@ No se toca todavía: el HTML actual (sigue siendo el programa de trabajo real), 
   - **Servidor en la oficina de A Coruña + VPN** para Zaragoza y la tablet (punto 1bis). Si en A Coruña se va la luz o internet, **Pancho tampoco puede trabajar desde Zaragoza**.
   - **Servidor en la nube** (en la UE), con las condiciones de la Fase 5, punto 2. Un corte en A Coruña solo afecta a A Coruña.
   - **Recomendación, ahora que se sabe lo de Zaragoza:** la nube. Con dos sitios trabajando a diario, depender del internet y la luz de una sola oficina es el riesgo mayor. Si se elige la oficina, imprescindibles un equipo siempre encendido y un SAI.
+  - **DECIDIDO por Víctor (02/11/2026): servidor en la oficina de A Coruña + VPN.** Por tanto:
+    - El puesto de Pancho en Zaragoza entra por VPN, igual que la tablet (punto 1bis), con su propia clave. Recomendado: el programa de VPN instalado en su ordenador, más sencillo que unir las dos redes enteras.
+    - Imprescindibles en A Coruña: equipo servidor siempre encendido (mini-PC dedicado, no el ordenador de trabajo de Víctor) y SAI para el servidor y el router.
+    - Muy recomendable: **conexión de reserva a internet en A Coruña** (un router 4G/5G que entre solo si se cae la fibra). Sin ella, un corte de internet en A Coruña deja a Zaragoza y a la tablet sin trabajar.
+    - La nube queda como mejora futura (Fase 5, punto 2).
 - **Recomendación:** que el servidor esté en un ordenador que esté siempre encendido en horario de trabajo. Si está en el ordenador de Víctor y ese ordenador se apaga, se reinicia o se actualiza, Pancho no puede trabajar. Opciones, de más a menos recomendable: un mini-PC dedicado, el ordenador de Víctor (aceptando esa dependencia), o adelantar el hosting en la nube (Fase 5). **Lo decide Víctor** (ver punto 10).
 - **Seguridad mínima, ya en esta fase:**
   - El backend solo acepta conexiones desde la red local. **No se abre ningún puerto a internet** en esta fase.
@@ -58,6 +63,7 @@ Víctor ha confirmado (03/10/2026) que la tablet se usará **fuera de la oficina
   - Si en la oficina se va la luz o internet, o el servidor está apagado, la tablet no puede trabajar. No hay modo sin conexión (punto 6), así que se avisa claramente y no deja grabar.
   - Por eso pesa más tener el servidor en un equipo siempre encendido (punto 1), y conviene un pequeño SAI (batería) para el servidor y el router.
   - Con mala cobertura la grabación puede tardar. La clave de idempotencia (Fase 1) evita duplicados si se reintenta.
+- **Prueba de cierre de Zaragoza:** desde el puesto de Pancho, por la VPN, hacer un día de trabajo normal (pedidos, traspasos, compras, imprimir), medir tiempos frente al HTML (punto 11) y comprobar qué pasa si se corta la VPN a mitad de grabar: debe quedar un solo registro, completo, al reintentar (punto 6).
 - **Prueba de cierre:** desde la tablet con datos móviles (fuera del wifi de la oficina), entrar por la VPN, consultar un pedido y grabar una compra. Después anular la clave de la tablet y comprobar que ya no puede entrar.
 
 ---
@@ -141,7 +147,8 @@ El HTML sigue siendo el programa de trabajo real. El sistema nuevo se prueba en 
 ## 10. Preguntas para Víctor antes de cerrar la fase
 
 - [x] ¿Los dos puestos están en la misma red? **No: Pancho está en Zaragoza** (resumen del 02/11/2026). Ver punto 1.
-- [ ] ¿Oficina de A Coruña + VPN, o nube? Decidir antes de empezar esta fase (punto 1).
+- [x] Oficina de A Coruña + VPN (decidido por Víctor el 02/11/2026, punto 1).
+- [ ] ¿Se pone conexión de reserva 4G/5G en A Coruña? (punto 1)
 - [ ] ¿Dónde va el servidor: mini-PC dedicado, ordenador de Víctor, o nube (punto 1)?
 - [ ] ¿Es aceptable un hueco en la numeración de albaranes si una grabación falla, o tiene que ser estrictamente seguida (punto 2)?
 - [ ] Si el servidor no está disponible, ¿qué se hace (punto 6)?

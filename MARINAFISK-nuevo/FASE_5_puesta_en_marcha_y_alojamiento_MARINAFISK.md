@@ -52,6 +52,7 @@ Hasta ahora el servidor está en la oficina (Fase 3) y la tablet entra desde fue
 
 **Recomendación (revisada el 02/11/2026, al saber que Pancho trabaja en Zaragoza):**
 - La decisión oficina/nube se toma **al empezar la Fase 3**, no aquí (Fase 3, punto 1). Con un puesto en A Coruña y otro en Zaragoza, la recomendación es **la nube**.
+- **Decidido por Víctor (02/11/2026): oficina de A Coruña + VPN.** Se arranca así. La nube se reconsidera solo si los cortes de luz o internet en A Coruña dan problemas a Zaragoza o a la tablet.
 - Si se eligió la oficina en la Fase 3, **al arrancar se queda en la oficina con VPN**, que es lo que ya se habrá probado, porque cambiar de alojamiento a la vez que se deja el HTML suma riesgos. La nube vendría después.
 - **Pasar a la nube después**, cuando el sistema lleve un tiempo estable, si la tablet fuera de la oficina se vuelve importante o si los cortes de luz o internet de la oficina dan problemas.
 - El sistema se prepara para poder moverse de un sitio a otro **sin cambiar el código**: configuración en archivos aparte, nada que dependa de la ruta o del nombre del ordenador.
@@ -163,7 +164,7 @@ Una guía corta en español (pocas páginas, con capturas), guardada en el repos
 ## 9. Verificación de esta fase
 
 - [ ] Decisiones del punto 1 tomadas y escritas.
-- [ ] Decisión de alojamiento (oficina + VPN, o nube) tomada por Víctor y escrita, con su coste.
+- [x] Decisión de alojamiento: **oficina de A Coruña + VPN** (Víctor, 02/11/2026). Coste del mini-PC, SAI y, si se pone, la línea de reserva, apuntado.
 - [ ] Migración final hecha y verificada, con el informe aprobado por Víctor.
 - [ ] Contadores de arranque aprobados por Víctor; el primer número de cada tipo es el siguiente al último emitido.
 - [ ] Compras: las cifras del sistema nuevo coinciden con las del Excel del día del corte.
@@ -184,7 +185,7 @@ Una guía corta en español (pocas páginas, con capturas), guardada en el repos
 - [ ] ¿Qué fecha os viene bien para el corte, y en qué momento del día?
 - [x] A Zaragoza: PDF o Excel. Pendiente: un ejemplo de cada uno y la frecuencia (punto 5). ¿Se manda algo más a la asesoría o a otros?
 - [x] Compras: el Excel es el correcto (punto 3).
-- [ ] Oficina con VPN o nube: ¿hay algún presupuesto mensual pensado para la nube?
+- [x] Alojamiento: oficina con VPN (decidido el 02/11/2026). La nube queda como posible mejora futura.
 - [x] Avisos automáticos: pgallego@marinafisk.com (punto 7).
 - [ ] ¿Quién se lleva una copia de seguridad fuera de la oficina, si el servidor se queda allí?
 
