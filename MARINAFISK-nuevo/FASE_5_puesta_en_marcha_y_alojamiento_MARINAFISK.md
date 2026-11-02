@@ -31,7 +31,9 @@ No se arranca esta fase hasta que:
   - Compras a 0 €/kg: si cuentan en el coste del producto (punto 4).
   - Significado de la columna CONTROL ("S") de COMPRAS (punto 1).
   - Modelo de las Toshiba y tamaño real de las etiquetas (Fase 4, punto 8).
-- [ ] **Dudas abiertas del 09/10/2026 resueltas:** partidas 56679 y 56681 (mismo proveedor 50160, mismo día: ¿dos puertos?) y filas 2757-2758 de COMPRAS (COPESA, gallineta: ¿duplicado?).
+- [x] **Dudas del 09/10/2026, respondidas por Víctor el 02/11/2026 ("sí" a las dos):**
+  - Partidas 56679 y 56681 (proveedor 50160, mismo día): **son de dos puertos**, así que son dos partidas correctas. Se migran tal cual.
+  - Filas 2757 y 2758 de COMPRAS (COPESA, gallineta): **son un duplicado.** Antes de migrar, Víctor borra una de las dos en el Excel, o se migra solo una y queda anotado en el informe de migración. Se comprueba que las dos filas son idénticas campo a campo antes de quitar una.
 - [ ] **Datos revisados en el Excel**: compras sin proveedor, sin producto o sin partida, códigos que no coinciden con el buscador, productos inexistentes (C2106, C1200) y demás anomalías que liste el script de verificación (`compras_referencia/verificar_contra_excel.py`). Lo que no se corrija se migra tal cual y queda marcado para revisión, nunca se "arregla" a escondidas.
 - [ ] Al menos **una semana real de uso en paralelo** (Fase 4, punto 7) sin fallos que bloqueen el trabajo.
 

@@ -204,7 +204,7 @@ Además, este archivo se guardó con un programa que no es Excel (openpyxl) y **
 
 > **Actualización 02/11/2026:** Víctor ha **abandonado el buscador por fila (S:X) con partida sugerida**. Al ordenar la hoja, las fórmulas de D y G leían las columnas S:X de otra fila y se descolocaron proveedores, productos y fechas ("he perdido las compras de hoy"). Ahora usa un **buscador fijo en U1:Z2**, que solo muestra el código para copiarlo. La copia `…_arreglado-2.xlsx` de este punto (con la partida sugerida corregida) queda superada: hay que usar siempre el último Excel de Víctor.
 > - **Regla para el sistema nuevo:** ordenar un listado mueve siempre la fila completa (corrección 21a), y ningún dato de una fila puede depender de la posición de otra.
-> - **Dudas abiertas del 09/10 (revisar antes de migrar, Fase 5, punto 1):** partidas 56679 y 56681 con el mismo proveedor (50160) el mismo día (¿dos puertos?), y filas 2757 y 2758 (COPESA, gallineta), posible duplicado.
+> - **Dudas del 09/10, respondidas el 02/11:** las partidas 56679 y 56681 (proveedor 50160, mismo día) son de **dos puertos** y son correctas. Las filas 2757 y 2758 (COPESA, gallineta) son un **duplicado**: se migra solo una (Fase 5, punto 1).
 
 ### 10ter. Copia corregida preparada: `GESTION_CORRECTA_precio_medio_arreglado-2.xlsx` (03/10/2026)
 
