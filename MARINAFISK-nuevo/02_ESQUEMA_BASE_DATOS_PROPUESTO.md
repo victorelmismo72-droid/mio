@@ -100,10 +100,12 @@ base_imponible, iva, total, palets, puesto_origen, creado_en, modificado_en
 
 ### `pedido_lineas`
 ```
-id, pedido_id (FK), articulo_id (FK), descripcion_editada, cantidad, peso,
+id, pedido_id (FK), articulo_id (FK), descripcion_editada, cantidad, piezas, peso,
 precio, descuento, iva_pct, total, partida_id (FK nullable),
 estado_asignacion (OK|AVISO_MARGEN|PENDIENTE_MANUAL)
 ```
+`piezas` (HTML del 02/11/2026): entero, `NOT NULL`, `DEFAULT 0`, `CHECK (piezas >= 0)`; los pedidos migrados sin el dato quedan con 0. `palets` también en `traspasos` y `repartos` (mismas reglas que en `pedidos`).
+Lista `DOSPORTES`: el euro extra (`EXTRA_DOS_PORTES = 1`) es una constante del sistema, no un valor de cada línea; el precio guardado es el que escribe el usuario.
 `partida_id` nulo + `estado_asignacion = PENDIENTE_MANUAL` reemplaza a la "pantalla de excepciones" actual: es una vista/filtro sobre esta misma tabla, no una estructura aparte.
 
 ### `traspasos`
@@ -128,7 +130,7 @@ id, reparto_id (FK), articulo_id (FK), cantidad, peso
 
 ### `listas_precio`
 ```
-id, tipo (MAYORISTA|PESCADERIA), fecha, modo (AUTO|MANUAL), creado_en
+id, tipo (MAYORISTA|PESCADERIA|DOSPORTES), fecha, modo (AUTO|MANUAL), creado_en
 ```
 ### `lista_precio_lineas`
 ```

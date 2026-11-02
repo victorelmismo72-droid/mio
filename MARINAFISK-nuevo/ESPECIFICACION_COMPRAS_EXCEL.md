@@ -102,6 +102,10 @@ Ejemplo real (fila 3): 25,5 kg × 3,80 €/kg, proveedor con OP → L = 96,90 ·
 
 ## 5. Precio medio por artículo y periodo (hoja PRECIO MEDIO)
 
+> **Actualización 02/11/2026 (resumen de Víctor):**
+> - La hoja PRECIO MEDIO usa una **lista fija** de artículos (filas 11-167). Esa lista ha perdido fórmulas varias veces (C54; G45-G56; el 31/10 otra vez G45 y G55) y no incluye artículos que sí se compran (C144, C880, C398, C3973, C2245, C7033, C192…). En el Excel se añadió una zona automática (filas 170-221) y un aviso en rojo.
+> - **En el sistema nuevo no hay lista fija:** el precio medio sale siempre para todos los artículos con compras en el periodo, con el nombre del catálogo de PRODUCTOS. Así desaparecen los dos problemas: fórmulas borradas y artículos que faltan. Los 13 nombres de PRECIO MEDIO que no coinciden con el catálogo dejan de importar.
+
 Para cada artículo y el periodo elegido (fecha desde / hasta):
 - **Total kg** = suma de kilos.
 - **Total base imp. real** = suma de la columna O.
@@ -197,6 +201,10 @@ Por tanto, **todo lo del punto 10 sigue igual en este archivo**: PRODUCTOS!H104 
 Además, este archivo se guardó con un programa que no es Excel (openpyxl) y **no lleva guardados los resultados de las fórmulas**. Excel los recalcula al abrirlo, así que el uso diario no se ve afectado. Pero cualquier programa que lea el archivo sin Excel (visores, importaciones, este script) ve las celdas calculadas vacías. Antes de usarlo como fuente para migrar datos, abrirlo en Excel y guardarlo. El script de verificación ahora lo detecta y avisa, en vez de dar miles de diferencias falsas.
 
 ---
+
+> **Actualización 02/11/2026:** Víctor ha **abandonado el buscador por fila (S:X) con partida sugerida**. Al ordenar la hoja, las fórmulas de D y G leían las columnas S:X de otra fila y se descolocaron proveedores, productos y fechas ("he perdido las compras de hoy"). Ahora usa un **buscador fijo en U1:Z2**, que solo muestra el código para copiarlo. La copia `…_arreglado-2.xlsx` de este punto (con la partida sugerida corregida) queda superada: hay que usar siempre el último Excel de Víctor.
+> - **Regla para el sistema nuevo:** ordenar un listado mueve siempre la fila completa (corrección 21a), y ningún dato de una fila puede depender de la posición de otra.
+> - **Dudas abiertas del 09/10 (revisar antes de migrar, Fase 5, punto 1):** partidas 56679 y 56681 con el mismo proveedor (50160) el mismo día (¿dos puertos?), y filas 2757 y 2758 (COPESA, gallineta), posible duplicado.
 
 ### 10ter. Copia corregida preparada: `GESTION_CORRECTA_precio_medio_arreglado-2.xlsx` (03/10/2026)
 

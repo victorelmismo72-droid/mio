@@ -31,6 +31,7 @@ No se arranca esta fase hasta que:
   - Compras a 0 €/kg: si cuentan en el coste del producto (punto 4).
   - Significado de la columna CONTROL ("S") de COMPRAS (punto 1).
   - Modelo de las Toshiba y tamaño real de las etiquetas (Fase 4, punto 8).
+- [ ] **Dudas abiertas del 09/10/2026 resueltas:** partidas 56679 y 56681 (mismo proveedor 50160, mismo día: ¿dos puertos?) y filas 2757-2758 de COMPRAS (COPESA, gallineta: ¿duplicado?).
 - [ ] **Datos revisados en el Excel**: compras sin proveedor, sin producto o sin partida, códigos que no coinciden con el buscador, productos inexistentes (C2106, C1200) y demás anomalías que liste el script de verificación (`compras_referencia/verificar_contra_excel.py`). Lo que no se corrija se migra tal cual y queda marcado para revisión, nunca se "arregla" a escondidas.
 - [ ] Al menos **una semana real de uso en paralelo** (Fase 4, punto 7) sin fallos que bloqueen el trabajo.
 
@@ -49,8 +50,9 @@ Hasta ahora el servidor está en la oficina (Fase 3) y la tablet entra desde fue
 | Mantenimiento | Actualizaciones y vigilancia del equipo a cargo de Marinafisk | Lo principal lo hace el proveedor |
 | Dónde están los datos | En la oficina | En el centro de datos del proveedor (debe estar en la UE) |
 
-**Recomendación:**
-- **Al arrancar, quedarse en la oficina con VPN**, que es lo que ya se habrá probado en las Fases 3 y 4. Cambiar de alojamiento a la vez que se deja el HTML suma riesgos.
+**Recomendación (revisada el 02/11/2026, al saber que Pancho trabaja en Zaragoza):**
+- La decisión oficina/nube se toma **al empezar la Fase 3**, no aquí (Fase 3, punto 1). Con un puesto en A Coruña y otro en Zaragoza, la recomendación es **la nube**.
+- Si se eligió la oficina en la Fase 3, **al arrancar se queda en la oficina con VPN**, que es lo que ya se habrá probado, porque cambiar de alojamiento a la vez que se deja el HTML suma riesgos. La nube vendría después.
 - **Pasar a la nube después**, cuando el sistema lleve un tiempo estable, si la tablet fuera de la oficina se vuelve importante o si los cortes de luz o internet de la oficina dan problemas.
 - El sistema se prepara para poder moverse de un sitio a otro **sin cambiar el código**: configuración en archivos aparte, nada que dependa de la ruta o del nombre del ordenador.
 
@@ -114,6 +116,8 @@ Zaragoza usa las cifras de compras para la contabilidad de beneficio por partida
 - [x] Formato: a Zaragoza se le manda **PDF o Excel** (respondido por Víctor el 05/10/2026). El sistema nuevo genera los dos, con el mismo contenido y las mismas columnas que hoy, para que en Zaragoza no cambie nada.
 - [ ] **Pendiente:** un ejemplo real de cada uno (el último PDF y el último Excel enviados) y cada cuánto se mandan, para reproducirlos exactamente.
 - Antes del corte se compara un envío real del Excel con el que genera el sistema nuevo: tienen que coincidir cifra a cifra.
+
+**Exportación de pedidos para el gestor** (resumen del 02/11/2026): el HTML exporta los pedidos en CSV y Excel y el gestor los importa. El sistema nuevo genera esos archivos **con las mismas columnas, en el mismo orden y con el mismo formato** (separador, decimales, fechas). Columnas nuevas, solo al final (hoy PIEZAS es la última). Antes del corte, el gestor importa un archivo del sistema nuevo y uno del HTML del mismo día, y deben dar lo mismo.
 
 Lo mismo para cualquier otro informe que hoy salga del Excel o del HTML hacia otra persona (asesoría, transportistas…): se lista con Víctor y se reproduce.
 

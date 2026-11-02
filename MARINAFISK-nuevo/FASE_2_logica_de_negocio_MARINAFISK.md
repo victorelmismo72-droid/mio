@@ -80,6 +80,16 @@ Sigue aplicando aquí: cada flujo de esta fase (registrar compra, asignar partid
 
 ---
 
+## 5quater. Precio medio de venta (HTML del 02/11/2026)
+
+- Por artículo (todos o uno, por código o nombre), con cliente y fechas opcionales (por defecto, el mes en curso).
+- **Media ponderada por kilos**: importe de venta sin IVA ÷ kilos vendidos. Además: precio mínimo y máximo, nº de líneas y piezas.
+- Con un solo artículo, desglose día a día. Imprimible.
+- **Excluye los traspasos a Zaragoza** (no son ventas, punto 5bis).
+- Prueba: mismos resultados que el HTML para el mismo artículo, cliente y fechas.
+
+---
+
 ## 5ter. Comprobación de coherencia de datos (correcciones 16 y 18a del 02/09/2026)
 
 En el Excel se probó a impedir el fallo de las fórmulas congeladas bloqueando celdas, pero el bloqueo impedía ordenar y hubo que quitarlo; se sustituyó por un aviso que marca en rojo lo que no cuadra. En el sistema nuevo se usan las dos cosas, sin efectos secundarios:

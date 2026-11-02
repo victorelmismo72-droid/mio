@@ -69,6 +69,11 @@ Una por cada pestaña del HTML actual (`goPanel`: pedido, historial, traspasos, 
 
 ### 3.1 Hoja de pedido
 - Cabecera: cliente (buscador, 14), fecha, forma de pago, agencia/transportista y **palets** (19).
+- **Piezas por línea** (HTML del 02/11/2026): entero ≥ 0, 0 por defecto.
+  - Columna entre CANT. y PESO KG, con "TOTAL PIEZAS". Orden de Intro: cantidad → piezas → peso → precio → descuento.
+  - Si es 0, no se imprime.
+  - Sale en los albaranes con y sin precios ("Piezas: N" junto a los palets), en la búsqueda de artículos, en el listado de pedidos impreso y como **última columna** de las exportaciones CSV/Excel.
+  - No va en Transfrío ni en CMR. De momento tampoco en traspasos ni repartos (preguntar si se quiere).
 - Líneas: artículo (buscador), cajas, peso con autosuma `12,4+8,1+6,3` (13), precio, partida asignada automáticamente con su aviso de margen (Fase 2, punto 3). La partida no sale nunca en el documento del cliente.
 - GRABAR: botón bloqueado mientras graba (1). Antes de grabar se pregunta siempre por los palets (19).
 - Botones de impresión: albarán con precios, albarán sin precios, Hoja Transfrío y Hoja CMR (esta última **solo** si el transportista del cliente es MOZO, 7). Cada uno por separado (12).
@@ -77,6 +82,8 @@ Una por cada pestaña del HTML actual (`goPanel`: pedido, historial, traspasos, 
 - Filtros: fecha, cliente, agencia, artículo. Casillas de selección para impresión en lote (9, 10).
 - Por fila: ver, modificar, anular, etiquetas, enviar, imprimir sin precios, imprimir Transfrío (12). Si no caben, menú "más acciones" con la casilla de selección siempre visible (20).
 - Buscador de artículos vendidos con la opción "Incluir traspasos a Zaragoza" y los tres totales (3; Fase 2, punto 5bis).
+- **Precio medio de venta** (botón junto a "Buscar artículos", HTML del 02/11/2026), con la regla de la Fase 2, punto 5quater.
+- **Exportaciones CSV y Excel de pedidos: mismas columnas y en el mismo orden que hoy.** Las importa el gestor, y una columna movida rompe la importación. Columnas nuevas, solo al final (como PIEZAS). Se comprueba con un archivo exportado hoy desde el HTML: tienen que coincidir cabecera y orden.
 
 ### 3.3 Traspasos e historial de traspasos
 - Mismo funcionamiento que pedidos, sin precios de venta.
@@ -94,7 +101,7 @@ Manda `ESPECIFICACION_COMPRAS_EXCEL.md`. En pantalla:
 - No se graba una compra sin proveedor, producto, kilos y precio (`ESPECIFICACION_COMPRAS_EXCEL.md`, punto 9c, a falta de decisión de Víctor).
 - **Historial de compras:** filtros por fecha, proveedor y producto; totales de lo filtrado (como el `SUBTOTAL` del Excel). Las compras grabadas no se editan: las correcciones se hacen con un ajuste enlazado (Fase 1).
 - **Panel de compras:** tops de proveedores y productos, compras de cada proveedor y resultado para un filtro exacto (`ESPECIFICACION_COMPRAS_EXCEL.md`, punto 6).
-- **Precio medio por artículo y periodo**, con "kg reales" opcional por mermas (punto 5 de esa especificación).
+- **Precio medio por artículo y periodo**, con "kg reales" opcional por mermas (punto 5 de esa especificación). Salen **todos los artículos con compras en el periodo, siempre**, sin lista fija que mantener a mano (ver punto 5 de la especificación: la lista fija del Excel ha perdido fórmulas y artículos varias veces).
 - **Partidas:** listado con kilos comprados, vendidos y disponibles; cierre manual y cierre masivo por fecha (Fase 2, punto 3); filtro de líneas pendientes de asignar.
 
 ### 3.6 Clientes, Artículos y Proveedores
@@ -111,6 +118,14 @@ Manda `ESPECIFICACION_COMPRAS_EXCEL.md`. En pantalla:
 - Aviso de precio por debajo del coste real de la partida, en tres niveles (4): en vivo, al salir del campo y antes de generar la imagen.
 - Existencias como número o texto (5).
 - Versión para el cliente y versión interna claramente separadas; la interna nunca se envía por error.
+- **Tercera lista "Dos portes"** (HTML del 24/10/2026):
+  - Se escribe el precio normal y en la imagen se suma 1 € (constante del sistema, no escrita en el código). El margen y el aviso de pérdida ya cuentan ese euro.
+  - Se rellena copiando de Pescaderías, con botón "Copiar precios de Pescaderías". Subtítulo de la imagen: "DOS PORTES — PRECIO EN DESTINO".
+  - **Confirmar con Víctor** que el +1 € es la intención (el resumen lo marca como suposición).
+- **Enviar la lista por WhatsApp** (HTML del 24/10/2026):
+  - Se eligen clientes con teléfono y números sueltos, y la selección se recuerda por tipo de lista, en el servidor, no en el navegador.
+  - Se guarda la imagen y se abre WhatsApp con un clic por cliente (corrección 10), adjuntando la imagen a mano. Con un enlace `wa.me` no se puede adjuntar una imagen automáticamente: solo se podría con la API de WhatsApp Business, que tiene coste y requisitos propios (solo si Víctor lo pide).
+  - En tablet o móvil, botón "Compartir imagen" (función de compartir del sistema).
 - Generación de las imágenes de la lista igual que hoy (en el HTML, con `canvas`).
 
 ### 3.8 Etiquetadora
@@ -149,7 +164,7 @@ Traspasados desde `REQUISITOS_DERIVADOS_CORRECCIONES_2026-09-02.md`. Se aplican 
 - **(17)** Fechas `DD/MM/AAAA` en toda la aplicación, documentos y exportaciones.
 
 **Palets, acciones por fila y listados**
-- **(19)** Palets en el pedido (0 por defecto). Al grabar se pregunta siempre, con cliente, bultos y kg de contexto. Enter confirma y Esc cancela; se rechazan negativos y decimales, y un segundo clic no abre otra pregunta.
+- **(19)** Palets en **pedidos, traspasos y repartos** (0 por defecto). Al grabar se pregunta siempre, con cliente, bultos y kg de contexto. Enter confirma y Esc cancela; se rechazan negativos y decimales, y un segundo clic no abre otra pregunta. **Si son 0, en el documento se imprime "PALET VARIADO"**, como hace hoy el HTML (resumen del 02/11/2026). En la Hoja Transfrío los palets van justo debajo de KG (calibración actual del HTML: x 180, y 103 mm).
 - **(19)** Los palets salen en **todos** los documentos y caminos de impresión: albarán con y sin precios, Hoja Transfrío (subrayado, junto al destino), impresión individual, en lote y desde la fila.
 - **(19)** Regla general: todo dato que pase a ser obligatorio por norma lleva valor por defecto para los registros antiguos, se confirma al grabar y llega a todos los documentos relacionados.
 - **(20)** Muchas acciones por fila → menú "más acciones"; la casilla de selección, siempre fija y visible.

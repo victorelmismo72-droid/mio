@@ -30,7 +30,11 @@ No se toca todavía: el HTML actual (sigue siendo el programa de trabajo real), 
 
 ## 1. Dónde vive la base de datos y cómo se conecta cada puesto
 
-- Un único servidor (PostgreSQL + backend) en la red de la oficina. Los dos puestos se conectan a él por la red local; ninguno guarda datos propios.
+- **Dato confirmado (resumen del 02/11/2026): Pancho trabaja en Zaragoza**, no en la oficina de A Coruña. Por tanto los dos puestos **no están en la misma red**: hay dos sitios desde el primer día.
+- Un único servidor (PostgreSQL + backend) al que se conectan los dos puestos; ninguno guarda datos propios. Dos formas de hacerlo, a decidir por Víctor **al empezar esta fase** (no al final), porque cambia cómo se monta todo:
+  - **Servidor en la oficina de A Coruña + VPN** para Zaragoza y la tablet (punto 1bis). Si en A Coruña se va la luz o internet, **Pancho tampoco puede trabajar desde Zaragoza**.
+  - **Servidor en la nube** (en la UE), con las condiciones de la Fase 5, punto 2. Un corte en A Coruña solo afecta a A Coruña.
+  - **Recomendación, ahora que se sabe lo de Zaragoza:** la nube. Con dos sitios trabajando a diario, depender del internet y la luz de una sola oficina es el riesgo mayor. Si se elige la oficina, imprescindibles un equipo siempre encendido y un SAI.
 - **Recomendación:** que el servidor esté en un ordenador que esté siempre encendido en horario de trabajo. Si está en el ordenador de Víctor y ese ordenador se apaga, se reinicia o se actualiza, Pancho no puede trabajar. Opciones, de más a menos recomendable: un mini-PC dedicado, el ordenador de Víctor (aceptando esa dependencia), o adelantar el hosting en la nube (Fase 5). **Lo decide Víctor** (ver punto 10).
 - **Seguridad mínima, ya en esta fase:**
   - El backend solo acepta conexiones desde la red local. **No se abre ningún puerto a internet** en esta fase.
@@ -136,7 +140,8 @@ El HTML sigue siendo el programa de trabajo real. El sistema nuevo se prueba en 
 
 ## 10. Preguntas para Víctor antes de cerrar la fase
 
-- [ ] ¿Los dos puestos están en la misma oficina/red local? (La tablet sí estará fuera: resuelto con VPN, punto 1bis.)
+- [x] ¿Los dos puestos están en la misma red? **No: Pancho está en Zaragoza** (resumen del 02/11/2026). Ver punto 1.
+- [ ] ¿Oficina de A Coruña + VPN, o nube? Decidir antes de empezar esta fase (punto 1).
 - [ ] ¿Dónde va el servidor: mini-PC dedicado, ordenador de Víctor, o nube (punto 1)?
 - [ ] ¿Es aceptable un hueco en la numeración de albaranes si una grabación falla, o tiene que ser estrictamente seguida (punto 2)?
 - [ ] Si el servidor no está disponible, ¿qué se hace (punto 6)?
