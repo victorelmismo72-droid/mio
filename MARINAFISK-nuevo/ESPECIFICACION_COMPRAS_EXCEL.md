@@ -32,7 +32,7 @@ El Excel no se sube al repositorio porque contiene datos reales; el script lo le
 | I — CAJAS | Nº de cajas | Normalmente entero |
 | J — KILOS | Kilos | Admite una suma de pesadas (`=12+13,5`); vale el resultado |
 | K — EUR/KG | Precio por kilo | Admite 0 |
-| R — CONTROL | Marca "S" | Si hay "S" (o "s"), el nº de albarán se pinta en verde; si no, en amarillo. **Confirmar con Víctor qué significa** (¿albarán comprobado?) |
+| R — CONTROL | Marca "S" | **Línea comprobada** (el HTML del 18/11/2026 la usa así: casilla de control con filtro "sin comprobar / comprobados"). Si hay "S" (o "s"), el nº de albarán se pinta en verde; si no, en amarillo |
 
 Todo lo demás de la línea se calcula. En el sistema nuevo esos campos calculados **no se pueden escribir** (Fase 1, punto 3bis).
 
@@ -70,10 +70,15 @@ Ejemplo real (fila 3): 25,5 kg × 3,80 €/kg, proveedor con OP → L = 96,90 ·
 2. Otro día, o primera compra de ese proveedor ese día → número nuevo = el mayor número de partida existente + 1.
 3. Excepción: si un mismo proveedor trae ese día mercancía de **otro puerto**, se marca "partida nueva" y recibe número nuevo aunque coincidan proveedor y día.
 
+**Cambio del 18/11/2026 (HTML `…_2026-11-18_PARTIDAS.html`): el Nº de partida lo pone el usuario.** El número sale del Excel de compras de Víctor (columna N PARTIDA). El HTML tiene una casilla "Nº partida" y solo calcula el siguiente si se deja vacía.
+
 **Cómo debe hacerlo el sistema nuevo:**
-- El servidor asigna la partida **al grabar**, dentro de la misma operación (Fase 3, punto 2). Solo cuentan las partidas ya grabadas, nunca la línea que se está creando, y el orden en que se muestren las filas no influye.
-- El usuario ve el número antes de confirmar y puede marcar "partida nueva (otro puerto)". El número no se escribe a mano.
-- Implementación de referencia: `partida_correcta()` en `compras_excel.py`.
+- **Mientras el Excel siga siendo la fuente de las compras** (hasta el corte de la Fase 5): el usuario **escribe el Nº de partida** del Excel. El servidor no lo cambia, pero **avisa** (sin bloquear) en estos casos:
+  - Ese número ya existe con **otro proveedor u otra fecha**. Puede ser correcto (la partida 55923 tiene dos proveedores el mismo día), pero obliga a confirmarlo.
+  - Ese proveedor ya tiene **otra partida ese mismo día**. Puede ser el caso "otro puerto".
+  - El número es **mucho mayor o menor** que el último usado (posible error de tecleo, como las partidas de 4 cifras de junio).
+- Si la casilla se deja vacía, el servidor propone el número con la regla de arriba (`partida_correcta()` en `compras_excel.py`), dentro de la misma operación de grabar (Fase 3, punto 2). Solo cuentan las partidas ya grabadas y el orden de las filas no influye.
+- **Después del corte**, cuando el Excel deje de usarse, ¿quién pone el número? Hay dos opciones: lo sigue escribiendo el usuario, o lo propone siempre el servidor y el usuario puede cambiarlo. **Lo decide Víctor** (Fase 5, punto 1).
 
 **No copiar la fórmula de la columna W tal cual.** Tiene un fallo que se ve en los datos de hoy: en las 9 líneas del 03/10 con buscador, la partida sugerida es **0**. La fórmula busca la primera fila con ese proveedor y ese día, y esa fila es la propia línea que se está escribiendo, que aún no tiene partida, así que devuelve una celda vacía (0). Ejemplo: para SUBASTAS RIVERA (50163) el 03/10 debería sugerir 56641, que es la que ya tiene en las filas 2650-2651. Corregido en `GESTION_CORRECTA_precio_medio_arreglado-2.xlsx` (punto 10ter): la fórmula solo tiene en cuenta filas que ya tienen partida y usa el código real de proveedor de la fila (D). `partida_sugerida_excel()` reproduce la fórmula corregida, y el script de verificación avisa si un archivo todavía tiene la antigua.
 
@@ -157,6 +162,7 @@ Copiar el Excel al pie de la letra chocaría con decisiones ya escritas en las f
 
 - **a) IVA de proveedores intracomunitarios.** El Excel aplica siempre 10 %. En el esquema se decidió el 24/08/2026: proveedor intracomunitario → 0 % (inversión del sujeto pasivo). El Excel no tiene ninguna columna que distinga nacional de intracomunitario. **Pregunta:** ¿hay hoy algún proveedor intracomunitario en PROVEEDORES? Si no hay ninguno, las dos reglas dan lo mismo y no hay conflicto.
 - **b) 2 % OP en compras antiguas.** En el Excel, si se cambia la marca OP de un proveedor, cambian **todas** sus compras, también las ya cerradas. La Fase 2 decía que el cambio afecta solo a las compras futuras, porque Zaragoza usa las cifras de compras ya cerradas. **Recomendación:** que el sistema nuevo calcule el 2 % en vivo mientras se escribe la compra (como el Excel) y lo deje fijo al grabarla. Con los datos actuales da lo mismo, porque ningún proveedor ha cambiado de marca. **Pregunta:** ¿se queda así?
+- **e) Compras editables.** El HTML del 18/11/2026 permite **editar en el histórico** una compra ya grabada (kilos, precio, proveedor, artículo, control) y anularla. Eso choca con "compras = dato sagrado" (Fase 0, punto 3; Fase 1). **Propuesta:** en pantalla se corrige igual de fácil (en la misma fila), pero por debajo la compra original **no se sobrescribe**: se guarda un ajuste enlazado con quién, cuándo, valor anterior y valor nuevo (Fase 3, punto 8). Las cifras actuales son las corregidas, y Zaragoza puede ver la historia de cada cambio. La casilla CONTROL sí se marca y desmarca libremente. **Confirmar con Víctor.**
 - **c) Líneas incompletas.** El Excel deja líneas sin proveedor, sin producto o sin partida, y hoy hay varias (punto 10). **Recomendación:** el sistema nuevo no graba una compra sin proveedor, producto, kilos y precio, y asigna la partida al grabar.
 - **d) La partida sugerida** no se copia con su fallo (punto 3).
 

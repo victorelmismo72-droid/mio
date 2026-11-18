@@ -98,12 +98,25 @@ Una por cada pestaña del HTML actual (`goPanel`: pedido, historial, traspasos, 
 Manda `ESPECIFICACION_COMPRAS_EXCEL.md`. En pantalla:
 - **Alta de compra:** fecha, proveedor (código a mano **o** buscador por nombre, independientes, 15 y 18b), nº de albarán del proveedor y líneas con producto, cajas, kilos (con autosuma, 13) y €/kg.
 - Se ven, sin poder editarse, los cálculos de cada línea (base Zaragoza, base + IVA, 2 % OP, base real, IVA y total) y los totales de la compra.
-- **Partida:** antes de confirmar se ve el número que se va a asignar (reutilizado o nuevo) y una casilla "Partida nueva (otro puerto)" (22). El número lo pone el servidor.
+- **Partida (cambiado el 18/11/2026):** casilla **"Nº partida"** para escribir el número del Excel, con los avisos de `ESPECIFICACION_COMPRAS_EXCEL.md`, punto 3. Si se deja vacía, el servidor propone el número (con la casilla "Partida nueva (otro puerto)", 22).
 - No se graba una compra sin proveedor, producto, kilos y precio (`ESPECIFICACION_COMPRAS_EXCEL.md`, punto 9c, a falta de decisión de Víctor).
-- **Historial de compras:** filtros por fecha, proveedor y producto; totales de lo filtrado (como el `SUBTOTAL` del Excel). Las compras grabadas no se editan: las correcciones se hacen con un ajuste enlazado (Fase 1).
+- **Distribución como el HTML del 18/11/2026:** pantalla completa en dos columnas.
+  - **Izquierda:** registrar compra. Las columnas de desglose (base Zgz, base + IVA, 2 %, base real, IVA) están ocultas salvo que se marque "ver desglose IVA/2%". Debajo, "Compras de este día" (solo lectura), que cambia con la fecha.
+  - **Derecha:** histórico agrupado por día con bandas (fecha y partida de más reciente a más antigua) y barra de totales fija.
+- **Filtros del histórico:** partida, nº de albarán del proveedor, proveedor, producto (código o descripción), desde/hasta y control (todos, sin comprobar, comprobados). El listado impreso (A4 apaisado, con el filtro en la cabecera y bandas por día) y el Excel usan **exactamente el mismo filtro** que la pantalla.
+- **Corregir en el histórico:** kilos, precio, proveedor, artículo y control se cambian en la misma fila, como en el HTML. Por debajo se guarda como ajuste, sin sobrescribir la compra original (`ESPECIFICACION_COMPRAS_EXCEL.md`, punto 9e). Anular una compra también queda como ajuste.
+- Se mantienen: precio medio del día, asignar partidas de hoy, partidas abiertas e importar compras desde el Excel. La importación convierte al nº de serie los códigos que llegan con formato de fecha, como hace hoy el HTML (`numDeFecha`).
 - **Panel de compras:** tops de proveedores y productos, compras de cada proveedor y resultado para un filtro exacto (`ESPECIFICACION_COMPRAS_EXCEL.md`, punto 6).
 - **Precio medio por artículo y periodo**, con "kg reales" opcional por mermas (punto 5 de esa especificación). Salen **todos los artículos con compras en el periodo, siempre**, sin lista fija que mantener a mano (ver punto 5 de la especificación: la lista fija del Excel ha perdido fórmulas y artículos varias veces).
 - **Partidas:** listado con kilos comprados, vendidos y disponibles; cierre manual y cierre masivo por fecha (Fase 2, punto 3); filtro de líneas pendientes de asignar.
+
+### 3.5bis Existencias (HTML del 18/11/2026)
+- Alta diaria de existencias con artículo, cajas, kilos (autosuma), precio, nota y casilla "Vendido" (en rojo); separadores entre grupos de líneas.
+- Listado con filtro de fechas, "Mostrar: sin vendidos / con vendidos / solo vendidos" y búsqueda por texto.
+- Excel con el formato actual (Fase 2, punto 5quinquies).
+
+### 3.5ter Estadísticas a pantalla completa (HTML del 18/11/2026)
+- Buscar artículos (con bandas por día), Precio medio y Existencias (en dos columnas) se abren **a pantalla completa**: cabecera de la tabla, totales y filtros fijos, y solo la tabla se desplaza.
 
 ### 3.6 Clientes, Artículos y Proveedores
 - Listados con buscador en vivo (14) y fichas editables.
@@ -171,7 +184,7 @@ Traspasados desde `REQUISITOS_DERIVADOS_CORRECCIONES_2026-09-02.md`. Se aplican 
 - **(20)** Muchas acciones por fila → menú "más acciones"; la casilla de selección, siempre fija y visible.
 - **(21a)** Ordenar un listado mueve siempre la fila completa.
 - **(21b)** Los datos de apoyo de buscadores viven aparte de los datos que se editan.
-- **(22)** Compras: partida visible antes de grabar y casilla "otro puerto".
+- **(22)** Compras: Nº de partida escrito por el usuario con avisos, o propuesto por el servidor si se deja vacío (cambio del 18/11/2026, punto 3.5).
 
 **Campos numéricos**
 - **(13)** Peso, kilos, cajas y similares admiten `12,4+8,1+6,3` y se resuelven con Enter o Ctrl+=. También restas y coma decimal; un número normal funciona igual que siempre.

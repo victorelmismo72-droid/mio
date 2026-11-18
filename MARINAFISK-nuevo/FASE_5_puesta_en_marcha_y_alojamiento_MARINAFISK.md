@@ -29,7 +29,12 @@ No se arranca esta fase hasta que:
   - 2 % OP en compras ya grabadas: congelado al grabar o recalculado como en el Excel (punto 9b).
   - Las 3 partidas con decimales (55906,7 · 55907,6 · 55908,5): qué número les corresponde (punto 3).
   - Compras a 0 €/kg: si cuentan en el coste del producto (punto 4).
-  - Significado de la columna CONTROL ("S") de COMPRAS (punto 1).
+  - ~~Significado de la columna CONTROL~~: resuelto, es "línea comprobada" (HTML del 18/11/2026).
+  - Nº de partida después del corte: lo sigue escribiendo el usuario, o lo propone el servidor (`ESPECIFICACION_COMPRAS_EXCEL.md`, punto 3).
+  - Compras corregidas en el histórico: guardarlas como ajuste sin sobrescribir el original (punto 9e de la especificación).
+  - Asignación de partidas: mantener el margen mínimo de 1,30 o asignar solo por kilos, y si una línea se puede partir entre dos partidas (Fase 2, punto 3).
+  - Existencias vendidas en el precio medio de venta (Fase 2, punto 5quater) y si las existencias se enlazan con partidas (punto 5quinquies).
+  - Ley de envases (RD 1055/2022): pendiente de los datos de Víctor. Cuando lleguen, se especifica en una fase aparte antes del corte, si afecta a albaranes o informes.
   - Modelo de las Toshiba y tamaño real de las etiquetas (Fase 4, punto 8).
 - [x] **Dudas del 09/10/2026, respondidas por Víctor el 02/11/2026 ("sí" a las dos):**
   - Partidas 56679 y 56681 (proveedor 50160, mismo día): **son de dos puertos**, así que son dos partidas correctas. Se migran tal cual.

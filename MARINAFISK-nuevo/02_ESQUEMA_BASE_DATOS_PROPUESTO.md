@@ -128,6 +128,15 @@ conductor, total_cajas, total_kg, puesto_origen, creado_en
 id, reparto_id (FK), articulo_id (FK), cantidad, peso
 ```
 
+### `existencias` y `existencia_lineas` (HTML del 18/11/2026)
+```
+existencias: id, fecha, puesto_origen, creado_en, modificado_en, version
+existencia_lineas: id, existencia_id (FK), orden, es_separador (bool),
+  articulo_id (FK nullable), descripcion, cajas, kilos, kilos_detalle, precio,
+  nota, vendido (bool), partida_id (FK nullable, ver Fase 2 punto 5quinquies)
+```
+Una línea separadora (`es_separador = true`) no lleva artículo ni cantidades. Cajas y kilos son lo que queda (se corrigen en una venta parcial).
+
 ### `listas_precio`
 ```
 id, tipo (MAYORISTA|PESCADERIA|DOSPORTES), fecha, modo (AUTO|MANUAL), creado_en

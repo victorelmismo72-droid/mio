@@ -47,6 +47,16 @@ Esto es lógica nueva que no existe correctamente en el sistema actual — hay q
 ## 3. Partidas y margen
 
 - Reproducir la asignación automática inline: al introducir producto + precio, buscar partida disponible compatible.
+- **Algoritmo de referencia: el del HTML del 18/11/2026** (`obtenerPartidasDisponibles`, `elegirPartidaAuto`):
+  1. Las partidas disponibles se **agrupan por número de partida**: se suman los kilos de todas las compras con ese número y de la familia del producto, y el coste es la media ponderada por kilos.
+  2. Kilos libres = kilos comprados − kilos ya vendidos de esa partida − **kilos reservados** por líneas aún sin grabar (otras líneas del mismo pedido en pantalla, o del resto del día al asignar en bloque).
+  3. Entre las partidas que **cubren el peso entero** de la línea, se elige **la más antigua** que dé un margen ≥ 1,30 €/kg.
+  4. Si ninguna cubre el peso entero, se ordenan por kilos libres (de más a menos).
+  5. Si no hay ninguna con margen suficiente, la elige el usuario a mano (pantalla de excepciones), viendo los kg libres de cada una.
+  6. Una línea **no se parte** entre dos partidas.
+  - Prueba del HTML a reproducir: partidas 9001 = 50 kg y 9002 = 100 kg; ventas de 30, 30 y 80 kg → 9001, 9002, 9002.
+  - Los kilos reservados de líneas sin grabar los lleva el servidor en la misma operación, para que dos puestos no asignen a la vez los mismos kilos (Fase 3, punto 3).
+  - **Preguntas a Víctor:** ¿se mantiene la regla del margen de 1,30, o se asigna solo por kilos? ¿Se quiere poder partir una línea entre dos partidas?
 - Emparejamiento de partida: coincidencia de prefijo (4+ caracteres) **y** primera palabra de la descripción del catálogo — no usar solo el prefijo (ver Fase 0, punto 3, falsos positivos conocidos como C144/C1444).
 - Margen mínimo de referencia: **1,30 €/kg**. Si no se alcanza con ninguna partida disponible, marcar la línea como excepción para revisión manual (no bloquear ni auto-resolver).
 - Cierre de partidas: manual, con opción de cierre masivo por fecha; una partida puede cerrarse sin llegar a cero kilos (mermas).
@@ -86,7 +96,20 @@ Sigue aplicando aquí: cada flujo de esta fase (registrar compra, asignar partid
 - **Media ponderada por kilos**: importe de venta sin IVA ÷ kilos vendidos. Además: precio mínimo y máximo, nº de líneas y piezas.
 - Con un solo artículo, desglose día a día. Imprimible.
 - **Excluye los traspasos a Zaragoza** (no son ventas, punto 5bis).
+- Desde el 18/11/2026 el HTML **suma también los kilos de existencias** a los kilos totales, pero calcula precio e importe **solo con los kilos vendidos**.
+- **Duda abierta (preguntar a Víctor):** las existencias marcadas como vendidas, ¿cuentan dos veces en los kilos (como existencia y como venta)? El sistema nuevo no cuenta nada dos veces: una existencia vendida cuenta solo como venta.
 - Prueba: mismos resultados que el HTML para el mismo artículo, cliente y fechas.
+
+---
+
+## 5quinquies. Existencias (HTML del 18/11/2026)
+
+- Registro diario de existencias: cada línea con artículo, descripción, cajas, kilos (con autosuma), precio, nota y marca **"Vendido"**. Se pueden poner separadores entre grupos de líneas.
+- **Venta parcial:** se corrigen las cajas y los kilos que quedan.
+- **Vendido total:** no sale en los listados de existencias, pero **sí en las estadísticas**.
+- Listado por fechas, con o sin vendidos (o solo vendidos) y búsqueda por texto (por ejemplo "Celeiro").
+- Excel de existencias con el formato actual del HTML: bandas grises por día, con el día centrado en gallego, y fila en blanco entre artículos. Debe salir igual.
+- **Relación con partidas y compras:** en el HTML las existencias son un registro aparte, sin enlace a las partidas. **Preguntar a Víctor** si en el sistema nuevo una existencia debe salir de una partida concreta (para conocer su coste real) o seguir siendo una nota aparte.
 
 ---
 
