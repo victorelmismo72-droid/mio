@@ -28,9 +28,9 @@ router.get('/', async (req, res) => {
 // que evita que esa clase de fallo vuelva a tirar el proceso aunque se
 // cuele una ruta mal ordenada como esta).
 //
-// Que partidas existen ya para un dia+proveedor, para poder elegir a cual va
-// una compra nueva cuando ya hay mas de una (por una excepcion anterior) -
-// ver FASE_2, asignacion automatica del numero de partida.
+// Que partidas existen ya para un dia+proveedor - informativo, para que
+// Victor sepa que numero ya se usó hoy con ese proveedor antes de teclear
+// uno (o dejar la casilla en blanco) - ver asignacionPartida.js.
 router.get('/partidas-del-dia', async (req, res) => {
   const { fecha, proveedorId } = req.query;
   if (!fecha || !proveedorId) {
@@ -64,25 +64,26 @@ router.get('/:id', async (req, res) => {
 // grabar una compra con el 2% de OP o el IVA equivocados sin que el servidor
 // lo notara.
 //
-// El numero de partida tampoco lo envia el cliente: lo calcula el servidor
-// (ver asignacionPartida.js) a partir de fecha+proveedorId, reutilizando la
-// partida "de siempre" de ese dia+proveedor salvo que se pida explicitamente
-// una nueva (partidaNueva:true) o una ya existente concreta (partidaElegida).
+// El numero de partida lo escribe Victor (viene de su Excel de compras) -
+// ver asignacionPartida.js para la regla completa, corregida el 20/11/2026
+// (antes era al reves: automatica por defecto, manual solo como
+// excepcion). Si se manda vacio/null, el servidor lo asigna automaticamente
+// (reutilizando la partida "de siempre" de ese dia+proveedor, o creando una
+// nueva).
 router.post('/', async (req, res) => {
   try {
     await conIdempotencia(req, res, 'POST /compras', async () => {
-      const { lineas, fecha, proveedorId, albaranProveedor, puestoOrigen, partidaNueva, partidaElegida } = req.body;
+      const { lineas, fecha, proveedorId, albaranProveedor, puestoOrigen, numeroPartida } = req.body;
 
       const proveedor = await prisma.proveedor.findUnique({ where: { id: Number(proveedorId) } });
       if (!proveedor) throw new Error(`No existe ningún proveedor con id ${proveedorId}.`);
       if (!Array.isArray(lineas) || !lineas.length) throw new Error('La compra necesita al menos una línea.');
 
       const fechaCompra = new Date(fecha);
-      const numeroPartida = await resolverPartidaParaCompra({
+      const numeroPartidaFinal = await resolverPartidaParaCompra({
         fecha: fechaCompra,
         proveedorId: proveedor.id,
-        partidaNueva,
-        partidaElegida,
+        numeroPartida,
       });
 
       const lineasCalculadas = lineas.map((l) => {
@@ -99,7 +100,7 @@ router.post('/', async (req, res) => {
 
       const creada = await prisma.compra.create({
         data: {
-          numeroPartida,
+          numeroPartida: numeroPartidaFinal,
           fecha: fechaCompra,
           albaranProveedor: albaranProveedor || null,
           proveedorId: proveedor.id,

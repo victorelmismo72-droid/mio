@@ -32,18 +32,14 @@
           <label for="cp-albprov">Albarán proveedor</label>
           <input type="text" id="cp-albprov" placeholder="opcional">
         </div>
+        <div class="fg" style="flex:0 1 140px;">
+          <label for="cp-partida-in" title="Tecléalo tal cual viene de tu Excel de compras. Déjalo en blanco para que se asigne automáticamente.">Nº partida</label>
+          <input type="number" id="cp-partida-in" placeholder="auto">
+        </div>
       </div>
 
       <div class="partida-info" id="cp-partida-info" style="display:none;">
-        <span>Partida: <strong id="cp-partida-texto">—</strong></span>
-        <div class="fg" id="cp-partida-elegir-wrap" style="display:none;">
-          <label for="cp-partida-elegir" style="font-weight:400;">Elegir partida existente</label>
-          <select id="cp-partida-elegir"></select>
-        </div>
-        <label>
-          <input type="checkbox" id="cp-partida-nueva">
-          Partida nueva para esta compra (excepción)
-        </label>
+        <span>Ya hoy para este proveedor: <strong id="cp-partida-texto">—</strong></span>
       </div>
     </div>
   </div>

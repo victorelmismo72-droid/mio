@@ -1,17 +1,26 @@
-// Asignacion automatica del numero de partida a una compra (Fase 2, regla
-// confirmada por Victor el 12/09/2026 - ver FASE_2_logica_de_negocio_MARINAFISK.md).
+// Asignacion del numero de partida a una compra.
 //
-// Regla:
-//   - Por defecto hay UNA partida "principal" por dia+proveedor, igual que en
-//     el Excel: la primera compra de ese proveedor ese dia crea la partida,
-//     y todas las compras siguientes de ese mismo proveedor ese mismo dia la
-//     reutilizan automaticamente.
-//   - Caso raro (necesidad de produccion): se puede forzar una partida NUEVA
-//     distinta para ese mismo dia+proveedor. Nunca se sugiere sola - hay que
-//     pedirla explicitamente en cada compra que deba ir ahi.
-//   - Si ya hay mas de una partida para ese dia+proveedor (por una excepcion
-//     anterior), se puede elegir explicitamente a cual de ellas va una compra
-//     nueva (partidaElegida) - si no se indica, se usa siempre la principal.
+// Regla de negocio (corregida el 20/11/2026 - ver
+// RESUMEN_COMPLETO_para_Code_18-11-2026_1..4.md: el HTML actual en
+// produccion ha cambiado esto desde la version confirmada el 12/09/2026).
+// LA REGLA ANTERIOR ERA AL REVES (automatica por defecto, manual solo como
+// excepcion via "partidaNueva") - la regla real ahora es:
+//   - El numero de partida lo escribe Victor, tecleado tal cual viene de su
+//     Excel de compras (columna N PARTIDA) - la app NO lo inventa.
+//   - Si deja la casilla en blanco, la app asigna el siguiente automatico
+//     (misma logica de siempre: reutiliza la partida "principal" de ese
+//     dia+proveedor si ya existe, o crea una nueva).
+//   - Si el numero que teclea ya existe (de otra compra, incluso de OTRO
+//     proveedor u otro dia - en los datos reales de Victor hay partidas
+//     compartidas por mas de un proveedor), se reutiliza tal cual esa fila
+//     de registro - no se valida que coincida proveedor/fecha, porque en la
+//     practica no siempre coincide y no es motivo de error.
+//   - El caso raro de "necesidad de produccion, otra partida distinta el
+//     mismo dia+proveedor" ya NO necesita ninguna casilla/flag especial:
+//     basta con teclear un numero distinto al de la partida principal de
+//     ese dia+proveedor - el indice unico parcial (ver mas abajo) hace que
+//     se registre sola como excepcion (esPrincipal=false) si ya hubiera una
+//     principal para ese dia+proveedor, exactamente igual que antes.
 //
 // Proteccion de concurrencia: dos peticiones casi simultaneas intentando
 // crear la partida principal de un dia+proveedor que TODAVIA no existe (ej.
@@ -19,25 +28,15 @@
 // generar dos partidas principales distintas - el indice unico parcial
 // "partidas_principal_por_dia_proveedor_key" (ver migration.sql) lo impide a
 // nivel de base de datos; aqui se captura ese fallo y se reutiliza la que
-// haya ganado la carrera, en vez de romper la peticion perdedora.
+// haya ganado la carrera, en vez de romper la peticion perdedora. Esto
+// sigue aplicando igual al caso automatico (casilla en blanco).
 const { prisma } = require('./db');
 
-async function resolverPartidaParaCompra({ fecha, proveedorId, partidaNueva, partidaElegida }) {
-  if (partidaElegida != null) {
-    const partida = await prisma.partida.findFirst({
-      where: { numeroPartida: Number(partidaElegida), fecha, proveedorId },
-    });
-    if (!partida) {
-      throw new Error(`No existe ninguna partida ${partidaElegida} para este proveedor en esta fecha.`);
-    }
+async function resolverPartidaParaCompra({ fecha, proveedorId, numeroPartida }) {
+  if (numeroPartida != null && numeroPartida !== '') {
+    const partida = await asegurarRegistroPartida(Number(numeroPartida), fecha, proveedorId);
+    await asegurarSecuenciaPorDelante(partida.numeroPartida);
     return partida.numeroPartida;
-  }
-
-  if (partidaNueva) {
-    const creada = await prisma.partida.create({
-      data: { fecha, proveedorId, esPrincipal: false },
-    });
-    return creada.numeroPartida;
   }
 
   const existente = await prisma.partida.findFirst({
@@ -67,14 +66,15 @@ async function listarPartidasDelDia(fecha, proveedorId) {
   });
 }
 
-// Usado por la importacion de Excel (ver routes/importarCompras.js): el
-// numero de partida ahi viene YA DADO por el Excel (no se recalcula, es
-// dato historico), pero igualmente hay que registrarlo en la tabla
-// `partidas` para que el resto del sistema (listarPartidasDelDia, el
-// desplegable de excepciones) sepa que existe. Si el Excel importado
-// contiene una excepcion historica (dos numeros de partida distintos para
-// el mismo dia+proveedor, ver Fase 2), la segunda se registra como
-// esPrincipal=false automaticamente en vez de fallar.
+// Usado tanto por la entrada manual (POST /compras con numeroPartida) como
+// por la importacion de Excel (routes/importarCompras.js): registra ese
+// numero en la tabla `partidas` si todavia no existe. Si ya existe (de
+// cualquier proveedor/fecha - ver nota de mas arriba sobre partidas
+// compartidas por mas de un proveedor en los datos reales de Victor), se
+// reutiliza tal cual, sin exigir que coincidan proveedor/fecha. Si al
+// crearla choca con la partida principal ya existente de ese mismo
+// dia+proveedor (indice unico parcial), se registra como excepcion
+// (esPrincipal=false) en vez de fallar.
 async function asegurarRegistroPartida(numeroPartida, fecha, proveedorId) {
   const existente = await prisma.partida.findUnique({ where: { numeroPartida } });
   if (existente) return existente;
@@ -86,6 +86,18 @@ async function asegurarRegistroPartida(numeroPartida, fecha, proveedorId) {
     }
     throw err;
   }
+}
+
+// Cuando Victor teclea un numero de partida a mano (en vez de dejarlo en
+// blanco para que lo invente la app), hay que asegurarse de que el
+// contador automatico ("siguiente partida") nunca vuelva a repetirlo mas
+// adelante - equivale a "sube nextPartida si procede" del HTML actual
+// (PARTIDAEDIT, 19/11/2026). Nunca retrocede (GREATEST), solo avanza.
+async function asegurarSecuenciaPorDelante(numeroPartida) {
+  await prisma.$executeRawUnsafe(
+    `SELECT setval('partidas_numero_partida_seq', GREATEST($1::int, (SELECT last_value FROM partidas_numero_partida_seq)))`,
+    numeroPartida,
+  );
 }
 
 module.exports = { resolverPartidaParaCompra, listarPartidasDelDia, asegurarRegistroPartida };

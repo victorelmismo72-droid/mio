@@ -193,4 +193,20 @@ Trece puntos aplicados directamente al HTML actual, fuera del proyecto de migrac
 
 ---
 
+## 15. Desarrollo real del HTML en paralelo, 18-20/11/2026 (`RESUMEN_COMPLETO_para_Code_18-11-2026_1..4.md`)
+
+Casi dos meses después de lo documentado en el punto 13, Víctor siguió desarrollando el HTML real directamente (fuera del proyecto de migración). Resumen de lo que cambió y cómo queda reconciliado:
+
+- **[x] Número de partida: la regla se invirtió** (antes automática con excepción manual, ahora manual con automático solo si se deja en blanco) — corregido en el backend y en la pantalla de Compras el 20/11/2026, ver Fase 2 punto 2.
+- **[x] Agencias de transporte: lista cerrada** (TRANSFRIO, KARTIN, OLANO, MOUZO, FARIÑA) con normalización de nombres mal escritos que ya existían (CARPIN→KARTIN, HOLLANO/HOLANO→OLANO, MOZO→MOUZO) — implementado el 20/11/2026 en `backend/src/agencias.js`, aplicado a `Cliente.agencia` y `Pedido.agencia`.
+- **[x] Bug de duplicados al reimportar Excel de compras** cuando ya existe una compra cargada a mano sin "Alb. proveedor" — corregido el 20/11/2026 en `importarCompras.js` (ver `backend/README.md`).
+- **[ ] Existencias: módulo nuevo completo**, no modelado todavía en nuestro esquema ni documentado en ningún punto de Fase 0-2 — stock por fecha/artículo con cantidad, peso, precio, nota y marca de "vendido" (venta parcial en bultos/kg), Excel propio con bandas de día. **Pendiente de diseñar desde cero** cuando se aborde — no es una corrección de algo ya existente, es una funcionalidad nueva del HTML real que el sistema nuevo todavía no contempla en absoluto.
+- **[ ] Panel "MODELOS" (catálogo de listados/impresión)** — confirma lo ya pedido en el punto 11.2, sigue pendiente de Fase 4/interfaz.
+- **Columna PIEZAS en Traspasos** — campo nuevo no contemplado en nuestro esquema (`TraspasoLinea` no tiene un equivalente a "piezas", solo `cantidad`/`peso`) — pendiente de revisar si `cantidad` ya cubre esto o hace falta un campo aparte, cuando se construya la pantalla de Traspasos.
+- **Partida y margen en ventas (Pedidos) sigue desactivada en producción**, no solo por rendimiento (Víctor la desactivó él mismo tras reactivarla con caché) — ver Fase 2 punto 4, nota del 20/11/2026: nuestro `margenPartida.js` además tiene dos huecos reales (no agrupa por número de partida compartido entre varias compras, no reserva kilos entre líneas de un mismo pedido sin grabar) que quedan pendientes de corregir cuando se retome esa función, no urgente mientras no esté en uso.
+- **Lección de rendimiento a tener en cuenta**: con datos reales de Víctor (1298 compras, 3000+ albaranes), recalcular la disponibilidad de partidas en bucles anidados sobre todo el histórico tardaba 10+ segundos sin caché — nuestro backend usa Postgres (no `JSON.parse(localStorage)` en cada llamada), que debería comportarse mucho mejor, pero conviene probar con un volumen de datos realista antes de dar por bueno `margenPartida.js`/`listadoGestion.js` a esa escala.
+- **Tensión sin resolver, la más importante — compras ya no son "dato sagrado" en el HTML real**: ahora se puede editar en el histórico el número de partida, el albarán del proveedor, y cajas/kilos/€-Kg de una compra ya grabada. Esto contradice directamente la garantía que Fase 1 cerró como resuelta ("`compras` no tiene forma de modificarse por error desde el backend"). **No se ha tocado el backend en este punto** — sigue sin haber ningún `PUT`/`DELETE` en `/compras` — a la espera de que Víctor confirme si el sistema nuevo debe abandonar esa garantía (y pasar a permitir edición, con el riesgo de perder el historial de qué se grabó originalmente) o mantenerla y aceptar que diverge del HTML real en este punto.
+
+---
+
 *Este documento se ha preparado a partir del historial de conversaciones de desarrollo del programa actual (chats "Gestión del backup de MARINAFISK" y "Arquitectura de importación de catálogo maestro"). Antes de empezar a programar el sistema nuevo, conviene que Víctor revise este documento y confirme o corrija cualquier punto.*

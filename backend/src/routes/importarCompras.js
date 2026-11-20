@@ -37,6 +37,16 @@ const { calcularLineaCompra } = require('../calculoCompra');
 const upload = multer({ storage: multer.memoryStorage() });
 const router = express.Router();
 
+// "Firma" de un conjunto de líneas (articuloId:kilos, ordenado) - para
+// reconocer que dos compras son la misma compra real aunque no coincidan
+// por la clave exacta (ver más abajo, desajuste del 20/11/2026).
+function firmaLineas(lineas) {
+  return lineas
+    .map((l) => `${l.articuloId}:${Number(l.kilos).toFixed(2)}`)
+    .sort()
+    .join('|');
+}
+
 const COLS_OBLIGATORIAS = ['N PARTIDA', 'FECHA', 'COD PROV', 'COD PROD', 'KILOS', 'EUR/KG'];
 const COLS_OPCIONALES = ['ALB PROV', 'CAJAS', 'CONTROL'];
 const MAX_FILAS_CABECERA = 25;
@@ -230,7 +240,9 @@ router.post('/compras-excel', upload.single('archivo'), async (req, res) => {
       totalFactura: acc.totalFactura + l.totalFactura,
     }), { totalKilos: 0, totalBaseZgz: 0, totalBaseReal: 0, totalIva: 0, totalFactura: 0 });
 
-    const existente = await prisma.compra.findFirst({
+    const fechaCompra = new Date(grupo.fecha + 'T00:00:00.000Z');
+
+    const existenteExacto = await prisma.compra.findFirst({
       where: {
         numeroPartida: grupo.numeroPartida,
         albaranProveedor: grupo.albaranProveedor,
@@ -239,7 +251,29 @@ router.post('/compras-excel', upload.single('archivo'), async (req, res) => {
       include: { lineas: true },
     });
 
-    const fechaCompra = new Date(grupo.fecha + 'T00:00:00.000Z');
+    // Desajuste real corregido el 20/11/2026 (ver
+    // RESUMEN_COMPLETO_para_Code_18-11-2026_4.md): una compra cargada a
+    // mano sin "Alb. proveedor" se duplicaba al reimportar el Excel, porque
+    // la clave exacta (partida+alb+proveedor) no reconocía que era la
+    // misma compra en cuanto el alb. proveedor no coincidía exactamente
+    // (uno vacío, el otro con el dato real del Excel). Si no hay
+    // coincidencia exacta, se busca entre las compras de ese mismo
+    // proveedor+fecha con "Alb. proveedor" vacío en el lado ya grabado, y
+    // que además coincidan en número de partida o en la firma de líneas
+    // (mismo conjunto articulo:kilos) - se trata como la misma compra.
+    const existente = existenteExacto || await (async () => {
+      const candidatas = await prisma.compra.findMany({
+        where: {
+          proveedorId: grupo.proveedorId,
+          fecha: fechaCompra,
+          OR: [{ albaranProveedor: null }, { albaranProveedor: '' }],
+        },
+        include: { lineas: true },
+      });
+      const firmaGrupo = firmaLineas(grupo.lineas);
+      return candidatas.find((c) => c.numeroPartida === grupo.numeroPartida || firmaLineas(c.lineas) === firmaGrupo) || null;
+    })();
+
     await asegurarRegistroPartida(grupo.numeroPartida, fechaCompra, grupo.proveedorId);
 
     if (!existente) {
@@ -264,14 +298,23 @@ router.post('/compras-excel', upload.single('archivo'), async (req, res) => {
     }
 
     // Comparacion simple para decidir si hay cambio real (mismo numero de
-    // lineas y mismos valores clave) antes de tocar nada.
-    const igual = existente.lineas.length === grupo.lineas.length && existente.lineas.every((lPrev, i) => {
+    // lineas y mismos valores clave) antes de tocar nada. El alb. proveedor
+    // se compara aparte: si solo difiere eso (el caso del fallback de mas
+    // arriba, rellenando un alb. proveedor que antes estaba vacio), no hace
+    // falta tocar las lineas, solo ese campo.
+    const igualLineas = existente.lineas.length === grupo.lineas.length && existente.lineas.every((lPrev, i) => {
       const lNueva = grupo.lineas[i];
       return lPrev.articuloId === lNueva.articuloId
         && Number(lPrev.kilos) === lNueva.kilos
         && Number(lPrev.precioKg) === lNueva.precioKg;
     });
-    if (igual) { sinCambios++; continue; }
+    const mismoAlbaran = (existente.albaranProveedor || '') === (grupo.albaranProveedor || '');
+    if (igualLineas && mismoAlbaran) { sinCambios++; continue; }
+    if (igualLineas && !mismoAlbaran) {
+      await prisma.compra.update({ where: { id: existente.id }, data: { albaranProveedor: grupo.albaranProveedor } });
+      actualizadas++;
+      continue;
+    }
 
     // Decision de Victor (05/09/2026): reproducir el comportamiento actual -
     // se sobrescribe en su sitio, no se crea un registro de ajuste aparte.
@@ -281,6 +324,7 @@ router.post('/compras-excel', upload.single('archivo'), async (req, res) => {
       await tx.compra.update({
         where: { id: existente.id },
         data: {
+          albaranProveedor: grupo.albaranProveedor,
           fecha: fechaCompra,
           proveedorNombreSnapshot: grupo.proveedorNombreSnapshot,
           totalKilos: totales.totalKilos,

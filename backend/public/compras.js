@@ -3,12 +3,15 @@
 // con las mismas teclas para moverse entre campos que ya usa Pedidos en el
 // HTML actual (Tab/Enter recorre Cajas → Kilos → €/Kg → siguiente línea).
 //
-// El servidor es quien decide de verdad el número de partida y calcula
-// base/2%OP/IVA/total (ver backend/src/calculoCompra.js y
-// asignacionPartida.js) — aquí solo se calcula una VISTA PREVIA en vivo
-// con la misma fórmula, para que Víctor vea el importe mientras teclea sin
-// esperar al servidor; lo que se manda al grabar son los datos crudos
-// (kilos como texto, cajas, precioKg), nunca un importe ya calculado.
+// El número de partida lo teclea Víctor tal cual viene de su Excel de
+// compras ("Nº partida", opcional) - si lo deja en blanco, el servidor lo
+// asigna automáticamente (ver asignacionPartida.js; regla corregida el
+// 20/11/2026, antes era al revés). El servidor también calcula de verdad
+// base/2%OP/IVA/total (ver backend/src/calculoCompra.js) — aquí solo se
+// calcula una VISTA PREVIA en vivo con la misma fórmula, para que Víctor
+// vea el importe mientras teclea sin esperar al servidor; lo que se manda
+// al grabar son los datos crudos (kilos como texto, cajas, precioKg),
+// nunca un importe ya calculado.
 
 let proveedores = [];
 let articulos = [];
@@ -35,8 +38,6 @@ async function iniciar() {
   document.getElementById('btn-grabar').addEventListener('click', grabarCompra);
   document.getElementById('cp-prov-buscar').addEventListener('input', (e) => buscarProveedor(e.target.value));
   document.getElementById('cp-fecha').addEventListener('change', refrescarPartidaInfo);
-  document.getElementById('cp-partida-nueva').addEventListener('change', actualizarVisibilidadElegirPartida);
-  document.getElementById('cp-partida-elegir').addEventListener('change', () => { document.getElementById('cp-partida-nueva').checked = false; });
 
   document.addEventListener('mousedown', (e) => {
     if (!e.target.closest('#cp-prov-buscar') && !e.target.closest('#cp-prov-sugerencias')) {
@@ -53,11 +54,11 @@ async function iniciar() {
 function reiniciarFormulario() {
   document.getElementById('cp-albprov').value = '';
   document.getElementById('cp-prov-buscar').value = '';
+  document.getElementById('cp-partida-in').value = '';
   proveedorSeleccionado = null;
   lineas = [lineaVacia()];
   idempotencyKeyActual = nuevaIdempotencyKey();
   ocultarAviso('cp-aviso');
-  document.getElementById('cp-partida-nueva').checked = false;
   document.getElementById('cp-partida-info').style.display = 'none';
   renderLineas();
 }
@@ -92,7 +93,10 @@ function elegirProveedor(id) {
   refrescarPartidaInfo();
 }
 
-// ===== Partida del día =====
+// ===== Partida del día (solo informativo — el número lo teclea Víctor en
+// "Nº partida"; esto es para que sepa qué ya se usó hoy con este proveedor
+// sin tener que abrir su Excel. Ver asignacionPartida.js para la regla
+// completa, corregida el 20/11/2026.) =====
 
 async function refrescarPartidaInfo() {
   const info = document.getElementById('cp-partida-info');
@@ -103,31 +107,15 @@ async function refrescarPartidaInfo() {
   document.getElementById('cp-partida-texto').textContent = 'consultando…';
   try {
     const partidas = await apiGet(`/compras/partidas-del-dia?fecha=${fecha}&proveedorId=${proveedorSeleccionado.id}`);
-    const wrapElegir = document.getElementById('cp-partida-elegir-wrap');
-    const selectElegir = document.getElementById('cp-partida-elegir');
     if (!partidas.length) {
-      document.getElementById('cp-partida-texto').textContent = 'se creará la partida principal de hoy para este proveedor';
-      wrapElegir.style.display = 'none';
-      selectElegir.innerHTML = '';
-    } else if (partidas.length === 1) {
-      document.getElementById('cp-partida-texto').textContent = `${partidas[0].numeroPartida} (se reutiliza)`;
-      wrapElegir.style.display = 'none';
-      selectElegir.innerHTML = '';
+      document.getElementById('cp-partida-texto').textContent = 'ninguna todavía (se asignará automáticamente si dejas "Nº partida" en blanco)';
     } else {
-      document.getElementById('cp-partida-texto').textContent = `hay ${partidas.length} partidas este día para este proveedor`;
-      selectElegir.innerHTML = partidas.map((p) => `<option value="${p.numeroPartida}">${p.numeroPartida}${p.esPrincipal ? ' (principal)' : ' (excepción)'}</option>`).join('');
-      wrapElegir.style.display = 'flex';
+      document.getElementById('cp-partida-texto').textContent = partidas
+        .map((p) => `${p.numeroPartida}${p.esPrincipal ? '' : ' (excepción)'}`)
+        .join(', ');
     }
   } catch (err) {
     document.getElementById('cp-partida-texto').textContent = 'no se ha podido consultar';
-  }
-}
-
-function actualizarVisibilidadElegirPartida() {
-  if (document.getElementById('cp-partida-nueva').checked) {
-    document.getElementById('cp-partida-elegir-wrap').style.display = 'none';
-  } else {
-    refrescarPartidaInfo();
   }
 }
 
@@ -327,13 +315,14 @@ async function grabarCompra() {
     return;
   }
 
+  const partidaTexto = document.getElementById('cp-partida-in').value.trim();
   const cuerpo = {
     idempotencyKey: idempotencyKeyActual,
     fecha: document.getElementById('cp-fecha').value,
     proveedorId: proveedorSeleccionado.id,
     albaranProveedor: document.getElementById('cp-albprov').value.trim() || null,
     puestoOrigen: puesto,
-    partidaNueva: document.getElementById('cp-partida-nueva').checked,
+    numeroPartida: partidaTexto === '' ? null : Number(partidaTexto),
     lineas: lineasValidas.map((l) => ({
       articuloId: l.articuloId,
       cajas: l.cajas === '' ? null : Number(l.cajas),
@@ -342,10 +331,6 @@ async function grabarCompra() {
       control: l.control,
     })),
   };
-  const elegirWrap = document.getElementById('cp-partida-elegir-wrap');
-  if (elegirWrap.style.display !== 'none' && !cuerpo.partidaNueva) {
-    cuerpo.partidaElegida = Number(document.getElementById('cp-partida-elegir').value);
-  }
 
   guardando = true;
   const btn = document.getElementById('btn-grabar');

@@ -6,6 +6,15 @@ const express = require('express');
 const { prisma } = require('../db');
 const { registrarEscritura } = require('../logEscritura');
 const { conIdempotencia } = require('../idempotencia');
+const { normalizarAgencia } = require('../agencias');
+
+// Si el registro trae un campo "agencia" (solo clientes, por ahora), se
+// normaliza aquí - ver agencias.js. Los demás catálogos (proveedores,
+// articulos) no tienen este campo, así que esto no les afecta.
+function conAgenciaNormalizada(datos) {
+  if (datos.agencia === undefined) return datos;
+  return { ...datos, agencia: normalizarAgencia(datos.agencia) };
+}
 
 // modeloPrisma: nombre del modelo tal como lo genera Prisma (ej. "cliente").
 // nombreTabla: nombre para el log de escrituras (ej. "clientes").
@@ -30,7 +39,7 @@ function crearRouterCatalogo(modeloPrisma, nombreTabla) {
     try {
       await conIdempotencia(req, res, `POST /${nombreTabla}`, async () => {
         const { idempotencyKey, ...datos } = req.body;
-        const creado = await delegado.create({ data: datos });
+        const creado = await delegado.create({ data: conAgenciaNormalizada(datos) });
         await registrarEscritura(nombreTabla, 'INSERT', creado.id, datos.puestoOrigen);
         return { statusHttp: 201, cuerpo: creado };
       });
@@ -45,7 +54,7 @@ function crearRouterCatalogo(modeloPrisma, nombreTabla) {
     try {
       const actualizado = await delegado.update({
         where: { id },
-        data: req.body,
+        data: conAgenciaNormalizada(req.body),
       });
       await registrarEscritura(nombreTabla, 'UPDATE', actualizado.id, req.body.puestoOrigen);
       res.json(actualizado);

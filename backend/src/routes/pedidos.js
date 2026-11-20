@@ -10,6 +10,7 @@ const { conIdempotencia } = require('../idempotencia');
 const { elegirPartidaParaVenta } = require('../margenPartida');
 const { calcularIvaPedido, calcularTotalLineaPedido } = require('../ivaVentas');
 const { conFechaNormalizada } = require('../fechas');
+const { normalizarAgencia } = require('../agencias');
 
 const router = express.Router();
 
@@ -101,6 +102,7 @@ router.post('/', async (req, res) => {
         tipoIvaAplicado, baseImponible, iva, total,
         ...cabecera
       } = req.body;
+      if (cabecera.agencia !== undefined) cabecera.agencia = normalizarAgencia(cabecera.agencia);
       const preparado = await prepararPedido({ lineas, clienteId: cabecera.clienteId });
       const creado = await prisma.pedido.create({
         data: {
@@ -138,6 +140,7 @@ router.put('/:id', async (req, res) => {
       tipoIvaAplicado, baseImponible, iva, total,
       ...cabecera
     } = req.body;
+    if (cabecera.agencia !== undefined) cabecera.agencia = normalizarAgencia(cabecera.agencia);
     const preparado = await prepararPedido({ lineas, clienteId: cabecera.clienteId });
     const actualizado = await prisma.$transaction(async (tx) => {
       await tx.pedidoLinea.deleteMany({ where: { pedidoId: id } });

@@ -119,20 +119,29 @@ descuido.
 - `GET /export` — vuelca todas las tablas en un JSON, para comparar contra
   el backup del programa actual durante la migración.
 - `/clientes`, `/proveedores`, `/articulos` — CRUD completo (crear, leer,
-  editar, borrar).
+  editar, borrar). **El campo `agencia` de un cliente solo admite una lista
+  cerrada de transportistas** (`TRANSFRIO`, `KARTIN`, `OLANO`, `MOUZO`,
+  `FARIÑA` — añadido el 20/11/2026, ver `src/agencias.js`): un valor fuera
+  de esa lista da `400`, y los nombres mal escritos que ya existían en el
+  catálogo real (`CARPIN`, `HOLLANO`/`HOLANO`, `MOZO`) se corrigen solos al
+  guardar. El mismo campo en `/pedidos` (foto de la agencia en el momento
+  del pedido) se normaliza igual.
 - `/compras` — **solo crear y leer** (`GET`, `POST`). A propósito no existen
   rutas `PUT` ni `DELETE`: las compras son "dato sagrado" (ver Fase 0,
   punto 3) y no deben poder modificarse nunca desde la API.
-  **El número de partida ya no lo envía el cliente**: `POST /compras` recibe
-  `fecha` y `proveedorId` (en vez de `numeroPartida`) y el servidor decide el
-  número — reutiliza la partida "de siempre" de ese día+proveedor, o crea
-  una nueva si es la primera compra de ese proveedor ese día (ver Fase 2,
-  punto 2, y `src/asignacionPartida.js`). Para el caso raro de excepción
-  (necesidad de producción de otra partida distinta el mismo día+proveedor),
-  se puede mandar `partidaNueva: true`; para elegir explícitamente entre
-  varias partidas ya existentes ese día, `partidaElegida: <número>`.
-  `GET /compras/partidas-del-dia?fecha=...&proveedorId=...` lista las
-  partidas de ese día+proveedor (la principal primero) para poder elegir.
+  **El número de partida lo teclea Víctor** (corregido el 20/11/2026 — antes
+  era al revés): `POST /compras` admite un campo opcional `numeroPartida`
+  — si se manda, se registra tal cual (puede coincidir con una partida ya
+  usada por otro proveedor/fecha, se reutiliza sin más) y se asegura de que
+  la numeración automática nunca lo repita más adelante; si se deja vacío,
+  el servidor asigna el siguiente automático de siempre (ver Fase 2, punto
+  2, y `src/asignacionPartida.js`). El caso de excepción (necesidad de
+  producción de otra partida distinta el mismo día+proveedor) ya no
+  necesita ningún flag: basta con teclear un número distinto al de la
+  partida principal de ese día, se registra solo como excepción.
+  `GET /compras/partidas-del-dia?fecha=...&proveedorId=...` sigue existiendo
+  pero ahora es solo informativo (qué números ya se usaron hoy con ese
+  proveedor).
   **Tampoco se envía ningún importe calculado (12/09/2026):** cada línea de
   `lineas` solo lleva datos crudos (`articuloId`, `cajas`, `kilos`,
   `precioKg`, `control`) — el campo `kilos` admite también una suma simple
@@ -234,6 +243,15 @@ local de siempre ya funciona en todas ellas.
   había en `importaciones_backup`. Esta es la única vía por la que una
   compra puede cambiar tras crearse; el resto de la API la sigue tratando
   como "dato sagrado" (sin `PUT`/`DELETE`).
+  **Corregido el 20/11/2026:** una compra cargada a mano sin "Alb.
+  proveedor" se duplicaba al reimportar el Excel, porque la clave exacta
+  (partida+alb+proveedor) no la reconocía como la misma compra en cuanto el
+  alb. proveedor no coincidía (vacío en un lado, con el dato real del Excel
+  en el otro). Ahora, si no hay coincidencia exacta, se busca entre las
+  compras del mismo proveedor+fecha con alb. proveedor vacío que además
+  coincidan en número de partida o en el conjunto de líneas (mismo
+  artículo+kilos) — se trata como la misma compra y se actualiza en su
+  sitio (rellenando el alb. proveedor) en vez de duplicarla.
 
 ### Nota de seguridad sobre la lectura de Excel
 
