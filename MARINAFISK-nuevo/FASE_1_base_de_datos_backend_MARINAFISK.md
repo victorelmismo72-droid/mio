@@ -54,6 +54,8 @@ Debe incluir también:
 - Un endpoint de **exportación** que genere un JSON con la misma estructura que el backup actual, para poder comparar fácilmente contra el original durante la verificación.
 - Un log básico de qué se ha escrito y cuándo (útil para depurar problemas de sincronización más adelante, en la Fase 3).
 
+**Añadido el 06/09/2026** (adelantado, mientras se espera el backup JSON real para la migración del punto 4): `POST /importar/compras-excel`, equivalente al botón "📥 IMPORTAR COMPRAS EXCEL" que ya existe en el programa actual — permite ir cargando compras reales antes de tener el script de migración del backup completo. Ver `backend/README.md` para el detalle y la decisión tomada sobre qué pasa al reimportar una compra que cambió (Víctor, 05/09/2026: se sobrescribe en su sitio, igual que hoy, con copia de seguridad previa — no se trata como una excepción a "compras = dato sagrado" para el resto de la API).
+
 ---
 
 ## 4. Migración del backup de prueba
@@ -73,12 +75,14 @@ Debe incluir también:
 
 No pasar a la Fase 2 hasta que:
 
-- [ ] Todas las tablas existen y corresponden a la estructura real del programa actual.
-- [ ] El backend permite leer y escribir cada tabla correctamente.
-- [ ] El backup de prueba está migrado y verificado sin discrepancias.
-- [ ] `compras` no tiene forma de modificarse por error desde el backend.
-- [ ] El HTML/programa actual sigue funcionando exactamente igual, sin tocar, en paralelo.
-- [ ] Víctor ha revisado y entendido (en términos sencillos, no técnicos) qué se ha construido, antes de seguir.
+- [x] Todas las tablas existen y corresponden a la estructura real del programa actual — creadas con PostgreSQL + Prisma (ver `backend/prisma/schema.prisma`), reflejando `02_ESQUEMA_BASE_DATOS_PROPUESTO.md`.
+- [x] El backend permite leer y escribir cada tabla correctamente — probado a mano (crear proveedor, cliente, artículo, compra con líneas, pedido con líneas, listado, exportación) el 05/09/2026, todo correcto.
+- [ ] El backup de prueba está migrado y verificado sin discrepancias — **pendiente de que Víctor aporte el backup JSON más reciente**; sin ese fichero no se puede escribir ni ejecutar el script de migración.
+- [x] `compras` no tiene forma de modificarse por error desde el backend — verificado: `PUT /compras/:id` y `DELETE /compras/:id` devuelven 404 (esas rutas no existen), solo hay `GET` y `POST`.
+- [x] El HTML/programa actual sigue funcionando exactamente igual, sin tocar, en paralelo — no se ha modificado ningún `.html` del repositorio en esta fase.
+- [ ] Víctor ha revisado y entendido (en términos sencillos, no técnicos) qué se ha construido, antes de seguir — ver `backend/README.md`, pensado para eso.
+- [x] **Protección a nivel de servidor contra doble grabación por clic repetido** (pedido explícito de Víctor en `CORRECCIONES_02-09-2026_para_Code.md`, punto 1 — ver Fase 0, punto 11.3) — resuelto el 12/09/2026: toda ruta `POST` que crea un documento (clientes/proveedores/artículos/compras/partidas/pedidos/traspasos/repartos/listas de precio) exige un `idempotencyKey` y usa una tabla `claves_idempotencia` con restricción `UNIQUE` en la base de datos como garantía real (no solo en memoria de Node). Probado con dos peticiones disparadas exactamente a la vez con la misma clave: solo se crea un registro, la otra recibe `409`; un reintento tras un error real sí se procesa limpio. Ver `backend/README.md`, sección 4, y `backend/src/idempotencia.js`.
+- [x] **Un error no capturado en una ruta no puede tirar el backend entero** — fallo real encontrado el 12/09/2026 (una ruta nueva mal ordenada respecto a `/:id` hizo llegar un id no numérico hasta Prisma sin comprobar, y el proceso entero se caía para todos los usuarios, no solo para quien hizo esa petición). Corregido con `express-async-errors` (red de seguridad global) más validación explícita del id en cada ruta `GET/PUT/DELETE /:id`. Probado reproduciendo el fallo original: el servidor responde el error y sigue funcionando. Ver `backend/README.md`, sección 6.
 
 ---
 
