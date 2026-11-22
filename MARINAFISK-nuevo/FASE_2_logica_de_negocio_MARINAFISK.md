@@ -19,7 +19,7 @@ Al final de la Fase 2 debe poder demostrarse que, dado el mismo dato de entrada,
 - Se aplica **solo** a compras de proveedores marcados como subasta/lonja (campo ya creado en Fase 1).
 - Fórmula: `baseReal = baseZgz + op2`
 - **Debe calcularse siempre en vivo**, consultando el estado actual del proveedor en el momento del cálculo — nunca guardar el 2% como valor fijo/congelado en la compra. (Ver Fase 0, punto 2: esto ya causó un fallo real por congelarse la fórmula.)
-- Probar explícitamente: cambiar la condición de "subasta/lonja" de un proveedor y confirmar que las compras futuras (no las pasadas, que son inmutables) reflejan el cambio.
+- Probar explícitamente: cambiar la condición de "subasta/lonja" de un proveedor y confirmar que las compras futuras reflejan el cambio sin tocar las ya grabadas (una compra existente solo cambia si se edita explícitamente — ver Fase 0 punto 15 — y en ese caso también se recalcula en vivo contra el proveedor vigente en ese momento, nunca con una fórmula vieja).
 
 **Implementado en `backend/src/calculoCompra.js`** (`calcularLineaCompra`), compartido entre `POST /compras` (alta manual) y la importación de Excel, para que no haya dos sitios con la fórmula. `POST /compras` **ya no acepta ningún importe calculado desde el cliente** — solo recibe `kilos`/`precioKg` en crudo por línea, y el servidor consulta el proveedor tal como está en ese momento en la base de datos para decidir si aplica el 2% (`esSubastaOp`). Probado el 12/09/2026: un proveedor marcado como subasta produce `op2Importe = baseZgz * 0.02`; uno no marcado produce `op2Importe = 0`, con la misma línea de entrada.
 
@@ -70,7 +70,7 @@ Lo que sí falta de verdad es el lado de compras:
 - Margen mínimo de referencia: **1,30 €/kg**. Si no se alcanza con ninguna partida disponible, marcar la línea como excepción para revisión manual (no bloquear ni auto-resolver).
 - Cierre de partidas: manual, con opción de cierre masivo por fecha; una partida puede cerrarse sin llegar a cero kilos (mermas).
 - **Las partidas nunca deben mostrarse en documentos de cliente** — solo en la versión interna con precios.
-- Compras siguen siendo inmutables (ver Fase 1) — el cálculo de margen se hace leyendo la compra original, nunca modificándola.
+- El cálculo de margen se hace leyendo la compra tal cual está en ese momento (desde el 22/11/2026 una compra se puede editar — ver Fase 0 punto 15 — así que "la compra original" ya no es fija de por vida, pero sigue siendo la única fuente de verdad: nunca se guarda un coste de margen por separado que luego pueda desincronizarse de la compra).
 - **Existencias en texto libre también aquí** (no solo en listas de precio, ver Fase 0 punto 9): el campo de existencias/stock asociado a una partida debe admitir texto ("AGOTADO", "POCAS") además de un número exacto de cajas — mismo motivo, indicar disponibilidad aproximada sin forzar una cifra.
 
 **Backend implementado en `backend/src/margenPartida.js`** — puerto directo del algoritmo ya en uso en el HTML (`sonMismaFamiliaProducto`, `kilosVendidosDePartida`, `obtenerPartidasDisponibles`, `autoAsignarPartidas`/`asignarPartidasDelDia`), no un rediseño:
@@ -92,7 +92,7 @@ Lo que sí falta de verdad es el lado de compras:
 - Confirmar que la lógica de independencia entre listas (cada una autónoma, copia de arranque opcional desde la otra si está vacía) se traslada igual que en el HTML actual (ver Fase 0, punto 5).
 - Modo automático (relleno desde compras del día) y modo manual (entrada libre), igual que hoy.
 - La versión interna (con coste, margen real, existencias en cajas) debe seguir estando claramente separada de la versión de cliente, y nunca mezclarse.
-- **Aviso de venta por debajo de coste — versión robusta (petición de Víctor, `CORRECCIONES_02-09-2026_para_Code.md` punto 4; ver Fase 0 punto 11.3):** el HTML actual compara el precio tecleado contra un campo de "coste" **también tecleado a mano** en esa misma pantalla — puede estar mal o desactualizado. El sistema nuevo, en cambio, **conoce el coste real de la partida asignada** en todo momento (viene de la compra original, inmutable). El aviso de margen negativo debe compararse contra ese coste real siempre que la línea tenga una partida asignada, no contra una cifra escrita a mano — más fiable que el HTML, no solo igual. Mismo tipo de aviso ya decidido (visual en rojo + confirmación explícita antes de generar la imagen), ver Fase 0 punto 9.
+- **Aviso de venta por debajo de coste — versión robusta (petición de Víctor, `CORRECCIONES_02-09-2026_para_Code.md` punto 4; ver Fase 0 punto 11.3):** el HTML actual compara el precio tecleado contra un campo de "coste" **también tecleado a mano** en esa misma pantalla — puede estar mal o desactualizado. El sistema nuevo, en cambio, **conoce el coste real de la partida asignada** en todo momento (viene de la compra en la base de datos tal cual está ahora mismo). El aviso de margen negativo debe compararse contra ese coste real siempre que la línea tenga una partida asignada, no contra una cifra escrita a mano — más fiable que el HTML, no solo igual. Mismo tipo de aviso ya decidido (visual en rojo + confirmación explícita antes de generar la imagen), ver Fase 0 punto 9.
 
 **Backend implementado en `backend/src/routes/listasPrecio.js`:**
 

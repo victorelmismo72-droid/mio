@@ -126,9 +126,20 @@ descuido.
   catálogo real (`CARPIN`, `HOLLANO`/`HOLANO`, `MOZO`) se corrigen solos al
   guardar. El mismo campo en `/pedidos` (foto de la agencia en el momento
   del pedido) se normaliza igual.
-- `/compras` — **solo crear y leer** (`GET`, `POST`). A propósito no existen
-  rutas `PUT` ni `DELETE`: las compras son "dato sagrado" (ver Fase 0,
-  punto 3) y no deben poder modificarse nunca desde la API.
+- `/compras` — crear, leer, **y editar/anular** (corregido el 22/11/2026,
+  decisión de Víctor — ver Fase 0 punto 15: las compras dejaron de ser
+  "dato sagrado"). No hay `DELETE` real nunca: "borrar" una compra es
+  `POST /compras/:id/anular` (marca `anulada`/`anulada_en`/`anulada_por`,
+  la fila nunca desaparece). Para corregir una ya grabada:
+  - `PUT /compras/:id` — cambia `numeroPartida`, `albaranProveedor` y/o
+    `proveedorId` de la cabecera; si cambia el proveedor, **todas las
+    líneas se recalculan en vivo** contra el proveedor nuevo (2% de OP,
+    IVA — nunca se queda con la fórmula del proveedor antiguo).
+  - `PUT /compras/:id/lineas/:lineaId` — cambia `articuloId`, `cajas`,
+    `kilos` (admite expresión, igual que al crear), `precioKg` y/o
+    `control` de una línea concreta; recalcula esa línea y los totales de
+    la compra.
+  - Una compra `anulada` no se puede editar (hay que grabar una nueva).
   **El número de partida lo teclea Víctor** (corregido el 20/11/2026 — antes
   era al revés): `POST /compras` admite un campo opcional `numeroPartida`
   — si se manda, se registra tal cual (puede coincidir con una partida ya
@@ -240,9 +251,9 @@ local de siempre ya funciona en todas ellas.
   perder esa compra. **Decisión de Víctor (05/09/2026):** si se reimporta el
   mismo Excel y una compra ya existente cambió, se sobrescribe en su sitio
   — igual que hace hoy el programa — guardando antes una copia de lo que
-  había en `importaciones_backup`. Esta es la única vía por la que una
-  compra puede cambiar tras crearse; el resto de la API la sigue tratando
-  como "dato sagrado" (sin `PUT`/`DELETE`).
+  había en `importaciones_backup`. Desde el 22/11/2026 esta ya no es la
+  única vía por la que una compra puede cambiar — también se puede editar
+  a mano con `PUT /compras/:id` (ver más arriba).
   **Corregido el 20/11/2026:** una compra cargada a mano sin "Alb.
   proveedor" se duplicaba al reimportar el Excel, porque la clave exacta
   (partida+alb+proveedor) no la reconocía como la misma compra en cuanto el

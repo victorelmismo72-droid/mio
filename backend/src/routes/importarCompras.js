@@ -4,12 +4,12 @@
 // comportamiento que el HTML actual, decision de Victor (05/09/2026):
 //
 //   - Si una compra ya existe (misma combinacion Nº PARTIDA + ALB PROV +
-//     COD PROV) y el contenido del Excel es distinto, SE SOBRESCRIBE en su
-//     sitio - igual que hoy. No se crea un registro de ajuste aparte.
-//     Esto es una excepcion deliberada y acotada a ESTA ruta de importacion
-//     por lotes: la regla general de "compras = dato sagrado, sin PUT/DELETE
-//     en la API" (ver compras.js) sigue aplicando a todo lo demas - no hay
-//     ninguna otra forma de editar una compra ya grabada.
+//     COD PROV, o el fallback de mas abajo) y el contenido del Excel es
+//     distinto, SE SOBRESCRIBE en su sitio - igual que hoy. No se crea un
+//     registro de ajuste aparte (desde el 22/11/2026 las compras ya se
+//     pueden editar tambien a mano, ver compras.js - esto ya no es una
+//     excepcion a ninguna regla de inmutabilidad, es el mismo tipo de
+//     correccion, solo que en lote).
 //   - Antes de sobrescribir nada, se guarda una copia de las compras
 //     afectadas en `importaciones_backup` (igual que el HTML guarda
 //     "compras_backup_previo" antes de reimportar).

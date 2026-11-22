@@ -104,9 +104,14 @@ model Articulo {
 }
 
 // ---------------------------------------------------------------------
-// Compras y Partidas - "dato sagrado": sin UPDATE/DELETE desde la API
-// (ver Fase 0 punto 3 y Fase 1 punto 3). El propio backend (src/routes)
-// solo expone POST y GET para estas dos tablas, nunca PUT ni DELETE.
+// Compras - editable (corregido el 22/11/2026, ver Fase 0 punto 15 y
+// RESUMEN_COMPLETO_para_Code_18-11-2026_1..5.md): el HTML real en
+// produccion permite editar una compra ya grabada (partida, alb.
+// proveedor, proveedor, y cajas/kilos/precio/articulo/control por linea) y
+// anularla - decision de Victor (22/11/2026), abandonando la garantia de
+// "dato sagrado" que Fase 1 habia dado por cerrada. Sigue sin haber DELETE
+// real (una compra nunca desaparece de la base de datos): "anular" es un
+// estado (anulada=true), no un borrado - ver routes/compras.js.
 // ---------------------------------------------------------------------
 
 // numeroPartida NO es unique aqui: leyendo grabarCompra() en el HTML actual,
@@ -128,7 +133,14 @@ model Compra {
   totalIva                Decimal  @db.Decimal(10, 2) @map("total_iva")
   totalFactura            Decimal  @db.Decimal(10, 2) @map("total_factura")
   puestoOrigen            String   @map("puesto_origen")
+  // Anulacion = "borrado" en la practica (equivale a anularCompra() del
+  // HTML), pero sin DELETE real: la fila se queda, con el motivo y quien la
+  // anulo, para no perder el historial de que existio.
+  anulada                 Boolean   @default(false)
+  anuladaEn               DateTime? @map("anulada_en")
+  anuladaPor              String?   @map("anulada_por")
   creadoEn                DateTime @default(now()) @map("creado_en")
+  modificadoEn            DateTime @updatedAt @map("modificado_en")
 
   lineas CompraLinea[]
 

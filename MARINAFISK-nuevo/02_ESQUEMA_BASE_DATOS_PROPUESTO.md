@@ -5,7 +5,7 @@ Basado en:
 - `FASE_4_facturacion_MARINAFISK.md` (facturas, pagos y facturación por lotes — reglas ya confirmadas por Víctor)
 - Análisis del código real de `CARGA_DE_ALBARANES_MARINAFISK_20260902CORREGIDO_4.html`
 
-Este documento es un borrador de discusión, no una migración definitiva. Objetivo: reproducir el comportamiento actual con una base de datos real (en vez de JSON sueltos en carpeta compartida), preservando las garantías ya conocidas (compras inmutables, contadores consistentes, fecha local, etc.).
+Este documento es un borrador de discusión, no una migración definitiva. Objetivo: reproducir el comportamiento actual con una base de datos real (en vez de JSON sueltos en carpeta compartida), preservando las garantías ya conocidas (contadores consistentes, fecha local, etc. — las compras dejaron de ser inmutables el 22/11/2026, ver más abajo y Fase 0 punto 15).
 
 ---
 
@@ -53,9 +53,11 @@ creado_en, modificado_en
 id, numero_partida (NO unique — ver nota), fecha, albaran_proveedor, proveedor_id (FK),
 proveedor_nombre_snapshot,   -- nombre del proveedor tal como estaba EN EL MOMENTO de la compra
 total_kilos, total_base_zgz, total_base_real, total_iva, total_factura,
-puesto_origen, creado_en
--- SIN modificado_en / SIN UPDATE permitido tras creación (ver más abajo)
+puesto_origen, anulada (bool, default false), anulada_en, anulada_por,
+creado_en, modificado_en
 ```
+**Editable desde el 22/11/2026** (decisión de Víctor, ver Fase 0 punto 15 — abandona la garantía de "dato sagrado" que este documento daba por definitiva): `UPDATE` permitido vía API (`PUT /compras/:id` y `PUT /compras/:id/lineas/:lineaId`), con `modificado_en` registrando cuándo. `DELETE` real sigue sin existir — "borrar" una compra es marcarla `anulada` (con `anulada_en`/`anulada_por`), nunca quitar la fila.
+
 **Corrección real (05/09/2026), leyendo `grabarCompra()` en el HTML actual:** `numero_partida` **NO es único por compra**. Una partida se comparte entre TODOS los albaranes de un mismo proveedor en un mismo día (`partidaParaCompra(fecha, proveedorCod, ...)` reutiliza el número si ya existe una compra con esa fecha+proveedor) — el número de albarán del proveedor no forma parte de esa clave. Es decir: **varias filas de `compras` pueden compartir el mismo `numero_partida`.** La primera versión de este documento asumía 1 compra = 1 partida, y era incorrecto; ver la tabla `partidas` corregida más abajo.
 `proveedor_nombre_snapshot` es nuevo respecto a la primera versión: el HTML actual sí guarda `proveedorNombre` en cada compra (además del código), para que el nombre impreso no cambie si el proveedor se renombra después — mismo espíritu que "compras = dato sagrado".
 
@@ -67,7 +69,7 @@ control (bool),
 creado_en
 ```
 **Corrección real:** el HTML actual guarda un campo adicional `baseZgzIva` (base de Zaragoza con IVA, antes de calcular el resto) que la primera versión de este documento no incluía — añadido como `base_zgz_con_iva`. `control` es un booleano (casilla de verificación manual sobre la línea), no estaba en la primera versión.
-**Inmutabilidad**: `compras` y `compra_lineas` no permiten UPDATE ni DELETE a nivel de aplicación tras su creación (permiso de BD revocado o trigger que lo bloquee) — solo INSERT. Cualquier corrección se hace con un registro de ajuste enlazado, nunca sobrescribiendo. Esto sustituye a la garantía manual actual ("Compras = dato sagrado") por una garantía estructural.
+**Editabilidad (corregido el 22/11/2026):** `compras` y `compra_lineas` SÍ permiten `UPDATE` desde la API (ver tabla `compras` más arriba) — decisión de Víctor de seguir el mismo criterio que el HTML real. No hay `DELETE` real: "anular" es un estado (`compras.anulada`), nunca un borrado de la fila. Toda edición recalcula las líneas en vivo contra el proveedor vigente en ese momento (nunca se acepta un importe ya calculado, mismo principio que al crear).
 
 `op2_importe` y `iva_importe` se calculan y **congelan en el momento de la compra** (son historial), pero el cálculo en sí (fórmula) debe ser código centralizado y testeado, no reimplementado en varios sitios — el fallo histórico de fórmula congelada vino de que el valor no se recalculaba nunca al vuelo, no de guardar el resultado.
 

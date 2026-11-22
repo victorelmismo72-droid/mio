@@ -100,4 +100,4 @@ async function asegurarSecuenciaPorDelante(numeroPartida) {
   );
 }
 
-module.exports = { resolverPartidaParaCompra, listarPartidasDelDia, asegurarRegistroPartida };
+module.exports = { resolverPartidaParaCompra, listarPartidasDelDia, asegurarRegistroPartida, asegurarSecuenciaPorDelante };

@@ -1,16 +1,36 @@
-// Compras = "dato sagrado" (ver FASE_0 punto 3 y FASE_1 punto 3): una vez
-// creada una compra, NUNCA se debe poder modificar ni borrar. Por eso este
-// router SOLO define GET y POST - no existe ninguna ruta PUT ni DELETE para
-// /compras, ni siquiera por error: si alguien intenta editar una compra
-// tendria que hacerlo llamando a una ruta que no existe.
+// Compras: editable (corregido el 22/11/2026, decision de Victor - ver
+// Fase 0 punto 15 y RESUMEN_COMPLETO_para_Code_18-11-2026_1..5.md). El
+// HTML real en produccion permite corregir una compra ya grabada
+// (numero de partida, alb. proveedor, proveedor, y por linea:
+// articulo/cajas/kilos/precio/control) y anularla - el sistema nuevo
+// hace lo mismo. Ya NO hay DELETE real: "anular" es un estado
+// (compra.anulada=true), nunca se borra la fila - para no perder nunca el
+// historial de que una compra existio y que paso con ella.
 const express = require('express');
 const { prisma } = require('../db');
 const { registrarEscritura } = require('../logEscritura');
 const { conIdempotencia } = require('../idempotencia');
-const { resolverPartidaParaCompra, listarPartidasDelDia } = require('../asignacionPartida');
+const { resolverPartidaParaCompra, listarPartidasDelDia, asegurarRegistroPartida, asegurarSecuenciaPorDelante } = require('../asignacionPartida');
 const { calcularLineaCompra, sumarTotalesCompra } = require('../calculoCompra');
 
 const router = express.Router();
+
+// Recalcula las lineas crudas de una compra contra el proveedor actual
+// (siempre en vivo, ver Fase 0 punto 2) y los totales que salen de ahi -
+// compartido entre crear (POST /) y editar (PUT /:id, PUT /:id/lineas/:id).
+function calcularLineasYTotales(lineasCrudas, proveedor) {
+  const lineasCalculadas = lineasCrudas.map((l) => {
+    const calc = calcularLineaCompra({ kilos: l.kilos, precioKg: l.precioKg, proveedor });
+    return {
+      articuloId: l.articuloId,
+      cajas: l.cajas != null && l.cajas !== '' ? Number(l.cajas) : null,
+      precioKg: Number(l.precioKg),
+      control: !!l.control,
+      ...calc,
+    };
+  });
+  return { lineasCalculadas, totales: sumarTotalesCompra(lineasCalculadas) };
+}
 
 router.get('/', async (req, res) => {
   const compras = await prisma.compra.findMany({
@@ -86,17 +106,7 @@ router.post('/', async (req, res) => {
         numeroPartida,
       });
 
-      const lineasCalculadas = lineas.map((l) => {
-        const calc = calcularLineaCompra({ kilos: l.kilos, precioKg: l.precioKg, proveedor });
-        return {
-          articuloId: l.articuloId,
-          cajas: l.cajas != null && l.cajas !== '' ? Number(l.cajas) : null,
-          precioKg: Number(l.precioKg),
-          control: !!l.control,
-          ...calc,
-        };
-      });
-      const totales = sumarTotalesCompra(lineasCalculadas);
+      const { lineasCalculadas, totales } = calcularLineasYTotales(lineas, proveedor);
 
       const creada = await prisma.compra.create({
         data: {
@@ -118,6 +128,142 @@ router.post('/', async (req, res) => {
       await registrarEscritura('compras', 'INSERT', creada.id, puestoOrigen);
       return { statusHttp: 201, cuerpo: creada };
     });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// Corrige la cabecera de una compra ya grabada: numero de partida, alb.
+// proveedor, o el proveedor mismo (equivalen a guardarPartidaCompra,
+// guardarAlbProvCompra y cambiarProveedorLineaCompra del HTML real). No
+// hace falta mandar los tres - solo los que cambian. Si cambia el
+// proveedor (o aunque no cambie, para no arriesgarse), TODAS las lineas se
+// recalculan en vivo contra el proveedor actual - mismo motivo que en
+// POST /, el 2%OP/IVA de una compra deben reflejar siempre al proveedor
+// real, nunca quedarse congelados con el de cuando se creo si luego se
+// corrige el proveedor.
+router.put('/:id', async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) return res.status(400).json({ error: 'El id de la compra debe ser un número entero.' });
+  try {
+    const existente = await prisma.compra.findUnique({ where: { id }, include: { lineas: true } });
+    if (!existente) return res.status(404).json({ error: 'No existe esa compra' });
+    if (existente.anulada) throw new Error('Esta compra está anulada - no se puede editar. Graba una compra nueva si hace falta corregirlo.');
+
+    const { albaranProveedor, numeroPartida, proveedorId, puestoOrigen } = req.body;
+
+    const proveedor = await prisma.proveedor.findUnique({
+      where: { id: proveedorId != null ? Number(proveedorId) : existente.proveedorId },
+    });
+    if (!proveedor) throw new Error(`No existe ningún proveedor con id ${proveedorId != null ? proveedorId : existente.proveedorId}.`);
+
+    let numeroPartidaFinal = existente.numeroPartida;
+    if (numeroPartida != null && numeroPartida !== '' && Number(numeroPartida) !== existente.numeroPartida) {
+      const partida = await asegurarRegistroPartida(Number(numeroPartida), existente.fecha, proveedor.id);
+      await asegurarSecuenciaPorDelante(partida.numeroPartida);
+      numeroPartidaFinal = partida.numeroPartida;
+    }
+
+    const lineasCrudas = existente.lineas.map((l) => ({
+      articuloId: l.articuloId, cajas: l.cajas, kilos: l.kilos, precioKg: l.precioKg, control: l.control,
+    }));
+    const { lineasCalculadas, totales } = calcularLineasYTotales(lineasCrudas, proveedor);
+
+    const actualizada = await prisma.$transaction(async (tx) => {
+      for (let i = 0; i < existente.lineas.length; i++) {
+        await tx.compraLinea.update({ where: { id: existente.lineas[i].id }, data: lineasCalculadas[i] });
+      }
+      return tx.compra.update({
+        where: { id },
+        data: {
+          numeroPartida: numeroPartidaFinal,
+          albaranProveedor: albaranProveedor !== undefined ? (albaranProveedor || null) : existente.albaranProveedor,
+          proveedorId: proveedor.id,
+          proveedorNombreSnapshot: proveedor.nombre,
+          totalKilos: totales.totalKilos,
+          totalBaseZgz: totales.totalBaseZgz,
+          totalBaseReal: totales.totalBaseReal,
+          totalIva: totales.totalIva,
+          totalFactura: totales.totalFactura,
+        },
+        include: { lineas: true },
+      });
+    });
+    await registrarEscritura('compras', 'UPDATE', id, puestoOrigen);
+    res.json(actualizada);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// Corrige una linea concreta de una compra ya grabada (articulo, cajas,
+// kilos, precio, control - equivale a guardarLineaCompra/
+// toggleControlLineaCompra/cambiarArticuloLineaCompra del HTML real).
+// Admite kilos como expresion ("12+13.5"), igual que al crear. Solo hace
+// falta mandar los campos que cambian; el resto se mantiene.
+router.put('/:id/lineas/:lineaId', async (req, res) => {
+  const id = Number(req.params.id);
+  const lineaId = Number(req.params.lineaId);
+  if (!Number.isInteger(id) || !Number.isInteger(lineaId)) {
+    return res.status(400).json({ error: 'El id de la compra y de la línea deben ser números enteros.' });
+  }
+  try {
+    const compra = await prisma.compra.findUnique({ where: { id }, include: { lineas: true, proveedor: true } });
+    if (!compra) return res.status(404).json({ error: 'No existe esa compra' });
+    if (compra.anulada) throw new Error('Esta compra está anulada - no se puede editar. Graba una compra nueva si hace falta corregirlo.');
+    const lineaExistente = compra.lineas.find((l) => l.id === lineaId);
+    if (!lineaExistente) return res.status(404).json({ error: 'Esa línea no pertenece a esta compra.' });
+
+    const { articuloId, cajas, kilos, precioKg, control } = req.body;
+    const lineaCruda = {
+      articuloId: articuloId != null ? Number(articuloId) : lineaExistente.articuloId,
+      cajas: cajas !== undefined ? cajas : lineaExistente.cajas,
+      kilos: kilos !== undefined ? kilos : lineaExistente.kilos,
+      precioKg: precioKg !== undefined ? precioKg : lineaExistente.precioKg,
+      control: control !== undefined ? control : lineaExistente.control,
+    };
+    const { lineasCalculadas: [lineaCalculada] } = calcularLineasYTotales([lineaCruda], compra.proveedor);
+
+    const actualizada = await prisma.$transaction(async (tx) => {
+      await tx.compraLinea.update({ where: { id: lineaId }, data: lineaCalculada });
+      const todasLasLineas = await tx.compraLinea.findMany({ where: { compraId: id } });
+      const totales = sumarTotalesCompra(todasLasLineas.map((l) => ({
+        kilos: Number(l.kilos), baseZgz: Number(l.baseZgz), baseReal: Number(l.baseReal),
+        ivaImporte: Number(l.ivaImporte), totalFactura: Number(l.totalFactura),
+      })));
+      return tx.compra.update({
+        where: { id },
+        data: {
+          totalKilos: totales.totalKilos,
+          totalBaseZgz: totales.totalBaseZgz,
+          totalBaseReal: totales.totalBaseReal,
+          totalIva: totales.totalIva,
+          totalFactura: totales.totalFactura,
+        },
+        include: { lineas: true },
+      });
+    });
+    await registrarEscritura('compras', 'UPDATE', id, req.body.puestoOrigen);
+    res.json(actualizada);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// Anula una compra (equivale a anularCompra() del HTML real) - no la
+// borra, solo la marca. No lleva proteccion de idempotencia: anular dos
+// veces la MISMA compra no duplica nada, el segundo intento solo repite
+// el mismo estado (como el cierre manual de partidas).
+router.post('/:id/anular', async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) return res.status(400).json({ error: 'El id de la compra debe ser un número entero.' });
+  try {
+    const anulada = await prisma.compra.update({
+      where: { id },
+      data: { anulada: true, anuladaEn: new Date(), anuladaPor: req.body.anuladaPor || null },
+    });
+    await registrarEscritura('compras', 'UPDATE', id, req.body.puestoOrigen);
+    res.json(anulada);
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
