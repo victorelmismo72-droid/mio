@@ -21,7 +21,14 @@ const router = express.Router();
 // "_partidaManual" en el HTML. Si ninguna partida disponible llega al
 // margen, la linea queda sin partida (excepcion pendiente de revision
 // manual), nunca se fuerza una que no cumple.
-async function autoAsignarPartidasLineas(lineas) {
+//
+// "reservas" (corregido el 22/11/2026, equivale a "reservasLineasPed" del
+// HTML real): dos lineas de ESTE MISMO pedido que pidan el mismo producto
+// no deben poder llevarse los mismos kilos disponibles dos veces - cada
+// linea que se asigna "reserva" sus kilos antes de calcular la siguiente,
+// aunque ninguna de las dos este grabada todavia en la base de datos.
+async function autoAsignarPartidasLineas(lineas, reservas) {
+  const mapaReservas = reservas || new Map();
   const resultado = [];
   for (const l of lineas || []) {
     if (l.partidaNumero != null && l.partidaNumero !== '') {
@@ -29,7 +36,10 @@ async function autoAsignarPartidasLineas(lineas) {
       continue;
     }
     if (!l.articuloId) { resultado.push(l); continue; }
-    const { partidaNumero } = await elegirPartidaParaVenta({ articuloId: l.articuloId, precioVenta: l.precio });
+    const { partidaNumero } = await elegirPartidaParaVenta({ articuloId: l.articuloId, precioVenta: l.precio }, mapaReservas);
+    if (partidaNumero != null) {
+      mapaReservas.set(partidaNumero, (mapaReservas.get(partidaNumero) || 0) + (Number(l.peso) || 0));
+    }
     resultado.push({ ...l, partidaNumero });
   }
   return resultado;

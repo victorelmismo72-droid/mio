@@ -57,43 +57,73 @@ async function kilosVendidosDePartida(articulo, numeroPartida) {
   return total;
 }
 
-// Partidas disponibles para un articulo (mismo producto o su familia),
-// con los kilos que quedan de cada una tras restar lo ya vendido. Excluye
-// las partidas cerradas manualmente (ver Partida.cerradaManual, equivale a
-// localStorage['partidas_cerradas_manual'] de hoy). Ordenado por fecha
-// ascendente (la mas antigua primero, FIFO) - igual que el HTML.
-async function obtenerPartidasDisponibles(articuloId) {
+// Partidas disponibles para un articulo (mismo producto o su familia), con
+// los kilos que quedan tras restar lo ya vendido - y, opcionalmente, unas
+// "reservas" (kilos que otras lineas de un mismo pedido sin grabar aun ya
+// han apartado de esa partida en esta misma peticion, para no ofrecer dos
+// veces los mismos kilos - ver Fase 2 punto 4, nota 20/11/2026,
+// "reservasLineasPed"/"reservasDia" del HTML real).
+//
+// Corregido el 22/11/2026, dos fallos reales:
+//  - No excluia las compras anuladas (ver Fase 0 punto 15): los kilos de
+//    una compra anulada no deben poder venderse.
+//  - Una partida puede tener kilos repartidos entre VARIAS compras con el
+//    mismo numero (ver Fase 2 punto 2: partidas compartidas por mas de un
+//    proveedor, o varios albaranes del mismo dia) - antes solo se miraba
+//    la PRIMERA compra encontrada con ese numero+articulo, perdiendo el
+//    resto. Ahora se agrupa por numero de partida y se suman los kilos de
+//    todas las compras no anuladas, con el coste medio ponderado.
+//
+// Excluye las partidas cerradas manualmente (ver Partida.cerradaManual,
+// equivale a localStorage['partidas_cerradas_manual'] de hoy). Ordenado
+// por fecha ascendente (la mas antigua primero, FIFO) - igual que el HTML.
+async function obtenerPartidasDisponibles(articuloId, reservas) {
   const articulo = await prisma.articulo.findUnique({ where: { id: Number(articuloId) } });
   if (!articulo) throw new Error(`No existe ningún artículo con id ${articuloId}.`);
 
   const compras = await prisma.compra.findMany({
-    include: { lineas: { include: { articulo: true } }, proveedor: true },
+    where: { anulada: false },
+    include: { lineas: { include: { articulo: true } } },
   });
 
-  const numerosPartidaVistos = new Set();
-  const resultado = [];
+  const porPartida = new Map();
   for (const compra of compras) {
     for (const linea of compra.lineas) {
       if (!sonMismaFamiliaProducto(linea.articulo, articulo)) continue;
-      if (numerosPartidaVistos.has(`${compra.numeroPartida}|${linea.articuloId}`)) continue;
-      numerosPartidaVistos.add(`${compra.numeroPartida}|${linea.articuloId}`);
-
-      const partidaCanonica = await prisma.partida.findUnique({ where: { numeroPartida: compra.numeroPartida } });
-      if (partidaCanonica?.cerradaManual) continue;
-
-      const kilosComprados = Number(linea.kilos) || 0;
-      const kilosVendidos = await kilosVendidosDePartida(linea.articulo, compra.numeroPartida);
-      const kilosDisponibles = kilosComprados - kilosVendidos;
-      if (kilosDisponibles > 0.01) {
-        resultado.push({
-          numeroPartida: compra.numeroPartida,
-          fecha: compra.fecha,
-          proveedorNombre: compra.proveedorNombreSnapshot,
-          coste: Number(linea.precioKg) || 0,
-          kilosComprados,
-          kilosDisponibles,
+      const kilos = Number(linea.kilos) || 0;
+      const coste = Number(linea.precioKg) || 0;
+      if (!porPartida.has(compra.numeroPartida)) {
+        porPartida.set(compra.numeroPartida, {
+          fecha: compra.fecha, proveedorNombre: compra.proveedorNombreSnapshot, kilosComprados: 0, baseTotal: 0,
         });
       }
+      const acc = porPartida.get(compra.numeroPartida);
+      acc.kilosComprados += kilos;
+      acc.baseTotal += kilos * coste;
+      if (new Date(compra.fecha) < new Date(acc.fecha)) {
+        acc.fecha = compra.fecha;
+        acc.proveedorNombre = compra.proveedorNombreSnapshot;
+      }
+    }
+  }
+
+  const resultado = [];
+  for (const [numeroPartida, acc] of porPartida) {
+    const partidaCanonica = await prisma.partida.findUnique({ where: { numeroPartida } });
+    if (partidaCanonica?.cerradaManual) continue;
+
+    const kilosVendidos = await kilosVendidosDePartida(articulo, numeroPartida);
+    const kilosReservados = (reservas && reservas.get(numeroPartida)) || 0;
+    const kilosDisponibles = acc.kilosComprados - kilosVendidos - kilosReservados;
+    if (kilosDisponibles > 0.01) {
+      resultado.push({
+        numeroPartida,
+        fecha: acc.fecha,
+        proveedorNombre: acc.proveedorNombre,
+        coste: acc.kilosComprados > 0 ? acc.baseTotal / acc.kilosComprados : 0,
+        kilosComprados: acc.kilosComprados,
+        kilosDisponibles,
+      });
     }
   }
   resultado.sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
@@ -103,9 +133,10 @@ async function obtenerPartidasDisponibles(articuloId) {
 // Elige la partida para una linea de venta: la primera disponible (mas
 // antigua, FIFO) cuyo margen (precioVenta - coste) llegue al minimo. Si
 // ninguna llega, no elige ninguna (queda como excepcion para revision
-// manual) - nunca fuerza una partida que no cumple el margen.
-async function elegirPartidaParaVenta({ articuloId, precioVenta }) {
-  const disponibles = await obtenerPartidasDisponibles(articuloId);
+// manual) - nunca fuerza una partida que no cumple el margen. "reservas"
+// (opcional) ver obtenerPartidasDisponibles.
+async function elegirPartidaParaVenta({ articuloId, precioVenta }, reservas) {
+  const disponibles = await obtenerPartidasDisponibles(articuloId, reservas);
   if (!disponibles.length) return { partidaNumero: null, disponibles, motivo: 'SIN_COMPRAS' };
   const precio = Number(precioVenta) || 0;
   const elegida = disponibles.find((p) => precio && precio - p.coste >= MARGEN_MINIMO_PARTIDA);

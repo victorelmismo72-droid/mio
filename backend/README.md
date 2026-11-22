@@ -173,6 +173,13 @@ descuido.
   (o su familia — mismo producto en otra talla, ver `src/margenPartida.js`),
   con los kilos que quedan de cada una y el margen ya calculado si se pasa
   un precio de venta — para construir el desplegable de "elegir partida".
+  **Corregidos el 22/11/2026, dos fallos reales en `obtenerPartidasDisponibles`
+  (`src/margenPartida.js`):** no excluía las compras anuladas (sus kilos
+  seguían contando como vendibles) y, cuando varias compras compartían el
+  mismo número de partida (proveedores distintos o varios albaranes del
+  mismo día), solo se tenía en cuenta la primera encontrada en vez de sumar
+  los kilos de todas con coste medio ponderado. Ambos corregidos y probados
+  con datos reales (ver Fase 2 punto 4).
 - `/pedidos` — CRUD completo. `POST /pedidos` y `PUT /pedidos/:id` calculan
   varias cosas en el servidor en vez de aceptarlas ya calculadas del
   cliente (mismo motivo que en compras — Fase 0 punto 2):
@@ -198,6 +205,13 @@ descuido.
     manual.
   - `PATCH /pedidos/lineas/:id/partida` (`{partidaNumero}`) — aplica a mano
     la partida elegida para una línea que quedó como excepción.
+  - **Corregido el 22/11/2026, "reservas" (ver Fase 2 punto 4):** dos o más
+    líneas del MISMO pedido sin grabar todavía que pidan el mismo producto
+    ya no pueden recibir ambas la misma disponibilidad sin reducir — cada
+    línea asignada "reserva" sus kilos en memoria antes de calcular la
+    siguiente. `POST /pedidos/asignar-partidas-dia` no necesitaba este
+    arreglo porque graba cada línea en la base de datos antes de pasar a la
+    siguiente.
 - `/traspasos`, `/repartos` — CRUD completo.
 - `/listas-precio` — CRUD completo, más (13/09/2026, ver Fase 2 punto 5):
   - `GET /listas-precio/auto?fecha=` — modo automático: coste medio real de
@@ -263,6 +277,13 @@ local de siempre ya funciona en todas ellas.
   coincidan en número de partida o en el conjunto de líneas (mismo
   artículo+kilos) — se trata como la misma compra y se actualiza en su
   sitio (rellenando el alb. proveedor) en vez de duplicarla.
+  **Corregido el 22/11/2026:** las dos búsquedas de coincidencia (la de
+  clave exacta y el fallback de arriba) no excluían las compras anuladas —
+  una compra anulada se podía "resucitar" en silencio si el Excel traía
+  algo parecido. Ahora las dos añaden `anulada: false`: si no hay ninguna
+  coincidencia activa se crea una compra nueva y la anulada se queda tal
+  cual estaba. Probado con una compra anulada y un reimport con los mismos
+  datos → crea una compra nueva, no toca la anulada.
 
 ### Nota de seguridad sobre la lectura de Excel
 

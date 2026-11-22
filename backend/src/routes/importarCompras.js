@@ -242,11 +242,17 @@ router.post('/compras-excel', upload.single('archivo'), async (req, res) => {
 
     const fechaCompra = new Date(grupo.fecha + 'T00:00:00.000Z');
 
+    // "anulada: false" en las dos búsquedas de mas abajo (corregido el
+    // 22/11/2026, ver Fase 0 punto 15): una compra anulada es historial,
+    // no debe "resucitarse" en silencio porque el Excel traiga algo
+    // parecido - si no se encuentra ninguna coincidencia activa, se crea
+    // una compra nueva (la anulada se queda anulada, tal cual estaba).
     const existenteExacto = await prisma.compra.findFirst({
       where: {
         numeroPartida: grupo.numeroPartida,
         albaranProveedor: grupo.albaranProveedor,
         proveedorId: grupo.proveedorId,
+        anulada: false,
       },
       include: { lineas: true },
     });
@@ -266,6 +272,7 @@ router.post('/compras-excel', upload.single('archivo'), async (req, res) => {
         where: {
           proveedorId: grupo.proveedorId,
           fecha: fechaCompra,
+          anulada: false,
           OR: [{ albaranProveedor: null }, { albaranProveedor: '' }],
         },
         include: { lineas: true },
