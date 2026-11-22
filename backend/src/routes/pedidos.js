@@ -8,7 +8,7 @@ const { prisma } = require('../db');
 const { registrarEscritura } = require('../logEscritura');
 const { conIdempotencia } = require('../idempotencia');
 const { elegirPartidaParaVenta } = require('../margenPartida');
-const { calcularIvaPedido, calcularTotalLineaPedido } = require('../ivaVentas');
+const { calcularIvaPedido, calcularTotalLineaPedido, evaluarExpresionPeso } = require('../ivaVentas');
 const { conFechaNormalizada } = require('../fechas');
 const { normalizarAgencia } = require('../agencias');
 
@@ -55,7 +55,20 @@ async function prepararPedido({ lineas, clienteId }) {
   const cliente = await prisma.cliente.findUnique({ where: { id: Number(clienteId) } });
   if (!cliente) throw new Error(`No existe ningún cliente con id ${clienteId}.`);
 
-  const lineasConPartida = await autoAsignarPartidasLineas(lineas);
+  // El peso se evalúa UNA vez aquí, antes de nada más (puede venir como
+  // expresión de texto, ej. "12+13.5" - ver evaluarExpresionPeso en
+  // ivaVentas.js): tanto la asignación de partida/reservas como el total
+  // de la línea deben usar el mismo número ya evaluado, nunca el texto
+  // crudo (si no, "12+13.5" se leería como 0 kilos reservados).
+  const lineasPeso = (lineas || []).map((l) => {
+    const peso = evaluarExpresionPeso(l.peso);
+    if (Number.isNaN(peso)) {
+      throw new Error(`El valor de Peso no es válido: "${l.peso}" (puede ser un número o una suma, ej. "12+13.5").`);
+    }
+    return { ...l, peso };
+  });
+
+  const lineasConPartida = await autoAsignarPartidasLineas(lineasPeso);
   const lineasFinal = [];
   for (const l of lineasConPartida) {
     const total = calcularTotalLineaPedido({ peso: l.peso, precio: l.precio, descuento: l.descuento });
@@ -113,23 +126,35 @@ router.post('/', async (req, res) => {
         ...cabecera
       } = req.body;
       if (cabecera.agencia !== undefined) cabecera.agencia = normalizarAgencia(cabecera.agencia);
+      // Si no se manda "numero" (o se manda vacío), se deja que lo genere la
+      // secuencia real de la base de datos (ver Pedido.numero en
+      // schema.prisma, 22/11/2026) - nunca se le pasa null a Prisma, porque
+      // la columna es NOT NULL y eso pisaría el DEFAULT con un error.
+      if (cabecera.numero == null || cabecera.numero === '') delete cabecera.numero;
+      else cabecera.numero = Number(cabecera.numero);
       const preparado = await prepararPedido({ lineas, clienteId: cabecera.clienteId });
-      const creado = await prisma.pedido.create({
-        data: {
-          ...conFechaNormalizada(cabecera),
-          clienteNombreSnapshot: preparado.clienteNombreSnapshot,
-          clienteCifSnapshot: preparado.clienteCifSnapshot,
-          clienteDirSnapshot: preparado.clienteDirSnapshot,
-          clientePobSnapshot: preparado.clientePobSnapshot,
-          clienteTelSnapshot: preparado.clienteTelSnapshot,
-          tipoIvaAplicado: preparado.tipoIvaAplicado,
-          baseImponible: preparado.baseImponible,
-          iva: preparado.iva,
-          total: preparado.total,
-          lineas: { create: preparado.lineas },
-        },
-        include: { lineas: true },
-      });
+      let creado;
+      try {
+        creado = await prisma.pedido.create({
+          data: {
+            ...conFechaNormalizada(cabecera),
+            clienteNombreSnapshot: preparado.clienteNombreSnapshot,
+            clienteCifSnapshot: preparado.clienteCifSnapshot,
+            clienteDirSnapshot: preparado.clienteDirSnapshot,
+            clientePobSnapshot: preparado.clientePobSnapshot,
+            clienteTelSnapshot: preparado.clienteTelSnapshot,
+            tipoIvaAplicado: preparado.tipoIvaAplicado,
+            baseImponible: preparado.baseImponible,
+            iva: preparado.iva,
+            total: preparado.total,
+            lineas: { create: preparado.lineas },
+          },
+          include: { lineas: true },
+        });
+      } catch (err) {
+        if (err.code === 'P2002') throw new Error(`Ya existe un pedido con el número ${cabecera.numero}. Déjalo en blanco para que se asigne uno automáticamente.`);
+        throw err;
+      }
       await registrarEscritura('pedidos', 'INSERT', creado.id, cabecera.puestoOrigen);
       return { statusHttp: 201, cuerpo: creado };
     });
@@ -151,6 +176,8 @@ router.put('/:id', async (req, res) => {
       ...cabecera
     } = req.body;
     if (cabecera.agencia !== undefined) cabecera.agencia = normalizarAgencia(cabecera.agencia);
+    if (cabecera.numero === '') delete cabecera.numero;
+    else if (cabecera.numero != null) cabecera.numero = Number(cabecera.numero);
     const preparado = await prepararPedido({ lineas, clienteId: cabecera.clienteId });
     const actualizado = await prisma.$transaction(async (tx) => {
       await tx.pedidoLinea.deleteMany({ where: { pedidoId: id } });

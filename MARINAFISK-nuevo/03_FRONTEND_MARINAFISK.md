@@ -37,13 +37,36 @@ Primera pantalla construida, por petición explícita de Víctor ("el frontend E
 
 ---
 
-## 3. Pendiente
+## 3. Pantalla de Pedidos — implementada y probada el 22/11/2026
 
-- El resto de pantallas (Pedidos, Traspasos, Repartos, Listas de precio, historial/corrección de Compras, partidas y márgenes) — ninguna construida todavía.
+Segunda pantalla construida (`public/pedidos.html`/`pedidos.js`), mismo patrón y mismo objetivo que Compras.
+
+- **Campos de cabecera**: Nº de albarán (opcional — corregido el 22/11/2026: antes no existía ninguna forma de generarlo, ver más abajo), fecha (hoy por defecto), cliente (autocompletar por código/nombre), agencia de transporte (desplegable con la lista cerrada de `backend/src/agencias.js`) y forma de pago — las dos últimas se rellenan por defecto con las del cliente elegido en cuanto se elige, pero siguen siendo editables para ese pedido en concreto (un envío puntual puede ir por una agencia distinta a la habitual del cliente). En cuanto se elige cliente se muestra, puramente informativo, su tipo de IVA (badge Normal/Recargo de Equivalencia/Intracomunitario) y su dirección.
+- **Corrección real encontrada al construir esta pantalla (22/11/2026): `Pedido.numero` no tenía ninguna forma de generarse.** A diferencia de `Partida.numeroPartida`, el campo era `Int @unique` sin ningún valor por defecto — ni el backend ni ninguna pantalla lo rellenaban nunca, así que la pantalla no podía grabar nada. Se ha añadido una secuencia real de Postgres (`pedidos_numero_seq`, mismo patrón que `partidas_numero_partida_seq`) como `DEFAULT` de la columna: si se deja "Nº albarán" en blanco, el servidor asigna el siguiente número automáticamente (seguro con dos puestos grabando a la vez, a nivel de base de datos — ver Fase 0 punto 74 sobre el fallo real de 667 números duplicados con el contador antiguo en memoria); si Víctor teclea uno a mano (ej. para encajar con un albarán ya impreso), se usa tal cual y un número repetido da un error claro en vez de un fallo interno.
+- **Líneas**: producto (autocompletar), cajas, peso (admite sumar varias cifras, ej. `12+13.5`, igual que Kilos en Compras), €/kg, descuento %. **Corrección real encontrada al construir esta pantalla:** el peso de una línea de pedido nunca se evaluaba como expresión en el servidor (`calcularTotalLineaPedido` hacía `Number(peso)`, que da `NaN`→0 con un texto como `"12+13.5"`) — ya estaba confirmado como requisito pendiente en este mismo documento (ver antiguo punto 3 de "Pendiente"). Añadido `evaluarExpresionPeso` en `backend/src/ivaVentas.js` (puerto directo de `evaluarExpresionKilos` de Compras), evaluado una sola vez en `prepararPedido` antes de la asignación de partida/reservas (para que la reserva de kilos tampoco se confunda con el texto crudo) y antes del cálculo del total.
+- La columna de Total de cada línea es una **vista previa en vivo** (misma fórmula que `calcularTotalLineaPedido`); el pie muestra peso total, base imponible, IVA (con la etiqueta cambiando según el tipo fiscal del cliente: "IVA (10%)" / "IVA+Recargo (11,4%)" / "IVA (0% intracom.)") y el total del pedido — igual filosofía que Compras: el servidor es quien decide de verdad al grabar (`backend/src/ivaVentas.js`).
+- **Partida de venta**: esta pantalla no la muestra ni la fuerza mientras se teclea (Víctor la tiene desactivada en el HTML real por decisión propia, no solo por rendimiento — ver Fase 2 punto 4) — el servidor la sigue asignando en silencio igual que siempre. Al grabar, el aviso de éxito informa cuántas líneas se quedaron sin partida asignada (si alguna), por transparencia, sin bloquear el pedido.
+- **Navegación de teclado**: Tab/Enter recorre Cajas → Peso → €/Kg → Dto % → Cajas de la siguiente línea, igual que Compras.
+- **Grabar**: protegido con `idempotencyKey` y botón deshabilitado durante el guardado, igual que Compras.
+- Barra superior con enlaces de navegación entre pantallas (Compras ⇄ Pedidos) — antes cada pantalla era una página aislada sin forma de pasar de una a otra salvo tecleando la URL.
+
+**Probado end-to-end con Playwright (navegador real) el 22/11/2026:**
+- Autocompletar de cliente y de producto; agencia/forma de pago rellenadas por defecto desde el cliente.
+- Badge e IVA del pie cambiando correctamente entre los tres clientes de prueba (Normal/Recargo de Equivalencia/Intracomunitario).
+- Peso con expresión (`12+13.5` → 25,5 kg) calculado igual en la vista previa y en la base de datos tras grabar.
+- Pedido con dos líneas de productos distintos grabado correctamente, con el Nº de albarán asignado automáticamente, el total coincidiendo exacto entre pantalla y servidor, y el aviso de "línea sin partida asignada" apareciendo cuando correspondía.
+- Nº de albarán duplicado tecleado a mano rechazado con un mensaje claro en vez de un error interno.
+- El servidor no se cae en ningún momento de la prueba.
+
+---
+
+## 4. Pendiente
+
+- El resto de pantallas (Traspasos, Repartos, Listas de precio, historial/corrección de Compras, partidas y márgenes) — ninguna construida todavía.
 - **Histórico/listado de Compras** (`RESUMEN_COMPLETO_para_Code_18-11-2026_5.md`, 20/11/2026): cuando se construya, debe incluir filtro por partida/alb. proveedor/proveedor/producto/fecha/control, listado imprimible en A4 apaisado con formato compacto (fuente pequeña, una línea por compra, sin partir fecha/producto/importes) e incluyendo códigos de proveedor y producto (para cargar en el programa de Zaragoza), exportación a Excel con los mismos filtros, y un selector de orden (fecha/partida/importe, ascendente o descendente) que afecte tanto al listado impreso como al Excel.
 - **Existencias**: módulo nuevo completo (stock por fecha/artículo con cantidad, peso, precio, nota, marca de vendido y venta parcial), no modelado todavía en el esquema — ver Fase 0 punto 15.
 - Las funcionalidades de impresión de `CORRECCIONES_02-09-2026_para_Code_7.md` (Hoja Transfrío también en Traspasos, Hoja CMR condicional por agencia, catálogo de modelos de impresión, impresión en lote con copias dentro del PDF y apertura de pestañas solo por clic directo, y —nuevo, punto 12— imprimir desde la propia fila del listado con botones **separados** por documento cuando se imprimen en impresoras físicas distintas, nunca combinados en un único PDF/botón — ver `FASE_0_reglas_de_negocio_MARINAFISK.md` punto 13) — Víctor las llama "Fase 4 (interfaz)" en ese documento, pero `FASE_4_facturacion_MARINAFISK.md` es solo facturación; viven en este documento de frontend, no en Fase 4.
-- El patrón de autosuma con "+"/"-" ya usado en Kilos de Compras (`evaluarExpresionKilos`) debe repetirse en el campo de peso de Pedidos (y Traspasos/Repartos si aplica) cuando se construyan esas pantallas — confirmado como requisito general en `CORRECCIONES_02-09-2026_para_Code_7.md` punto 13.
+- **[x] El patrón de autosuma con "+"/"-" ya usado en Kilos de Compras** (`evaluarExpresionKilos`) — hecho en Pedidos el 22/11/2026 (ver punto 3, `evaluarExpresionPeso`); sigue pendiente en Traspasos/Repartos cuando se construyan esas pantallas — confirmado como requisito general en `CORRECCIONES_02-09-2026_para_Code_7.md` punto 13.
 - Comparación de agilidad frente al Excel/HTML actual con Víctor usando la pantalla real (Fase 2 punto 7) — ya se puede hacer para Compras.
 - Sin login/roles todavía — cualquiera que abra la URL puede grabar; no se ha pedido y el HTML actual tampoco lo tiene, pero señalado aquí por si hiciera falta más adelante.
 

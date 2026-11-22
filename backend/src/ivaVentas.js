@@ -23,8 +23,27 @@ function calcularIvaPedido(base, tipoIva) {
   return { ivaPct, rePct, iva, total: base + iva };
 }
 
+// Admite sumar varias cifras en Peso, igual que Kilos en Compras (ej.
+// "12+13.5" al pesar varios bultos por separado) - requisito confirmado
+// para Pedidos en 03_FRONTEND_MARINAFISK.md ("debe repetirse en el campo
+// de peso de Pedidos"), puerto directo de evaluarExpresionKilos()
+// (calculoCompra.js). Solo suma/resta números, no es una calculadora
+// general, a propósito.
+function evaluarExpresionPeso(valorTexto) {
+  const texto = String(valorTexto == null ? '' : valorTexto).trim();
+  if (texto === '') return 0;
+  if (!/^[0-9.,+\-\s]+$/.test(texto)) return NaN;
+  const tokens = texto.replace(/,/g, '.').replace(/\s+/g, '').match(/[+-]?[0-9]*\.?[0-9]+/g);
+  if (!tokens || !tokens.length) return NaN;
+  return tokens.reduce((s, t) => s + parseFloat(t), 0);
+}
+
 // Total de una línea de pedido: peso * precio, con el descuento (%) ya
-// descontado. Idéntico a calcLineaPed() del HTML.
+// descontado. Idéntico a calcLineaPed() del HTML. "peso" aquí ya tiene que
+// ser un número evaluado (ver evaluarExpresionPeso más arriba) - lo evalúa
+// quien prepara el pedido (routes/pedidos.js), antes de que el peso se use
+// también para la asignación de partida/reservas (Fase 2 punto 4), no solo
+// para este total.
 function calcularTotalLineaPedido({ peso, precio, descuento }) {
   const p = Number(peso) || 0;
   const pr = Number(precio) || 0;
@@ -32,4 +51,4 @@ function calcularTotalLineaPedido({ peso, precio, descuento }) {
   return p * pr * (1 - d / 100);
 }
 
-module.exports = { calcularIvaPedido, calcularTotalLineaPedido };
+module.exports = { calcularIvaPedido, calcularTotalLineaPedido, evaluarExpresionPeso };

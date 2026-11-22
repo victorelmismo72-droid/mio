@@ -55,6 +55,18 @@ body {
 }
 .barra .puesto:hover { background: rgba(255,255,255,0.25); }
 
+.nav-pantallas { display: flex; gap: 4px; flex-wrap: wrap; }
+.nav-pantallas a {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.75);
+  text-decoration: none;
+  padding: 6px 10px;
+  border-radius: 4px;
+}
+.nav-pantallas a:hover { background: rgba(255,255,255,0.12); color: #fff; }
+.nav-pantallas a.activa { background: rgba(255,255,255,0.18); color: #fff; }
+
 .card {
   background: #fff;
   border: 1px solid var(--gris-borde);
@@ -193,6 +205,48 @@ table.lineas .col-check { width: 36px; text-align: center; }
   flex-wrap: wrap;
 }
 .pie-totales b { font-variant-numeric: tabular-nums; }
+.pie-totales b.total-grande { font-size: 16px; color: var(--azul); }
+
+.numero-pedido {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--gris-texto);
+}
+.numero-pedido strong { color: var(--azul); font-variant-numeric: tabular-nums; }
+
+.cliente-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  background: var(--azul-claro);
+  border: 1px solid #c9d8e3;
+  border-radius: 4px;
+  padding: 10px 12px;
+  margin-top: 12px;
+  font-size: 13px;
+  color: var(--gris-texto);
+}
+.badge-iva {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--azul);
+  background: #fff;
+  border: 1px solid #c9d8e3;
+  border-radius: 999px;
+  padding: 3px 10px;
+}
+.badge-iva.recargo { color: #8a5a00; border-color: #e6cf99; background: #fff8ea; }
+.badge-iva.intra { color: var(--verde); border-color: #b6ddb6; background: #f0f9f0; }
+
+.partida-chip {
+  font-size: 11px;
+  color: var(--gris-texto);
+  white-space: nowrap;
+}
+.partida-chip.pendiente { color: #8a5a00; font-weight: 600; }
 
 @media (max-width: 560px) {
   .fila-campos { flex-direction: column; align-items: stretch; }

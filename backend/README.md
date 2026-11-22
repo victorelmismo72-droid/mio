@@ -183,16 +183,36 @@ descuido.
 - `/pedidos` — CRUD completo. `POST /pedidos` y `PUT /pedidos/:id` calculan
   varias cosas en el servidor en vez de aceptarlas ya calculadas del
   cliente (mismo motivo que en compras — Fase 0 punto 2):
+  - **Nº de albarán (`numero`) — corregido el 22/11/2026, fallo real
+    encontrado al construir la pantalla de Pedidos:** la columna era
+    `Int @unique` sin ningún valor por defecto, y nada lo rellenaba nunca
+    (a diferencia de `Partida.numeroPartida`). Añadida una secuencia real
+    de Postgres (`pedidos_numero_seq`, mismo patrón que
+    `partidas_numero_partida_seq`) como `DEFAULT` de la columna: si no se
+    manda `numero` (o se manda vacío), se asigna el siguiente automático,
+    seguro aunque dos puestos graben a la vez (ver Fase 0 punto 74, el
+    incidente real de 667 números duplicados con el contador antiguo en
+    memoria). Si se manda un número a mano que ya existe, se devuelve un
+    error claro en vez de un fallo interno de Prisma.
   - **IVA de ventas (12/09/2026, ver Fase 2 punto 3):** `baseImponible`,
     `iva` y `total` del pedido se calculan a partir de las líneas y del
     `tipoIva` del cliente (`clienteId`) consultado en ese momento en la
     base de datos — Normal → 10%, Recargo de Equivalencia → 10%+1,4%,
     Intracomunitario → 0% (`src/ivaVentas.js`, puerto de
     `calcularIvaPedido()` del HTML). El total de cada línea también se
-    calcula en el servidor (`peso * precio * (1 - descuento/100)`). Los
-    campos "foto" del cliente (`clienteNombreSnapshot`, etc.) se rellenan
-    también desde el cliente real en ese momento, no hace falta que el
-    cliente HTTP los mande.
+    calcula en el servidor (`peso * precio * (1 - descuento/100)`), con el
+    peso evaluado como expresión (ver el punto siguiente). Los campos
+    "foto" del cliente (`clienteNombreSnapshot`, etc.) se rellenan también
+    desde el cliente real en ese momento, no hace falta que el cliente
+    HTTP los mande.
+  - **Peso con expresión ("12+13.5") — corregido el 22/11/2026, fallo real
+    encontrado al construir la pantalla de Pedidos:** el peso de una línea
+    nunca se evaluaba como expresión (`Number("12+13.5")` da `NaN`→0), a
+    diferencia de Kilos en Compras. Añadido `evaluarExpresionPeso` en
+    `src/ivaVentas.js` (puerto directo de `evaluarExpresionKilos` de
+    `calculoCompra.js`), evaluado una sola vez en `prepararPedido` antes de
+    la asignación de partida/reservas (para que la reserva de kilos no se
+    confunda con el texto crudo) y antes del cálculo del total.
   - **Asignación automática de partida (12/09/2026, ver Fase 2 punto 4):**
     a cada línea sin `partidaNumero` explícito se le asigna la partida
     disponible más antigua que llegue al margen mínimo (1,30 €/kg); si el

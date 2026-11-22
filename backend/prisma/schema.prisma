@@ -213,7 +213,15 @@ model Partida {
 
 model Pedido {
   id              Int      @id @default(autoincrement())
-  numero          Int      @unique
+  // Numero de albaran de venta (Fase 4, pantalla de Pedidos, 22/11/2026):
+  // igual que numeroPartida en Partida, se genera con una secuencia real de
+  // la base de datos (pedidos_numero_seq) para que dos puestos grabando a
+  // la vez nunca puedan repetir el mismo numero (ver Fase 0 punto 74: 667
+  // numeros duplicados en un incidente real de 5 minutos con el contador
+  // antiguo en memoria). Victor puede seguir tecleando un numero a mano si
+  // lo necesita (ej. para encajar con un albaran ya impreso) - el unique
+  // de mas abajo lo protege igual, y la secuencia nunca retrocede.
+  numero          Int      @unique @default(dbgenerated("nextval('pedidos_numero_seq')"))
   fecha           DateTime @db.Date
   clienteId       Int      @map("cliente_id")
   cliente         Cliente  @relation(fields: [clienteId], references: [id])
