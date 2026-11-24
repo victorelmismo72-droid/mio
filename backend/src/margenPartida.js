@@ -33,26 +33,53 @@ function sonMismaFamiliaProducto(articuloA, articuloB) {
   return primeraPalabra(articuloA?.descripcion) === primeraPalabra(articuloB?.descripcion);
 }
 
+// Reparto de una linea entre una o varias partidas (ver PedidoLineaPartida/
+// TraspasoLineaPartida en schema.prisma, actualizacion 24/11/2026 -
+// RESUMEN_COMPLETO_para_Code_18-11-2026_8.md, "una linea repartida en dos o
+// mas partidas"): el caso normal (una sola partida) no tiene ninguna fila en
+// `partidas` - se construye un reparto SINTETICO de una sola entrada a
+// partir de partidaNumero+peso, igual que hace el HTML real cuando
+// `linea.partidas` esta vacio.
+//
+// Cuando SI hay reparto real, los kilos de la ULTIMA entrada (por `orden`)
+// nunca se confian tal cual estan guardados: se recalculan siempre como "lo
+// que falte hasta el peso de la linea" (puerto directo de repartoPartidas()
+// del HTML real) - asi, si el peso de la linea cambia mas adelante, el
+// reparto se ajusta solo en vez de quedar obsoleto.
+function repartoPartidas(linea) {
+  const partidas = linea.partidas || [];
+  if (!partidas.length) {
+    return linea.partidaNumero != null
+      ? [{ numeroPartida: linea.partidaNumero, kilos: Number(linea.peso) || 0 }]
+      : [];
+  }
+  const resultado = [...partidas]
+    .sort((a, b) => a.orden - b.orden)
+    .map((p) => ({ numeroPartida: p.numeroPartida, kilos: Number(p.kilos) || 0 }));
+  const pesoTotal = Number(linea.peso) || 0;
+  const sumaSalvoUltima = resultado.slice(0, -1).reduce((s, p) => s + p.kilos, 0);
+  resultado[resultado.length - 1].kilos = Math.max(0, pesoTotal - sumaSalvoUltima);
+  return resultado;
+}
+
 // Kilos ya vendidos de una partida concreta para un producto (o su familia):
 // suma lineas de pedidos Y de traspasos (un traspaso a Zaragoza tambien
-// consume kilos de la partida, igual que una venta - ver Fase 0).
+// consume kilos de la partida, igual que una venta - ver Fase 0). Una linea
+// repartida entre varias partidas (ver repartoPartidas de arriba) solo
+// descuenta de ESTA partida los kilos que de verdad le tocan a ella, no el
+// peso completo de la linea.
 async function kilosVendidosDePartida(articulo, numeroPartida) {
+  const filtroPartida = { OR: [{ partidaNumero: numeroPartida }, { partidas: { some: { numeroPartida } } }] };
   const [lineasPedido, lineasTraspaso] = await Promise.all([
-    prisma.pedidoLinea.findMany({
-      where: { partidaNumero: numeroPartida },
-      include: { articulo: true },
-    }),
-    prisma.traspasoLinea.findMany({
-      where: { partidaNumero: numeroPartida },
-      include: { articulo: true },
-    }),
+    prisma.pedidoLinea.findMany({ where: filtroPartida, include: { articulo: true, partidas: true } }),
+    prisma.traspasoLinea.findMany({ where: filtroPartida, include: { articulo: true, partidas: true } }),
   ]);
   let total = 0;
-  for (const l of lineasPedido) {
-    if (sonMismaFamiliaProducto(l.articulo, articulo)) total += Number(l.peso) || 0;
-  }
-  for (const l of lineasTraspaso) {
-    if (sonMismaFamiliaProducto(l.articulo, articulo)) total += Number(l.peso) || 0;
+  for (const l of [...lineasPedido, ...lineasTraspaso]) {
+    if (!sonMismaFamiliaProducto(l.articulo, articulo)) continue;
+    for (const entrada of repartoPartidas(l)) {
+      if (entrada.numeroPartida === numeroPartida) total += entrada.kilos;
+    }
   }
   return total;
 }
@@ -130,18 +157,29 @@ async function obtenerPartidasDisponibles(articuloId, reservas) {
   return resultado;
 }
 
-// Elige la partida para una linea de venta: la primera disponible (mas
-// antigua, FIFO) cuyo margen (precioVenta - coste) llegue al minimo. Si
-// ninguna llega, no elige ninguna (queda como excepcion para revision
+// Elige la partida para una linea de venta: entre las que llegan al margen
+// minimo, preferir la mas antigua (FIFO) que CUBRA el peso necesario
+// completo (puerto de elegirPartidaAuto() del HTML real, actualizacion
+// 24/11/2026); si ninguna lo cubre entero, la que mas kilos libres tenga
+// (motivo "PARCIAL" - el resto hay que repartirlo a mano en otra partida,
+// ver Fase 2 punto 4). Si "pesoNecesario" no se indica (uso antiguo, ej. el
+// lote de /pedidos/asignar-partidas-dia), se comporta como antes: la mas
+// antigua que llegue al margen, sin mirar si cubre el peso. Si ninguna
+// llega al margen, no elige ninguna (queda como excepcion para revision
 // manual) - nunca fuerza una partida que no cumple el margen. "reservas"
 // (opcional) ver obtenerPartidasDisponibles.
-async function elegirPartidaParaVenta({ articuloId, precioVenta }, reservas) {
+async function elegirPartidaParaVenta({ articuloId, precioVenta, pesoNecesario }, reservas) {
   const disponibles = await obtenerPartidasDisponibles(articuloId, reservas);
   if (!disponibles.length) return { partidaNumero: null, disponibles, motivo: 'SIN_COMPRAS' };
   const precio = Number(precioVenta) || 0;
-  const elegida = disponibles.find((p) => precio && precio - p.coste >= MARGEN_MINIMO_PARTIDA);
-  if (!elegida) return { partidaNumero: null, disponibles, motivo: 'SIN_MARGEN' };
-  return { partidaNumero: elegida.numeroPartida, disponibles, motivo: 'OK' };
+  const conMargen = disponibles.filter((p) => precio && precio - p.coste >= MARGEN_MINIMO_PARTIDA);
+  if (!conMargen.length) return { partidaNumero: null, disponibles, motivo: 'SIN_MARGEN' };
+  if (pesoNecesario == null) return { partidaNumero: conMargen[0].numeroPartida, disponibles, motivo: 'OK' };
+  const peso = Number(pesoNecesario) || 0;
+  const queCubren = conMargen.filter((p) => p.kilosDisponibles >= peso);
+  if (queCubren.length) return { partidaNumero: queCubren[0].numeroPartida, disponibles, motivo: 'OK' };
+  const porKilosLibres = [...conMargen].sort((a, b) => b.kilosDisponibles - a.kilosDisponibles);
+  return { partidaNumero: porKilosLibres[0].numeroPartida, disponibles, motivo: 'PARCIAL' };
 }
 
 // Coste real "de ahora mismo" para un articulo (Fase 2 punto 5, aviso de
@@ -162,6 +200,7 @@ async function costeRealActual(articuloId) {
 module.exports = {
   MARGEN_MINIMO_PARTIDA,
   sonMismaFamiliaProducto,
+  repartoPartidas,
   kilosVendidosDePartida,
   obtenerPartidasDisponibles,
   elegirPartidaParaVenta,

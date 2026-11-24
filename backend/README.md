@@ -213,11 +213,17 @@ descuido.
     `calculoCompra.js`), evaluado una sola vez en `prepararPedido` antes de
     la asignación de partida/reservas (para que la reserva de kilos no se
     confunda con el texto crudo) y antes del cálculo del total.
-  - **Asignación automática de partida (12/09/2026, ver Fase 2 punto 4):**
-    a cada línea sin `partidaNumero` explícito se le asigna la partida
-    disponible más antigua que llegue al margen mínimo (1,30 €/kg); si el
-    cliente ya eligió una partida a mano, no se recalcula. Si ninguna llega
-    al margen, la línea queda sin partida (excepción). Además:
+  - **Partida de venta — reescrito el 24/11/2026 (ver Fase 2 punto 4):**
+    cada línea admite `partidas: [{numeroPartida, kilos}, ...]` (el reparto
+    elegido a mano en el desplegable del frontend, una o varias — ver
+    `public/pedidos.js`), o un `partidaNumero` suelto (compatibilidad, una
+    sola partida), o nada en absoluto: en ese caso el servidor sigue
+    pudiendo autoasignar en silencio la partida disponible más antigua que
+    llegue al margen mínimo (1,30 €/kg) y cubra el peso entero (red de
+    seguridad, no el camino normal — Víctor elige a mano en producción). Si
+    ninguna llega al margen, la línea queda sin partida (excepción). Un
+    `partidaNumero: null` mandado explícitamente (no omitido) fuerza "sin
+    partida" de verdad, sin autoasignar.
   - `POST /pedidos/asignar-partidas-dia` (`{fecha}` en el cuerpo, por
     defecto hoy) — equivalente al botón "📦 ASIGNAR PARTIDAS DE HOY": asigna
     en lote todo lo que puede de los pedidos de esa fecha y devuelve las
@@ -225,13 +231,24 @@ descuido.
     manual.
   - `PATCH /pedidos/lineas/:id/partida` (`{partidaNumero}`) — aplica a mano
     la partida elegida para una línea que quedó como excepción.
-  - **Corregido el 22/11/2026, "reservas" (ver Fase 2 punto 4):** dos o más
-    líneas del MISMO pedido sin grabar todavía que pidan el mismo producto
-    ya no pueden recibir ambas la misma disponibilidad sin reducir — cada
-    línea asignada "reserva" sus kilos en memoria antes de calcular la
-    siguiente. `POST /pedidos/asignar-partidas-dia` no necesitaba este
-    arreglo porque graba cada línea en la base de datos antes de pasar a la
-    siguiente.
+  - **"Reservas" (ver Fase 2 punto 4):** dos o más líneas del MISMO pedido
+    sin grabar todavía que pidan el mismo producto ya no pueden recibir
+    ambas la misma disponibilidad sin reducir — cada línea (con partida a
+    mano, repartida o automática) "reserva" sus kilos en memoria antes de
+    calcular la siguiente. `POST /pedidos/asignar-partidas-dia` no necesita
+    este arreglo porque graba cada línea en la base de datos antes de pasar
+    a la siguiente.
+  - **Reparto de una línea entre varias partidas (24/11/2026):** si ninguna
+    partida disponible cubre el peso entero de la línea, se puede repartir
+    entre varias (`PedidoLineaPartida`/`TraspasoLineaPartida` en
+    schema.prisma — solo se crean filas aquí cuando de verdad hay más de
+    una partida, el caso normal sigue usando solo `partidaNumero`). Los
+    kilos de la ÚLTIMA partida del reparto nunca se guardan tal cual: se
+    recalculan siempre como "lo que falte hasta el peso de la línea"
+    (`datosLineaParaCrear` en `routes/pedidos.js`), para que un pedido
+    editado más tarde (cambio de peso) nunca deje un reparto desincronizado.
+    `GET /pedidos`/`GET /pedidos/:id` incluyen `lineas[].partidas` (vacío
+    salvo que la línea esté repartida).
 - `/traspasos`, `/repartos` — CRUD completo.
 - `/listas-precio` — CRUD completo, más (13/09/2026, ver Fase 2 punto 5):
   - `GET /listas-precio/auto?fecha=` — modo automático: coste medio real de

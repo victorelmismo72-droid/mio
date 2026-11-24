@@ -266,9 +266,40 @@ model PedidoLinea {
   // asignar, reemplaza a la "pantalla de excepciones" actual: es un filtro
   // sobre esta misma tabla). NO es una FK a `partidas` - esa tabla solo
   // guarda cierres manuales, no existe una fila por cada numero de partida.
+  // Si la linea esta repartida entre varias partidas (ver `partidas` mas
+  // abajo, 24/11/2026), este campo sigue siendo la PRIMERA, por
+  // compatibilidad con cualquier sitio que solo mire este campo (ej.
+  // listados antiguos) - la fuente de verdad del reparto completo es la
+  // relacion `partidas`.
   partidaNumero      Int?     @map("partida_numero")
 
+  // Reparto de esta linea entre MAS de una partida (ver Fase 2 punto 4,
+  // actualizacion 24/11/2026 - RESUMEN_COMPLETO_para_Code_18-11-2026_8.md):
+  // el caso normal (una sola partida) NO crea ninguna fila aqui, solo usa
+  // `partidaNumero` + `peso` tal cual (ver repartoPartidas() en
+  // margenPartida.js) - esta relacion solo se rellena cuando de verdad hace
+  // falta mas de una partida para cubrir el peso de la linea.
+  partidas PedidoLineaPartida[]
+
   @@map("pedido_lineas")
+}
+
+// Una fila por cada partida que aporta kilos a una PedidoLinea repartida
+// entre varias (ver el comentario de arriba). Los kilos de la ULTIMA fila
+// (por `orden`) nunca son la fuente de verdad: se recalculan siempre como
+// "lo que falte hasta el peso de la linea" (ver repartoPartidas() en
+// margenPartida.js), para que un cambio de peso despues no deje un reparto
+// obsoleto - el valor aqui guardado para la ultima fila es solo el ultimo
+// calculo conocido, informativo.
+model PedidoLineaPartida {
+  id            Int         @id @default(autoincrement())
+  pedidoLineaId Int         @map("pedido_linea_id")
+  pedidoLinea   PedidoLinea @relation(fields: [pedidoLineaId], references: [id], onDelete: Cascade)
+  orden         Int
+  numeroPartida Int         @map("numero_partida")
+  kilos         Decimal     @db.Decimal(10, 2)
+
+  @@map("pedido_linea_partidas")
 }
 
 // ---------------------------------------------------------------------
@@ -304,9 +335,24 @@ model TraspasoLinea {
   // comentario del modelo Partida mas arriba). Un traspaso a Zaragoza
   // consume kilos de una partida exactamente igual que un pedido, por eso
   // Fase 2 (margen) suma ambos al calcular kilos disponibles.
+  // Igual que en PedidoLinea (24/11/2026): sigue siendo la PRIMERA partida
+  // si la linea esta repartida entre varias (ver `partidas` mas abajo).
   partidaNumero Int?   @map("partida_numero")
+  partidas      TraspasoLineaPartida[]
 
   @@map("traspaso_lineas")
+}
+
+// Equivalente a PedidoLineaPartida (ver el comentario de ese modelo).
+model TraspasoLineaPartida {
+  id              Int           @id @default(autoincrement())
+  traspasoLineaId Int           @map("traspaso_linea_id")
+  traspasoLinea   TraspasoLinea @relation(fields: [traspasoLineaId], references: [id], onDelete: Cascade)
+  orden           Int
+  numeroPartida   Int           @map("numero_partida")
+  kilos           Decimal       @db.Decimal(10, 2)
+
+  @@map("traspaso_linea_partidas")
 }
 
 model Reparto {
