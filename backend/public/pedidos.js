@@ -45,7 +45,7 @@ let guardando = false;
 // seguridad) de "Víctor ha elegido explícitamente sin partida" en el
 // desplegable (fila "— sin partida —") - en ese caso NO debe autoasignarse
 // nada, se manda `partidaNumero: null` de verdad (ver pedidos.js backend).
-const lineaVacia = () => ({ articuloId: null, articuloTexto: '', cajas: '', pesoTexto: '', precioKg: '', descuento: '', partidas: [], sinPartidaForzada: false });
+const lineaVacia = () => ({ articuloId: null, articuloTexto: '', cajas: '', piezas: '', pesoTexto: '', precioKg: '', descuento: '', partidas: [], sinPartidaForzada: false });
 
 // ===== Arranque =====
 
@@ -91,6 +91,7 @@ function reiniciarFormulario() {
   document.getElementById('pd-cli-buscar').value = '';
   document.getElementById('pd-agencia').value = '';
   document.getElementById('pd-formapago').value = '';
+  document.getElementById('pd-palets').value = 0;
   document.getElementById('pd-cliente-info').style.display = 'none';
   clienteSeleccionado = null;
   lineas = [lineaVacia()];
@@ -416,6 +417,7 @@ function renderLineas() {
         <div class="sugerencias" id="pda_dd_${i}" data-linea="${i}"></div>
       </td>
       <td class="col-estrecha"><input type="number" id="pq_${i}" min="0" value="${l.cajas}"></td>
+      <td class="col-estrecha"><input type="number" id="pz_${i}" min="0" step="1" value="${l.piezas}" title="Número de piezas (unidades sueltas), opcional."></td>
       <td><input type="text" inputmode="decimal" id="pp_${i}" placeholder="ej. 12+13.5" title="Puedes sumar varios bultos, igual que en Compras: 12+13.5" value="${l.pesoTexto}"></td>
       <td class="col-estrecha"><input type="number" id="pr_${i}" min="0" step="0.01" value="${l.precioKg}"></td>
       <td class="col-estrecha"><input type="number" id="pdto_${i}" min="0" max="100" step="0.01" value="${l.descuento}"></td>
@@ -428,6 +430,8 @@ function renderLineas() {
     document.getElementById(`pda_${i}`).addEventListener('input', (e) => buscarArticulo(i, e.target.value));
     document.getElementById(`pq_${i}`).addEventListener('input', (e) => actualizarLinea(i, 'cajas', e.target.value));
     document.getElementById(`pq_${i}`).addEventListener('keydown', (e) => navegarPedido(e, i, 'cajas'));
+    document.getElementById(`pz_${i}`).addEventListener('input', (e) => actualizarLinea(i, 'piezas', e.target.value));
+    document.getElementById(`pz_${i}`).addEventListener('keydown', (e) => navegarPedido(e, i, 'piezas'));
     document.getElementById(`pp_${i}`).addEventListener('input', (e) => actualizarLinea(i, 'pesoTexto', e.target.value));
     document.getElementById(`pp_${i}`).addEventListener('keydown', (e) => navegarPedido(e, i, 'peso'));
     document.getElementById(`pr_${i}`).addEventListener('input', (e) => actualizarLinea(i, 'precioKg', e.target.value));
@@ -489,8 +493,8 @@ function navegarPedido(e, i, campo) {
   if (e.key !== 'Enter' && e.key !== 'Tab') return;
   e.preventDefault();
   if (campo === 'precioKg') { iniciarEleccionPartida(i); return; }
-  const orden = ['cajas', 'peso', 'precioKg', 'descuento'];
-  const prefijo = { cajas: 'pq_', peso: 'pp_', precioKg: 'pr_', descuento: 'pdto_' };
+  const orden = ['cajas', 'piezas', 'peso', 'precioKg', 'descuento'];
+  const prefijo = { cajas: 'pq_', piezas: 'pz_', peso: 'pp_', precioKg: 'pr_', descuento: 'pdto_' };
   const idx = orden.indexOf(campo);
   if (idx < orden.length - 1) {
     enfocar(prefijo[orden[idx + 1]], i);
@@ -533,8 +537,14 @@ function elegirArticulo(i, id) {
   lineas[i].articuloId = a.id;
   lineas[i].articuloTexto = `${a.codigo} — ${a.descripcion}`;
   lineas[i].partidas = [];
+  // El precio se autorrellena con el PVP1 del artículo (igual que en el
+  // HTML real, elegirArtPed) — sigue siendo editable, es solo un punto de
+  // partida, no un precio fijo.
+  if (!lineas[i].precioKg && a.pvp1 != null) lineas[i].precioKg = a.pvp1;
   const input = document.getElementById(`pda_${i}`);
   if (input) input.value = lineas[i].articuloTexto;
+  const precioInput = document.getElementById(`pr_${i}`);
+  if (precioInput) precioInput.value = lineas[i].precioKg;
   document.getElementById(`pda_dd_${i}`).style.display = 'none';
   if (i === lineas.length - 1) agregarLinea();
   pintarCalculoLinea(i);
@@ -565,6 +575,19 @@ async function grabarPedido() {
     return;
   }
 
+  // Documento electrónico de control (ver api.js pedirPalets): se vuelve a
+  // confirmar siempre justo antes de grabar, con lo que ya haya en la
+  // casilla de cabecera como valor de partida — igual que pedirPaletsYGrabar
+  // del HTML real. Esc/"Volver" cancela el grabado sin tocar nada.
+  const bultos = lineasValidas.reduce((s, l) => s + (Number(l.cajas) || 0), 0);
+  const pesoTotalPrev = lineasValidas.reduce((s, l) => s + (evaluarExpresionPeso(l.pesoTexto) || 0), 0);
+  const palets = await pedirPalets({
+    titulo: '¿CUÁNTOS PALETS LLEVA ESTE PEDIDO?',
+    contexto: `${clienteSeleccionado.codigo} — ${bultos} bultos, ${fmt(pesoTotalPrev)} kg`,
+    valorActual: document.getElementById('pd-palets').value,
+  });
+  if (palets === null) return; // cancelado - no se graba nada
+
   const numeroTexto = document.getElementById('pd-numero-in').value.trim();
   const cuerpo = {
     idempotencyKey: idempotencyKeyActual,
@@ -573,11 +596,13 @@ async function grabarPedido() {
     clienteId: clienteSeleccionado.id,
     agencia: document.getElementById('pd-agencia').value || null,
     formaPago: document.getElementById('pd-formapago').value.trim() || null,
+    palets,
     puestoOrigen: puesto,
     lineas: lineasValidas.map((l) => {
       const base = {
         articuloId: l.articuloId,
         cantidad: l.cajas === '' ? null : Number(l.cajas),
+        piezas: l.piezas === '' ? null : Number(l.piezas),
         peso: l.pesoTexto,
         precio: Number(l.precioKg) || 0,
         descuento: Number(l.descuento) || 0,
@@ -591,6 +616,7 @@ async function grabarPedido() {
       return base;
     }),
   };
+  document.getElementById('pd-palets').value = palets;
 
   guardando = true;
   const btn = document.getElementById('btn-grabar');

@@ -2,6 +2,8 @@
 
 Este documento no estaba en el plan original de fases (Fase 0-5 solo cubrían reglas de negocio, base de datos/backend, lógica de negocio, sincronización, facturación y hosting) — hasta el 21/09/2026, todo lo construido era backend (API), probado a mano con `curl`/scripts, sin ninguna pantalla real. Empieza aquí porque, sin frontend, nadie puede usar de verdad lo que ya está construido, ni se puede terminar de verificar la Fase 2 (comparación de agilidad, ver `FASE_2_logica_de_negocio_MARINAFISK.md` punto 7).
 
+**Objetivo confirmado por Víctor el 24/11/2026: el sistema nuevo debe funcionar EXACTAMENTE igual que el HTML real** (mismos campos, misma lógica de negocio), solo que con una imagen más profesional y preparado para varios puestos trabajando a la vez, cada uno con su propia impresora — esto último ya lo cubre la arquitectura (backend central en Postgres en vez de localStorage + carpeta compartida, y la impresión sigue siendo del navegador de cada puesto hacia lo que tenga configurado, sin nada especial que montar). A partir de esta fecha, además de los `RESUMEN_COMPLETO_para_Code_*.md`, Víctor puede pasar directamente el fichero HTML real (ej. `CARGA_DE_ALBARANES_MARINAFISK_2026-11-24_UNAFILA.html`) para verificar contra el código fuente real en vez de solo contra su resumen — así se encontraron varios huecos reales el mismo día (PIEZAS en Pedidos, no solo Traspasos; PALETS; precio por defecto = PVP1) que los resúmenes no habían mencionado.
+
 ---
 
 ## 1. Decisión de tecnología
@@ -46,27 +48,50 @@ Segunda pantalla construida (`public/pedidos.html`/`pedidos.js`), mismo patrón 
 - **Líneas**: producto (autocompletar), cajas, peso (admite sumar varias cifras, ej. `12+13.5`, igual que Kilos en Compras), €/kg, descuento %. **Corrección real encontrada al construir esta pantalla:** el peso de una línea de pedido nunca se evaluaba como expresión en el servidor (`calcularTotalLineaPedido` hacía `Number(peso)`, que da `NaN`→0 con un texto como `"12+13.5"`) — ya estaba confirmado como requisito pendiente en este mismo documento (ver antiguo punto 3 de "Pendiente"). Añadido `evaluarExpresionPeso` en `backend/src/ivaVentas.js` (puerto directo de `evaluarExpresionKilos` de Compras), evaluado una sola vez en `prepararPedido` antes de la asignación de partida/reservas (para que la reserva de kilos tampoco se confunda con el texto crudo) y antes del cálculo del total.
 - La columna de Total de cada línea es una **vista previa en vivo** (misma fórmula que `calcularTotalLineaPedido`); el pie muestra peso total, base imponible, IVA (con la etiqueta cambiando según el tipo fiscal del cliente: "IVA (10%)" / "IVA+Recargo (11,4%)" / "IVA (0% intracom.)") y el total del pedido — igual filosofía que Compras: el servidor es quien decide de verdad al grabar (`backend/src/ivaVentas.js`).
 - **Partida de venta — reescrito el 24/11/2026** (ver Fase 2 punto 4): confirmado que Víctor sigue eligiéndola a mano en producción, no en automático. Al teclear Intro/Tab en €/Kg se abre un desplegable anclado bajo la columna "Partida" con todas las disponibles de ese producto (nº, fecha, proveedor, coste, kg libres ya descontando lo reservado por otras líneas del mismo pedido sin grabar, y ✅/⚠️ según margen), con flechas+Intro para elegir y una fila "— sin partida —" para forzar explícitamente ninguna. Si la elegida no cubre el peso entero de la línea, se encadena un segundo desplegable "FALTAN X kg" para repartir el resto en otra partida, repitiendo hasta cubrirlo o hasta Esc/clic fuera (el resto se queda en la última elegida). La celda de Partida muestra el resultado ("5900" o "5900 (5kg) + 56901 (10kg)") y también se puede volver a abrir haciendo clic en ella. Al terminar, el foco pasa a Dto %. Al grabar, el aviso de éxito sigue informando cuántas líneas quedaron sin partida (si alguna), por transparencia.
-- **Navegación de teclado**: Tab/Enter recorre Cajas → Peso → €/Kg (abre el desplegable de partida) → Dto % → Cajas de la siguiente línea, igual que Compras.
+- **Navegación de teclado**: Tab/Enter recorre Cajas → Piezas → Peso → €/Kg (abre el desplegable de partida) → Dto % → Cajas de la siguiente línea, igual que Compras.
+- **Piezas, PALETS y precio por defecto — añadido el 24/11/2026, leyendo el HTML real vigente ese día** (ver Fase 0, hallazgos nuevos): columna "Piezas" por línea (número de ejemplares sueltos, distinto de Cajas); campo "🚛 Palets" en la cabecera (documento electrónico de control, 0 = PALET VARIADO) que se vuelve a confirmar en un aviso propio justo antes de grabar (`api.js`, `pedirPalets()` — Enter confirma y graba, Esc/clic fuera cancela sin grabar nada, puerto directo de `pedirPaletsYGrabar()` del HTML real); el precio de cada línea se autorrellena con el PVP1 del artículo al elegirlo (sigue editable).
 - **Grabar**: protegido con `idempotencyKey` y botón deshabilitado durante el guardado, igual que Compras.
-- Barra superior con enlaces de navegación entre pantallas (Compras ⇄ Pedidos) — antes cada pantalla era una página aislada sin forma de pasar de una a otra salvo tecleando la URL.
+- Barra superior con enlaces de navegación entre pantallas (Compras ⇄ Pedidos ⇄ Traspasos) — antes cada pantalla era una página aislada sin forma de pasar de una a otra salvo tecleando la URL.
 
-**Probado end-to-end con Playwright (navegador real) el 22/11/2026:**
-- Autocompletar de cliente y de producto; agencia/forma de pago rellenadas por defecto desde el cliente.
+**Probado end-to-end con Playwright (navegador real) el 22/11/2026, repetido el 24/11/2026 tras los cambios de partida/palets/piezas:**
+- Autocompletar de cliente y de producto; agencia/forma de pago rellenadas por defecto desde el cliente; precio autorrellenado con PVP1.
 - Badge e IVA del pie cambiando correctamente entre los tres clientes de prueba (Normal/Recargo de Equivalencia/Intracomunitario).
 - Peso con expresión (`12+13.5` → 25,5 kg) calculado igual en la vista previa y en la base de datos tras grabar.
 - Pedido con dos líneas de productos distintos grabado correctamente, con el Nº de albarán asignado automáticamente, el total coincidiendo exacto entre pantalla y servidor, y el aviso de "línea sin partida asignada" apareciendo cuando correspondía.
 - Nº de albarán duplicado tecleado a mano rechazado con un mensaje claro en vez de un error interno.
+- Aviso de Palets apareciendo siempre antes de grabar, con el valor ya puesto en la cabecera como punto de partida, y el valor confirmado (incluso si se cambia en el propio aviso) es el que se graba de verdad.
+- Reparto de una línea entre dos partidas con cascada "FALTAN X kg" sigue funcionando igual después de añadir Piezas/Palets (regresión).
 - El servidor no se cae en ningún momento de la prueba.
 
 ---
 
-## 4. Pendiente
+## 4. Pantalla de Traspasos — implementada y probada el 24/11/2026
 
-- El resto de pantallas (Traspasos, Repartos, Listas de precio, historial/corrección de Compras, partidas y márgenes) — ninguna construida todavía.
+Tercera pantalla construida (`public/traspasos.html`/`traspasos.js`), mismo patrón que Pedidos con las diferencias reales de un traspaso frente a una venta (ver Fase 0 punto 3/9): no hay cliente ni IVA, pero sí lleva precio.
+
+- **Campos de cabecera**: Nº de traspaso (opcional, igual que Pedidos — ver más abajo, mismo hueco real que tenía `Pedido.numero`), fecha, Palets. Aviso fijo de que es un movimiento interno a MARINA FISH ZARAGOZA, con valor estimado no fiscal.
+- **Corrección real encontrada al construir esta pantalla: `Traspaso.numero` tenía el mismo hueco que `Pedido.numero` tuvo hasta el 22/11/2026** (sin ninguna forma de generarse) — resuelto igual, con una secuencia real de Postgres (`traspasos_numero_seq`).
+- **Líneas**: producto (autocompletar), cajas, piezas, peso (con expresión, ej. `12+13.5`), €/Kg (precio **estimado, no fiscal** — así lo rotula el propio HTML real: "Valor estimado (no fiscal)" — autorrellenado con el PVP1 del artículo, sigue editable), partida. Total de línea = peso × precio, sin descuento ni IVA (no es una venta).
+- **Corrección real importante encontrada al construir esta pantalla**: la primera versión de este backend (antes de leer el HTML real) asumía que un traspaso se valoraba "a coste", usando el coste de la partida asignada — **esto era incorrecto**. El HTML real confirma que lleva un precio tecleado por Víctor (con PVP1 como valor de partida), igual que en Pedidos. Corregido antes de dar la pantalla por terminada.
+- **Partida**: mismo desplegable y mismo reparto entre varias partidas que en Pedidos (ver Fase 2 punto 4, `abrirPopupPartida`/cascada "FALTAN X kg"), pero **sin margen** — un traspaso no tiene ningún precio de venta con el que calcular un margen, así que el desplegable no lo muestra ni filtra por eso, solo por antigüedad (FIFO) y si la partida cubre el peso. Nueva función en el backend, `elegirPartidaParaTraspaso` (`backend/src/margenPartida.js`), equivalente a `elegirPartidaParaVenta` pero sin el filtro de margen.
+- **Piezas, Palets y precio por defecto**: igual que en Pedidos (ver punto 3) — mismo mecanismo, mismo componente compartido (`api.js`, `pedirPalets()`).
+- **Navegación de teclado**: Cajas → Piezas → Peso → €/Kg (abre el desplegable de partida), igual que Pedidos (sin Dto %, aquí no aplica).
+
+**Probado end-to-end con Playwright (navegador real) el 24/11/2026:**
+- Precio autorrellenado con PVP1; total de línea = peso × precio calculado igual en pantalla y en la base de datos.
+- Partida elegida en el desplegable, asignada correctamente y descontando los kilos disponibles de la partida real tras grabar.
+- Nº de traspaso asignado automáticamente; Palets confirmado en el aviso antes de grabar y guardado correctamente.
+- El servidor no se cae en ningún momento de la prueba.
+
+---
+
+## 5. Pendiente
+
+- El resto de pantallas (Repartos, Listas de precio, histórico/corrección de Compras, Existencias, partidas y márgenes) — ninguna construida todavía.
 - **Histórico/listado de Compras** (`RESUMEN_COMPLETO_para_Code_18-11-2026_5.md`, 20/11/2026): cuando se construya, debe incluir filtro por partida/alb. proveedor/proveedor/producto/fecha/control, listado imprimible en A4 apaisado con formato compacto (fuente pequeña, una línea por compra, sin partir fecha/producto/importes) e incluyendo códigos de proveedor y producto (para cargar en el programa de Zaragoza), exportación a Excel con los mismos filtros, y un selector de orden (fecha/partida/importe, ascendente o descendente) que afecte tanto al listado impreso como al Excel.
 - **Existencias**: módulo nuevo completo (stock por fecha/artículo con cantidad, peso, precio, nota, marca de vendido y venta parcial), no modelado todavía en el esquema — ver Fase 0 punto 15.
 - Las funcionalidades de impresión de `CORRECCIONES_02-09-2026_para_Code_7.md` (Hoja Transfrío también en Traspasos, Hoja CMR condicional por agencia, catálogo de modelos de impresión, impresión en lote con copias dentro del PDF y apertura de pestañas solo por clic directo, y —nuevo, punto 12— imprimir desde la propia fila del listado con botones **separados** por documento cuando se imprimen en impresoras físicas distintas, nunca combinados en un único PDF/botón — ver `FASE_0_reglas_de_negocio_MARINAFISK.md` punto 13) — Víctor las llama "Fase 4 (interfaz)" en ese documento, pero `FASE_4_facturacion_MARINAFISK.md` es solo facturación; viven en este documento de frontend, no en Fase 4.
-- **[x] El patrón de autosuma con "+"/"-" ya usado en Kilos de Compras** (`evaluarExpresionKilos`) — hecho en Pedidos el 22/11/2026 (ver punto 3, `evaluarExpresionPeso`); sigue pendiente en Traspasos/Repartos cuando se construyan esas pantallas — confirmado como requisito general en `CORRECCIONES_02-09-2026_para_Code_7.md` punto 13.
+- **[x] El patrón de autosuma con "+"/"-" ya usado en Kilos de Compras** (`evaluarExpresionKilos`) — hecho en Pedidos el 22/11/2026 y en Traspasos el 24/11/2026 (ver puntos 3-4, `evaluarExpresionPeso`); sigue pendiente en Repartos cuando se construya esa pantalla — confirmado como requisito general en `CORRECCIONES_02-09-2026_para_Code_7.md` punto 13.
 - Comparación de agilidad frente al Excel/HTML actual con Víctor usando la pantalla real (Fase 2 punto 7) — ya se puede hacer para Compras.
 - Sin login/roles todavía — cualquiera que abra la URL puede grabar; no se ha pedido y el HTML actual tampoco lo tiene, pero señalado aquí por si hiciera falta más adelante.
 

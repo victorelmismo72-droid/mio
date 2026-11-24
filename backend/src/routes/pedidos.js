@@ -187,6 +187,7 @@ router.post('/', async (req, res) => {
       // la columna es NOT NULL y eso pisaría el DEFAULT con un error.
       if (cabecera.numero == null || cabecera.numero === '') delete cabecera.numero;
       else cabecera.numero = Number(cabecera.numero);
+      cabecera.palets = Math.max(0, Math.round(Number(cabecera.palets) || 0));
       const preparado = await prepararPedido({ lineas, clienteId: cabecera.clienteId });
       let creado;
       try {
@@ -233,6 +234,7 @@ router.put('/:id', async (req, res) => {
     if (cabecera.agencia !== undefined) cabecera.agencia = normalizarAgencia(cabecera.agencia);
     if (cabecera.numero === '') delete cabecera.numero;
     else if (cabecera.numero != null) cabecera.numero = Number(cabecera.numero);
+    cabecera.palets = Math.max(0, Math.round(Number(cabecera.palets) || 0));
     const preparado = await prepararPedido({ lineas, clienteId: cabecera.clienteId });
     const actualizado = await prisma.$transaction(async (tx) => {
       await tx.pedidoLinea.deleteMany({ where: { pedidoId: id } });

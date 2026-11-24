@@ -64,6 +64,54 @@ function fmt(n) {
   return (Number(n) || 0).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+// Aviso de PALETS antes de grabar (documento electrónico de control
+// obligatorio desde el 5/10/2026 en el HTML real — Pedidos, Traspasos y
+// Repartos) — puerto directo de pedirPaletsYGrabar()/confirmarPaletsYGrabar()
+// del HTML, como un modal propio en vez de prompt() nativo para que encaje
+// con el resto del diseño. Devuelve una promesa con el nº de palets elegido
+// (entero ≥ 0), o `null` si se cancela (Esc / "Volver") — en ese caso NO se
+// debe grabar nada. Enter confirma.
+function pedirPalets({ titulo, contexto, valorActual }) {
+  return new Promise((resolve) => {
+    const fondo = document.createElement('div');
+    fondo.className = 'modal-fondo';
+    fondo.innerHTML = `
+      <div class="modal-caja">
+        <div class="modal-titulo">🚛 ${titulo}</div>
+        <div class="modal-contexto">${contexto}</div>
+        <input type="number" id="modal-palets-valor" min="0" step="1" value="${Number(valorActual) || 0}">
+        <div class="modal-ayuda">Por defecto <b>0</b> = sale impreso <b>PALET VARIADO</b>. Si lleva palets, escribe el número.</div>
+        <div class="modal-error" id="modal-palets-error"></div>
+        <div class="modal-botones">
+          <button type="button" class="btn btn-secundario" id="modal-palets-cancelar">Volver sin grabar</button>
+          <button type="button" class="btn btn-exito" id="modal-palets-ok">Confirmar y grabar</button>
+        </div>
+      </div>`;
+    document.body.appendChild(fondo);
+    const input = fondo.querySelector('#modal-palets-valor');
+    const error = fondo.querySelector('#modal-palets-error');
+    setTimeout(() => { input.focus(); input.select(); }, 30);
+
+    const cerrar = (valor) => { fondo.remove(); resolve(valor); };
+    const confirmar = () => {
+      const txt = String(input.value).trim();
+      const n = txt === '' ? 0 : Number(txt);
+      if (!Number.isFinite(n) || n < 0 || Math.floor(n) !== n) {
+        error.textContent = 'Escribe un número entero (0 si no lleva palets).';
+        return;
+      }
+      cerrar(n);
+    };
+    fondo.querySelector('#modal-palets-ok').addEventListener('click', confirmar);
+    fondo.querySelector('#modal-palets-cancelar').addEventListener('click', () => cerrar(null));
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); confirmar(); }
+      else if (e.key === 'Escape') { e.preventDefault(); cerrar(null); }
+    });
+    fondo.addEventListener('mousedown', (e) => { if (e.target === fondo) cerrar(null); });
+  });
+}
+
 function mostrarAviso(id, texto, tipo) {
   const el = document.getElementById(id);
   if (!el) return;

@@ -240,6 +240,11 @@ model Pedido {
   baseImponible   Decimal  @db.Decimal(10, 2) @map("base_imponible")
   iva             Decimal  @db.Decimal(10, 2)
   total           Decimal  @db.Decimal(10, 2)
+  // Documento electronico de control obligatorio desde el 5/10/2026 (real,
+  // confirmado leyendo el HTML vigente el 24/11/2026): numero de palets que
+  // lleva el pedido. 0 = "PALET VARIADO" al imprimir. Comun a Pedido,
+  // Traspaso y Reparto (ver esos modelos mas abajo).
+  palets          Int      @default(0)
   puestoOrigen    String   @map("puesto_origen")
   creadoEn        DateTime @default(now()) @map("creado_en")
   modificadoEn    DateTime @updatedAt @map("modificado_en")
@@ -257,6 +262,11 @@ model PedidoLinea {
   articulo           Articulo @relation(fields: [articuloId], references: [id])
   descripcionEditada String?  @map("descripcion_editada")
   cantidad           Decimal? @db.Decimal(10, 2)
+  // "piezas" = numero de ejemplares sueltos (pescado grande que se cuenta
+  // por pieza, no por caja) - campo DISTINTO de `cantidad` (cajas/bultos),
+  // confirmado leyendo el HTML vigente el 24/11/2026 (columna PIEZAS propia
+  // en Pedidos y Traspasos, con su propio total e impresion en el PDF).
+  piezas             Int?
   peso               Decimal  @db.Decimal(10, 2)
   precio             Decimal  @db.Decimal(10, 4)
   descuento          Decimal  @default(0) @db.Decimal(5, 2)
@@ -308,11 +318,25 @@ model PedidoLineaPartida {
 
 model Traspaso {
   id           Int      @id @default(autoincrement())
-  numero       Int      @unique
+  // Igual que Pedido.numero (22/11/2026): secuencia real de la base de
+  // datos, el mismo gap real que tenia Pedido.numero antes de esa fecha -
+  // nada lo rellenaba.
+  numero       Int      @unique @default(dbgenerated("nextval('traspasos_numero_seq')"))
   fecha        DateTime @db.Date
   totalKg      Decimal  @db.Decimal(10, 2) @map("total_kg")
+  // "base"/"total" (corregido el 24/11/2026 tras leer el HTML real vigente
+  // ese dia: la suposicion anterior, "valorar a coste", era incorrecta).
+  // Un traspaso a Zaragoza no es una venta (Fase 0 punto 3/9), pero SI
+  // lleva un "precio" por linea - un valor ESTIMADO, no fiscal (asi lo
+  // rotula el propio PDF: "Valor estimado (no fiscal)"), tecleado por
+  // Victor (con el PVP1 del articulo como valor de partida, igual que en
+  // Pedidos) y no derivado de ninguna partida. "total" = "base" (sin IVA,
+  // no es una factura). Ver TraspasoLinea.precio mas abajo.
   base         Decimal  @db.Decimal(10, 2)
   total        Decimal  @db.Decimal(10, 2)
+  // Documento electronico de control (ver Pedido.palets) - comun tambien a
+  // Traspasos.
+  palets       Int      @default(0)
   puestoOrigen String   @map("puesto_origen")
   creadoEn     DateTime @default(now()) @map("creado_en")
 
@@ -327,8 +351,19 @@ model TraspasoLinea {
   traspaso   Traspaso @relation(fields: [traspasoId], references: [id])
   articuloId Int      @map("articulo_id")
   articulo   Articulo @relation(fields: [articuloId], references: [id])
+  // "cantidad" = cajas/bultos (igual que en Pedidos); "piezas" es un
+  // concepto DISTINTO (numero de ejemplares sueltos, ej. pescado grande
+  // que se cuenta por pieza) - ver Fase 0 punto 15, columna nueva
+  // confirmada el 18-11/23-11/2026 (RESUMEN_COMPLETO_para_Code_18-11-2026_
+  // 1..9.md) que no existia en nuestro esquema. Ambas opcionales,
+  // independientes entre si.
   cantidad   Decimal? @db.Decimal(10, 2)
+  piezas     Int?
   peso       Decimal  @db.Decimal(10, 2)
+  // Valor estimado por kg (no fiscal, ver el comentario en Traspaso de mas
+  // arriba) - total de la linea = peso * precio, sin IVA ni descuento.
+  precio     Decimal  @default(0) @db.Decimal(10, 4)
+  total      Decimal  @default(0) @db.Decimal(10, 2)
   // Corregido el 12/09/2026 (desajuste real, se llamaba "partidaId"): esto es
   // el NUMERO de partida, igual que PedidoLinea.partidaNumero - no una FK a
   // la tabla `partidas` (esa tabla no tiene una fila por cada numero, ver el

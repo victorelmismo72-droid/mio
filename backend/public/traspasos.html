@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MARINAFISK — Traspasos</title>
+<link rel="stylesheet" href="estilos.css">
+</head>
+<body>
+
+<div class="barra">
+  <h1>🐟 MARINAFISK — Traspaso a Zaragoza</h1>
+  <nav class="nav-pantallas">
+    <a href="compras.html">Compras</a>
+    <a href="pedidos.html">Pedidos</a>
+    <a href="traspasos.html" class="activa">Traspasos</a>
+  </nav>
+  <button class="puesto" id="btn-puesto"></button>
+</div>
+
+<div class="wrap">
+
+  <div class="card">
+    <div class="card-header">
+      <span>Datos del traspaso</span>
+      <span class="numero-pedido" id="tp-numero-chip">Nº <strong>automático</strong></span>
+    </div>
+    <div class="card-body">
+      <div class="fila-campos">
+        <div class="fg" style="flex:0 1 120px;">
+          <label for="tp-numero-in" title="Déjalo en blanco para que el número correlativo lo asigne el servidor.">Nº traspaso</label>
+          <input type="number" id="tp-numero-in" placeholder="auto">
+        </div>
+        <div class="fg">
+          <label for="tp-fecha">Fecha</label>
+          <input type="date" id="tp-fecha">
+        </div>
+        <div class="fg" style="flex:0 1 110px;">
+          <label for="tp-palets" title="Documento electrónico de control, obligatorio desde el 5/10/2026. 0 = PALET VARIADO. Se vuelve a confirmar al grabar.">🚛 Palets</label>
+          <input type="number" id="tp-palets" min="0" step="1" value="0" class="input-palets">
+        </div>
+      </div>
+      <div class="cliente-info" style="display:flex;">
+        <span>Movimiento interno a <strong>MARINA FISH ZARAGOZA</strong> — no es una venta. El valor es estimado (no fiscal).</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <span>Líneas</span>
+      <button class="btn btn-secundario btn-mini" id="btn-add-linea" type="button">+ Añadir línea</button>
+    </div>
+    <div class="card-body" style="overflow-x:auto;">
+      <table class="lineas">
+        <thead>
+          <tr>
+            <th class="col-producto">Producto</th>
+            <th class="col-estrecha">Cajas</th>
+            <th class="col-estrecha">Piezas</th>
+            <th>Peso (kg)</th>
+            <th class="col-estrecha" title="Valor estimado, no fiscal — se autorrellena con el PVP1 del artículo.">€/Kg</th>
+            <th class="col-partida">Partida</th>
+            <th class="num">Total línea</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="tp-lineas"></tbody>
+      </table>
+      <div class="pie-totales">
+        <span>Peso total: <b id="tp-tot-peso">0,00</b> kg</span>
+        <span>Valor estimado (no fiscal): <b id="tp-tot-base" class="total-grande">0,00</b> €</span>
+      </div>
+    </div>
+  </div>
+
+  <div id="tp-aviso" class="aviso"></div>
+
+  <div style="margin-top:16px; display:flex; justify-content:flex-end;">
+    <button class="btn btn-exito" id="btn-grabar" style="font-size:15px; padding:10px 22px;">💾 Grabar traspaso</button>
+  </div>
+
+</div>
+
+<script src="api.js"></script>
+<script src="traspasos.js"></script>
+</body>
+</html>

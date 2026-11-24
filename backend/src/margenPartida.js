@@ -182,6 +182,21 @@ async function elegirPartidaParaVenta({ articuloId, precioVenta, pesoNecesario }
   return { partidaNumero: porKilosLibres[0].numeroPartida, disponibles, motivo: 'PARCIAL' };
 }
 
+// Igual que elegirPartidaParaVenta pero SIN margen (un traspaso a Zaragoza
+// no es una venta - Fase 0 punto 3/9 - no hay precio de cliente con el que
+// calcular ningun margen): entre TODAS las disponibles, la mas antigua que
+// cubra el peso entero; si ninguna lo cubre, la de mas kilos libres.
+async function elegirPartidaParaTraspaso({ articuloId, pesoNecesario }, reservas) {
+  const disponibles = await obtenerPartidasDisponibles(articuloId, reservas);
+  if (!disponibles.length) return { partidaNumero: null, disponibles, motivo: 'SIN_COMPRAS' };
+  if (pesoNecesario == null) return { partidaNumero: disponibles[0].numeroPartida, disponibles, motivo: 'OK' };
+  const peso = Number(pesoNecesario) || 0;
+  const queCubren = disponibles.filter((p) => p.kilosDisponibles >= peso);
+  if (queCubren.length) return { partidaNumero: queCubren[0].numeroPartida, disponibles, motivo: 'OK' };
+  const porKilosLibres = [...disponibles].sort((a, b) => b.kilosDisponibles - a.kilosDisponibles);
+  return { partidaNumero: porKilosLibres[0].numeroPartida, disponibles, motivo: 'PARCIAL' };
+}
+
 // Coste real "de ahora mismo" para un articulo (Fase 2 punto 5, aviso de
 // venta por debajo de coste en listas de precio): media de las partidas
 // disponibles ponderada por los kilos que quedan de cada una - más fiable
@@ -204,5 +219,6 @@ module.exports = {
   kilosVendidosDePartida,
   obtenerPartidasDisponibles,
   elegirPartidaParaVenta,
+  elegirPartidaParaTraspaso,
   costeRealActual,
 };

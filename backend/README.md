@@ -249,7 +249,40 @@ descuido.
     editado más tarde (cambio de peso) nunca deje un reparto desincronizado.
     `GET /pedidos`/`GET /pedidos/:id` incluyen `lineas[].partidas` (vacío
     salvo que la línea esté repartida).
-- `/traspasos`, `/repartos` — CRUD completo.
+- `/traspasos` — **reescrito el 24/11/2026** (hasta entonces solo guardaba
+  tal cual lo que mandaba el cliente HTTP, sin validar ni calcular nada —
+  hueco real de la Fase 1 nunca actualizado a los criterios de Fase 2):
+  - `Traspaso.numero` por secuencia real (`traspasos_numero_seq`), mismo
+    patrón y mismo hueco real que tenía `Pedido.numero` antes del
+    22/11/2026.
+  - Cada línea admite `piezas` (nº de ejemplares sueltos, distinto de
+    `cantidad`/cajas — confirmado leyendo el HTML real el 24/11/2026, ver
+    Fase 0) y `precio` — un valor ESTIMADO, no fiscal (así lo rotula el PDF
+    real: "Valor estimado (no fiscal)"), tecleado por el cliente HTTP (con
+    el PVP1 del artículo como valor de partida en el frontend) y NUNCA
+    derivado del coste de la partida (la primera versión de esta ruta
+    asumía "a coste", corregido antes de dar la pantalla por terminada).
+    El total de cada línea (`peso * precio`) lo calcula siempre el
+    servidor, igual que en compras/pedidos.
+  - Partida: mismo contrato que `/pedidos` (`partidas: [{numeroPartida,
+    kilos}]`, `partidaNumero` suelto, autoasignación como red de
+    seguridad, `partidaNumero: null` explícito para forzar "sin partida"),
+    pero con `elegirPartidaParaTraspaso` (`src/margenPartida.js`) en vez de
+    `elegirPartidaParaVenta` — un traspaso no es una venta, no hay margen
+    que comprobar, solo antigüedad (FIFO) y si la partida cubre el peso.
+  - `palets` (documento electrónico de control, ver `Pedido.palets` más
+    abajo) — también en `Traspaso`.
+- `/repartos` — CRUD completo (sin actualizar todavía a los criterios de
+  Fase 2 — pendiente cuando se construya esa pantalla).
+- **PALETS** (documento electrónico de control obligatorio desde el
+  5/10/2026, confirmado el 24/11/2026 leyendo el HTML real): `Pedido.palets`
+  y `Traspaso.palets` (`Int`, por defecto 0 = "PALET VARIADO" al imprimir).
+  El frontend lo vuelve a confirmar en un aviso propio justo antes de
+  grabar (`public/api.js`, `pedirPalets()`), con el valor ya puesto en la
+  cabecera como punto de partida.
+- **PIEZAS** (nº de ejemplares sueltos, distinto de `cantidad`/cajas,
+  confirmado el 24/11/2026): `piezas Int?` en `PedidoLinea` y
+  `TraspasoLinea`.
 - `/listas-precio` — CRUD completo, más (13/09/2026, ver Fase 2 punto 5):
   - `GET /listas-precio/auto?fecha=` — modo automático: coste medio real de
     las compras de esa fecha por artículo (ponderado por kilos) más el

@@ -13,6 +13,7 @@
   <nav class="nav-pantallas">
     <a href="compras.html">Compras</a>
     <a href="pedidos.html" class="activa">Pedidos</a>
+    <a href="traspasos.html">Traspasos</a>
   </nav>
   <button class="puesto" id="btn-puesto"></button>
 </div>
@@ -49,6 +50,10 @@
           <label for="pd-formapago">Forma de pago</label>
           <input type="text" id="pd-formapago" placeholder="opcional">
         </div>
+        <div class="fg" style="flex:0 1 110px;">
+          <label for="pd-palets" title="Documento electrónico de control, obligatorio desde el 5/10/2026. 0 = PALET VARIADO. Se vuelve a confirmar al grabar.">🚛 Palets</label>
+          <input type="number" id="pd-palets" min="0" step="1" value="0" class="input-palets">
+        </div>
       </div>
 
       <div class="cliente-info" id="pd-cliente-info" style="display:none;">
@@ -69,6 +74,7 @@
           <tr>
             <th class="col-producto">Producto</th>
             <th class="col-estrecha">Cajas</th>
+            <th class="col-estrecha" title="Número de piezas (unidades sueltas). Opcional.">Piezas</th>
             <th>Peso (kg)</th>
             <th class="col-estrecha">€/Kg</th>
             <th class="col-estrecha">Dto %</th>

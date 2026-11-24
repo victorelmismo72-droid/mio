@@ -307,6 +307,49 @@ table.lineas .col-partida { width: 150px; }
 }
 .partida-chip.pendiente { color: #8a5a00; font-weight: 600; }
 
+.input-palets {
+  background: #fff8e1 !important;
+  border: 2px solid var(--amarillo) !important;
+  font-weight: 800 !important;
+  text-align: center;
+  color: var(--azul);
+}
+
+/* Modal de PALETS (documento de control, ver api.js pedirPalets) */
+.modal-fondo {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+.modal-caja {
+  background: #fff;
+  border-radius: 8px;
+  padding: 20px 22px;
+  width: 360px;
+  max-width: 92vw;
+  box-shadow: 0 16px 40px rgba(0,0,0,0.3);
+}
+.modal-titulo { font-size: 16px; font-weight: 800; color: var(--azul); margin-bottom: 6px; }
+.modal-contexto { font-size: 13px; color: var(--gris-texto); margin-bottom: 12px; }
+.modal-caja input[type="number"] {
+  font-size: 22px;
+  font-weight: 800;
+  text-align: center;
+  color: var(--azul);
+  background: #fff8e1;
+  border: 2px solid var(--amarillo);
+  border-radius: 4px;
+  padding: 8px;
+  width: 100%;
+}
+.modal-ayuda { font-size: 12px; color: var(--gris-texto); margin-top: 8px; }
+.modal-error { font-size: 12px; color: var(--rojo); font-weight: 600; min-height: 16px; margin-top: 4px; }
+.modal-botones { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+
 @media (max-width: 560px) {
   .fila-campos { flex-direction: column; align-items: stretch; }
   .card-header { flex-direction: column; align-items: flex-start; }
