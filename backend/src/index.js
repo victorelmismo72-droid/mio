@@ -26,6 +26,7 @@ const listasPrecioRouter = require('./routes/listasPrecio');
 const exportRouter = require('./routes/export');
 const importarComprasRouter = require('./routes/importarCompras');
 const listadosRouter = require('./routes/listados');
+const existenciasRouter = require('./routes/existencias');
 
 const app = express();
 app.use(cors());
@@ -60,6 +61,7 @@ app.use('/listas-precio', listasPrecioRouter);
 app.use('/export', exportRouter);
 app.use('/importar', importarComprasRouter);
 app.use('/listados', listadosRouter);
+app.use('/existencias', existenciasRouter);
 
 // Manejador de errores generico - para que un fallo inesperado devuelva un
 // JSON claro en vez de romper el servidor o dejar la peticion colgada.

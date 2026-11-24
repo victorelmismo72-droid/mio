@@ -99,6 +99,7 @@ model Articulo {
   traspasoLineas    TraspasoLinea[]
   repartoLineas     RepartoLinea[]
   listaPrecioLineas ListaPrecioLinea[]
+  existenciaLineas  ExistenciaLinea[]
 
   @@map("articulos")
 }
@@ -522,4 +523,52 @@ model ImportacionBackup {
   creadoEn   DateTime @default(now()) @map("creado_en")
 
   @@map("importaciones_backup")
+}
+
+// ---------------------------------------------------------------------
+// EXISTENCIAS EN CAMARA - modulo nuevo, descubierto el 24/11/2026 leyendo
+// el HTML real (CARGA_DE_ALBARANES_MARINAFISK_2026-11-24_UNAFILA.html,
+// funcion abrirExistencias y las que empiezan por "ex"), no documentado en
+// ningun resumen anterior ni contemplado en Fase 0-2. Lo que queda en la
+// camara, dia a dia: no es ni una compra ni una venta, es un apunte manual
+// de stock fisico (bultos/kg/precio/nota) con marca de "vendido" cuando se
+// agota del todo (sigue en las estadisticas, pero deja de salir en el
+// listado). Una fila por dia (fecha unica); las lineas son filas reales
+// (con su propio id editable), no un indice dentro de un array JSON como
+// en el HTML real - asi la edicion en el listado nunca se desincroniza si
+// cambia el orden.
+model Existencia {
+  id       Int      @id @default(autoincrement())
+  fecha    DateTime @unique @db.Date
+  lineas   ExistenciaLinea[]
+  creadoEn DateTime @default(now()) @map("creado_en")
+
+  @@map("existencias")
+}
+
+model ExistenciaLinea {
+  id           Int        @id @default(autoincrement())
+  existenciaId Int        @map("existencia_id")
+  existencia   Existencia @relation(fields: [existenciaId], references: [id], onDelete: Cascade)
+  // Posicion dentro del dia (se conserva el orden tecleado, incluidas las
+  // filas en blanco que separan grupos - "separador").
+  orden        Int
+  separador    Boolean    @default(false)
+  // El articulo se resuelve por codigo igual que en Pedidos/Traspasos; si
+  // lo tecleado no es un codigo conocido del catalogo, se guarda tal cual
+  // en "descripcionLibre" (el HTML real admite texto suelto en Existencias,
+  // a diferencia de Pedidos/Traspasos/Compras que exigen catalogo).
+  articuloId       Int?     @map("articulo_id")
+  articulo         Articulo? @relation(fields: [articuloId], references: [id])
+  descripcionLibre String?  @map("descripcion_libre")
+  cantidad         Decimal? @db.Decimal(10, 2) // bultos
+  peso             Decimal? @db.Decimal(10, 2) // kg
+  precio           Decimal? @db.Decimal(10, 2) // EUR/kg
+  nota             String?
+  // Vendido del todo: deja de salir en el listado normal (se puede volver
+  // a ver con el filtro "con vendidos"/"solo vendidos") pero sigue
+  // contando en las estadisticas - igual que el HTML real.
+  vendido          Boolean  @default(false)
+
+  @@map("existencia_lineas")
 }

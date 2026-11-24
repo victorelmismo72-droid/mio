@@ -305,6 +305,40 @@ descuido.
 - **PIEZAS** (nº de ejemplares sueltos, distinto de `cantidad`/cajas,
   confirmado el 24/11/2026): `piezas Int?` en `PedidoLinea` y
   `TraspasoLinea`.
+- `/existencias` — **módulo nuevo, 24/11/2026** (ver Fase 0 punto 15 y
+  `03_FRONTEND_MARINAFISK.md` punto 6): lo que queda en la cámara, día a
+  día — ni una compra ni una venta, un apunte manual de stock físico.
+  Modelo `Existencia` (una fila por día, `fecha` única) + `ExistenciaLinea`
+  (líneas con id real, a diferencia del array JSON indexado por posición
+  del HTML real — así la edición desde el listado nunca se desincroniza).
+  - `GET /existencias?desde=&hasta=` — días en ese rango con sus líneas
+    (el texto/vendidos/agrupación se filtra en el propio navegador, igual
+    que el histórico de Compras).
+  - `GET /existencias/:fecha` — un día concreto (para el editor); si no
+    tiene nada grabado, devuelve `lineas: []` (no es un 404).
+  - `POST /existencias` (protegido con `idempotencyKey`) — sustituye por
+    completo las líneas de ese día; si no queda ninguna línea válida
+    (`peso>0` y algún texto — artículo del catálogo o `descripcionLibre`),
+    borra el día entero (`{borrado: true}` en la respuesta), igual que
+    "Día sin líneas con kilos: no se guarda nada para esa fecha" del HTML
+    real. El campo `peso` admite la misma suma que Compras/Pedidos/
+    Traspasos (`evaluarExpresionKilos`, ej. `"12,4+8,1"`).
+  - `PATCH /existencias/:fecha/lineas/:lineaId` (`{cantidad?, peso?,
+    vendido?}`) — edición directa desde el listado, sin reabrir el día.
+  - `DELETE /existencias/:fecha` — borra el día entero.
+  - `GET /existencias/excel?desde=&hasta=&filtro=&verVendidos=&
+    soloVendidos=&agrupa=` — mismas tres hojas que `exExportarExcel()`
+    del HTML real (LISTADO con banda de día, DETALLE, RESUMEN), generadas
+    en el servidor con `exceljs` (IMPORTANTE: declarada antes de
+    `/:fecha`, mismo motivo que `partidas-del-dia` en `/compras`).
+  - A diferencia de Pedidos/Traspasos/Compras, el artículo NO es
+    obligatorio del catálogo: si lo tecleado no coincide con una
+    sugerencia elegida, se guarda como texto libre
+    (`ExistenciaLinea.descripcionLibre`) — igual que el HTML real. La
+    lógica compartida entre la pantalla y el Excel vive en
+    `src/existencias.js` (`limpiarLineasExistencia`, `resumenPorModo`,
+    `diasFiltrados`, etc.), puerto directo de las funciones "ex..." del
+    HTML real.
 - `/listas-precio` — CRUD completo, más (13/09/2026, ver Fase 2 punto 5):
   - `GET /listas-precio/auto?fecha=` — modo automático: coste medio real de
     las compras de esa fecha por artículo (ponderado por kilos) más el

@@ -104,14 +104,40 @@ Quinta y sexta pantallas construidas (`public/compras-historico.html`/`.js` y `p
 
 ---
 
-## 6. Pendiente
+## 6. Pantalla de Existencias en cámara — implementada y probada el 24/11/2026
 
-- El resto de pantallas (Repartos, Listas de precio, Existencias, partidas y márgenes) — ninguna construida todavía.
+Séptima pantalla construida (`public/existencias.html`/`existencias.js`), módulo enteramente nuevo (ver Fase 0 punto 15) — descubierto leyendo el HTML real (`abrirExistencias()` y las funciones "ex..."), no documentado en ningún resumen anterior. No es ni una compra ni una venta: es un apunte manual de lo que queda en la cámara, día a día (bultos/kg/precio/nota), con marca de "vendido" cuando se agota del todo.
+
+- **Modelo nuevo** (`Existencia`/`ExistenciaLinea` en schema.prisma, migración `20261124211108_existencias_modulo_nuevo`): una fila por día (fecha única) con líneas reales en base de datos — a diferencia del HTML real, que guarda cada día como un array JSON indexado por posición, aquí cada línea tiene su propio id estable, así la edición desde el listado nunca se desincroniza si cambia el orden.
+- **Dos paneles en vez de un modal** (mismo contenido que `abrirExistencias()`, adaptado al patrón de pantalla separada de este sistema): a la izquierda el editor de un día concreto (fecha, líneas con Artículo/Bultos/Kg/€-kg/Nota/Vendido, + línea, + línea en blanco para separar grupos, Grabar día, Borrar día); a la derecha el listado por días (filtros desde/hasta/producto·texto/agrupación, con edición en sitio de bultos/kg/vendido), Imprimir y Excel.
+- **Artículo con texto libre** (diferencia real frente a Pedidos/Traspasos/Compras, que exigen catálogo): si lo tecleado no coincide con ninguna sugerencia elegida del catálogo, se guarda tal cual como texto libre (`ExistenciaLinea.descripcionLibre`) — igual que el HTML real, que admite "lo que sea" en esa columna (ej. pescado sin catalogar, encargos puntuales).
+- **Kilos admite suma** (ej. "12,4+8,1"), igual que Compras/Pedidos/Traspasos — mismo `evaluarExpresionKilos` del lado servidor, evaluado también al editar una línea desde el listado (`PATCH /existencias/:fecha/lineas/:id`).
+- **Vendido**: una línea marcada deja de salir en el listado por defecto (selector "Mostrar": sin vendidos / con vendidos en rojo / solo vendidos) pero sigue contando en los totales de "con vendidos" — igual que el HTML real; el listado separa siempre TOTAL EXISTENCIAS de QUEDA EN CÁMARA (sin vendidos) cuando se piden ver los vendidos.
+- **Agrupación del listado** (detalle por días / por día / por semana ISO / por mes / un solo total) y **banda de día en gallego** (`LUNS, MERCORES...` — igual que `EX_DIAS` del HTML real, detalle que Víctor usa a diario en A Coruña) — calculado en el propio navegador sobre los días ya traídos del servidor (mismo patrón que el histórico de Compras).
+- **Excel** (`GET /existencias/excel`) con las tres mismas hojas que `exExportarExcel()` del HTML real — LISTADO (con la banda oscura por día, igual que la hoja de la cámara), DETALLE (una fila por línea, con semana/mes, para filtrar) y RESUMEN (por el modo de agrupación elegido) — generado en el servidor con `exceljs`, nunca en el navegador.
+- **Grabar día es un upsert por fecha**: sustituye por completo las líneas de ese día (borra las anteriores, crea las nuevas); si no queda ninguna línea válida (sin peso>0), se borra el día entero — igual que "Día sin líneas con kilos: no se guarda nada para esa fecha" del HTML real.
+
+**Bug real encontrado y corregido durante la prueba (24/11/2026):** el aviso de éxito ("✅ Grabado"/"🗑️ Borrado") desaparecía antes de que se pudiera leer, porque se mostraba ANTES de refrescar el editor del día — y ese refresco (`cambiarFecha()`) oculta el aviso cuando el día queda sin líneas visibles (caso normal tras grabar un día vacío o borrar). Corregido invirtiendo el orden: primero refrescar, después mostrar el aviso final.
+
+**Probado end-to-end con Playwright (navegador real) el 24/11/2026:**
+- Línea con artículo del catálogo (autocompletar) y línea con texto libre (no catalogado) en el mismo día, grabadas y recuperadas tal cual tras recargar la página entera.
+- Línea en blanco (separador) conservada en su posición exacta tras grabar y recargar.
+- Línea vacía sin rellenar (añadida sin querer) descartada automáticamente al grabar, sin error.
+- Marcar "Vendido" desde el listado: la línea desaparece en modo "sin vendidos" y aparece en rojo en modo "con los vendidos", con QUEDA EN CÁMARA calculado correctamente.
+- Edición de kilos en sitio desde el listado, con la misma suma admitida que al grabar.
+- Agrupación por mes mostrando la etiqueta correcta ("enero 2026").
+- Export a Excel con las tres hojas, bandas de día y totales coincidiendo con lo esperado para un caso de prueba conocido.
+- Protección de doble clic en "Grabar día" (misma clave de idempotencia reenviada en un reintento no duplica la línea).
+- Validaciones del servidor: borrar un día sin existencias da un error claro (no un 500); editar kilos a 0 desde el listado se rechaza con el mismo mensaje que el HTML real.
+- El servidor no se cae en ningún momento de la prueba.
+
+## 7. Pendiente
+
+- El resto de pantallas (Repartos, Listas de precio, partidas y márgenes) — ninguna construida todavía.
 - **Listado imprimible de Compras** en A4 apaisado con formato compacto (fuente pequeña, una línea por compra, códigos de proveedor y producto) — deliberadamente no construido en esta ronda (ver punto 5), vive junto al resto de impresión pendiente (Fase 4/interfaz, más abajo).
 - **Cambiar proveedor o artículo de una línea** desde el histórico de Compras — deliberadamente no construido en esta ronda (ver punto 5).
-- **Existencias**: módulo nuevo completo (stock por fecha/artículo con cantidad, peso, precio, nota, marca de vendido y venta parcial), no modelado todavía en el esquema — ver Fase 0 punto 15.
 - Las funcionalidades de impresión de `CORRECCIONES_02-09-2026_para_Code_7.md` (Hoja Transfrío también en Traspasos, Hoja CMR condicional por agencia, catálogo de modelos de impresión, impresión en lote con copias dentro del PDF y apertura de pestañas solo por clic directo, y —nuevo, punto 12— imprimir desde la propia fila del listado con botones **separados** por documento cuando se imprimen en impresoras físicas distintas, nunca combinados en un único PDF/botón — ver `FASE_0_reglas_de_negocio_MARINAFISK.md` punto 13) — Víctor las llama "Fase 4 (interfaz)" en ese documento, pero `FASE_4_facturacion_MARINAFISK.md` es solo facturación; viven en este documento de frontend, no en Fase 4.
-- **[x] El patrón de autosuma con "+"/"-" ya usado en Kilos de Compras** (`evaluarExpresionKilos`) — hecho en Pedidos el 22/11/2026 y en Traspasos el 24/11/2026 (ver puntos 3-4, `evaluarExpresionPeso`); sigue pendiente en Repartos cuando se construya esa pantalla — confirmado como requisito general en `CORRECCIONES_02-09-2026_para_Code_7.md` punto 13.
+- **[x] El patrón de autosuma con "+"/"-" ya usado en Kilos de Compras** (`evaluarExpresionKilos`) — hecho en Pedidos el 22/11/2026, en Traspasos el 24/11/2026 (ver puntos 3-4, `evaluarExpresionPeso`) y en Existencias el 24/11/2026 (ver punto 6); sigue pendiente en Repartos cuando se construya esa pantalla — confirmado como requisito general en `CORRECCIONES_02-09-2026_para_Code_7.md` punto 13.
 - Comparación de agilidad frente al Excel/HTML actual con Víctor usando la pantalla real (Fase 2 punto 7) — ya se puede hacer para Compras.
 - Sin login/roles todavía — cualquiera que abra la URL puede grabar; no se ha pedido y el HTML actual tampoco lo tiene, pero señalado aquí por si hiciera falta más adelante.
 

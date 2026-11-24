@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MARINAFISK — Existencias en cámara</title>
+<link rel="stylesheet" href="estilos.css">
+<style>
+  .wrap-ancho { max-width: 1500px; }
+  .ex-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+  @media (max-width: 1100px) { .ex-grid { grid-template-columns: 1fr; } }
+  table.ex-editor { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.ex-editor th { text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: 0.02em; color: var(--gris-texto); padding: 5px 6px; border-bottom: 2px solid var(--gris-borde); white-space: nowrap; }
+  table.ex-editor td { padding: 3px 6px; border-bottom: 1px solid #eee; vertical-align: middle; }
+  table.ex-editor tr.vendida td { background: #fdeaea; }
+  table.ex-editor tr.vendida input { color: #c00000; font-weight: 700; }
+  table.ex-editor .col-bultos, table.ex-editor .col-kilos, table.ex-editor .col-precio { width: 80px; }
+  table.ex-editor .col-check { width: 56px; text-align: center; }
+  table.ex-editor .col-quitar { width: 30px; }
+  .ex-fila-sep td { background: #eee; text-align: center; color: #777; font-size: 12px; }
+  .ex-editor-scroll { max-height: 420px; overflow: auto; }
+
+  table.ex-listado { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.ex-listado th { text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: 0.02em; color: #fff; background: var(--azul); padding: 6px; white-space: nowrap; }
+  table.ex-listado td { padding: 4px 6px; border-bottom: 1px solid #eee; white-space: nowrap; }
+  table.ex-listado td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  table.ex-listado input { width: 64px; font-size: 12px; padding: 2px 4px; text-align: right; }
+  tr.ex-banda td { background: #969696; color: #000; font-weight: 700; text-align: center; letter-spacing: 1px; padding: 6px 8px; }
+  tr.ex-vendida td { color: #c00000; background: #fdeaea; font-weight: 700; }
+  tr.ex-total-dia td { font-weight: 700; background: #eef; }
+  tr.ex-total-general td { font-weight: 800; background: var(--azul-claro); }
+  tr.ex-pendiente td { font-weight: 700; background: #e8f5e9; }
+  .ex-listado-scroll { max-height: 520px; overflow: auto; }
+</style>
+</head>
+<body>
+
+<div class="barra">
+  <h1>🐟 MARINAFISK — Existencias en cámara</h1>
+  <nav class="nav-pantallas">
+    <a href="compras-historico.html">Histórico</a>
+    <a href="kilos-por-partida.html">Kilos/Partida</a>
+    <a href="compras.html">Compras</a>
+    <a href="pedidos.html">Pedidos</a>
+    <a href="traspasos.html">Traspasos</a>
+    <a href="existencias.html" class="activa">Existencias</a>
+  </nav>
+  <button class="puesto" id="btn-puesto"></button>
+</div>
+
+<div class="wrap wrap-ancho">
+<div class="ex-grid">
+
+  <div class="card">
+    <div class="card-header">Cargar existencias de un día</div>
+    <div class="card-body">
+      <div class="fila-campos" style="margin-bottom:10px;">
+        <div class="fg" style="flex:0 1 180px;"><label for="ex-fecha">Fecha</label><input type="date" id="ex-fecha"></div>
+      </div>
+      <div class="ex-editor-scroll">
+        <table class="ex-editor">
+          <thead>
+            <tr>
+              <th>Artículo</th>
+              <th class="col-bultos">Bultos</th>
+              <th class="col-kilos">Kg</th>
+              <th class="col-precio">€/kg</th>
+              <th>Nota (origen...)</th>
+              <th class="col-check" title="Marca cuando ya se ha vendido todo: sale en rojo y deja de salir en el listado (sigue en las estadísticas)">Vendido</th>
+              <th class="col-quitar"></th>
+            </tr>
+          </thead>
+          <tbody id="ex-filas"></tbody>
+        </table>
+      </div>
+      <div class="btn-group" style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">
+        <button class="btn btn-secundario btn-mini" id="btn-anadir-linea" type="button">+ LÍNEA</button>
+        <button class="btn btn-secundario btn-mini" id="btn-anadir-sep" type="button" title="Deja una fila vacía para separar grupos dentro del día, como en la hoja">+ LÍNEA EN BLANCO</button>
+        <button class="btn btn-exito btn-mini" id="btn-grabar-dia" type="button">💾 GRABAR DÍA</button>
+        <button class="btn btn-peligro btn-mini" id="btn-borrar-dia" type="button">🗑️ BORRAR ESTE DÍA</button>
+      </div>
+      <div id="ex-aviso" class="aviso"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">Listado por días</div>
+    <div class="card-body">
+      <div class="fila-campos" style="margin-bottom:10px;">
+        <div class="fg" style="flex:0 1 150px;"><label for="ex-desde">Desde</label><input type="date" id="ex-desde"></div>
+        <div class="fg" style="flex:0 1 150px;"><label for="ex-hasta">Hasta</label><input type="date" id="ex-hasta"></div>
+        <div class="fg" style="flex:0 1 220px;">
+          <label for="ex-agrupa">Ver</label>
+          <select id="ex-agrupa">
+            <option value="detalle">Detalle por días (como la hoja)</option>
+            <option value="dia">Resumen por día</option>
+            <option value="semana">Resumen por semanas</option>
+            <option value="mes">Resumen por meses</option>
+            <option value="total">Un solo total</option>
+          </select>
+        </div>
+        <div class="fg" style="flex:0 1 220px;">
+          <label for="ex-ver-vend">Mostrar</label>
+          <select id="ex-ver-vend">
+            <option value="no">Sin los vendidos</option>
+            <option value="si">Con los vendidos (en rojo)</option>
+            <option value="solo">Solo los vendidos</option>
+          </select>
+        </div>
+        <div class="fg" style="flex:1 1 200px;"><label for="ex-filtro" title="Vale para pantalla, imprimir y Excel">Solo líneas que contengan (ej. Celeiro)</label><input type="text" id="ex-filtro" placeholder="Vacío = todo"></div>
+      </div>
+      <div class="ex-listado-scroll" id="ex-listado"></div>
+      <div class="btn-group" style="margin-top:10px; display:flex; gap:8px;">
+        <button class="btn btn-secundario btn-mini" id="btn-imprimir" type="button">🖨️ IMPRIMIR LISTADO</button>
+        <button class="btn btn-secundario btn-mini" id="btn-excel" type="button" title="Descarga un Excel: hoja LISTADO (días separados con banda oscura, como la hoja de la cámara), hoja DETALLE (para filtrar) y hoja RESUMEN.">📊 EXCEL</button>
+      </div>
+      <div id="ex-listado-aviso" class="aviso"></div>
+    </div>
+  </div>
+
+</div>
+</div>
+
+<script src="api.js"></script>
+<script src="existencias.js"></script>
+</body>
+</html>
