@@ -212,6 +212,117 @@ async function costeRealActual(articuloId) {
   return baseTotal / kilosTotal;
 }
 
+// Informe "KILOS POR PARTIDA" (ver Fase 2 punto 4, actualizacion
+// 24/11/2026 - RESUMEN_COMPLETO_para_Code_18-11-2026_8.md). Puerto directo
+// de datosKilosPorPartida() del HTML real: por cada combinacion
+// numeroPartida+articulo (codigo EXACTO, a diferencia de
+// obtenerPartidasDisponibles que agrupa por familia) cuanto se ha
+// comprado, vendido (pedidos), traspasado, y cuanto queda PENDIENTE de
+// vender o se ha VENDIDO DE MAS. Las ventas/traspasos se emparejan con la
+// compra por familia (un pedido puede vender con un codigo de talla
+// distinto al generico de compra), igual que el resto de Fase 2 punto 4.
+// Una venta/traspaso con una partida que no tiene ninguna compra
+// coincidente sale aparte, marcada "(sin compra con esa partida)" - no se
+// descarta en silencio.
+async function calcularKilosPorPartida(filtros = {}) {
+  const compras = await prisma.compra.findMany({
+    where: { anulada: false },
+    include: { lineas: { include: { articulo: true } } },
+  });
+
+  const grupos = new Map(); // "numeroPartida|articuloId[|sin-compra]" -> grupo
+  const porPartida = new Map(); // numeroPartida -> [grupo, ...]
+  const anadirAPorPartida = (g) => {
+    if (!porPartida.has(g.numeroPartida)) porPartida.set(g.numeroPartida, []);
+    porPartida.get(g.numeroPartida).push(g);
+  };
+
+  for (const compra of compras) {
+    for (const linea of compra.lineas) {
+      const key = `${compra.numeroPartida}|${linea.articuloId}`;
+      if (!grupos.has(key)) {
+        const g = {
+          numeroPartida: compra.numeroPartida, articulo: linea.articulo,
+          fecha: compra.fecha, proveedorNombre: compra.proveedorNombreSnapshot,
+          comprados: 0, vendidos: 0, traspasos: 0,
+        };
+        grupos.set(key, g);
+        anadirAPorPartida(g);
+      }
+      const g = grupos.get(key);
+      g.comprados += Number(linea.kilos) || 0;
+      if (new Date(compra.fecha) < new Date(g.fecha)) {
+        g.fecha = compra.fecha;
+        g.proveedorNombre = compra.proveedorNombreSnapshot;
+      }
+    }
+  }
+
+  function anotar(lineas, tipo) {
+    for (const linea of lineas) {
+      for (const entrada of repartoPartidas(linea)) {
+        const candidatas = (porPartida.get(entrada.numeroPartida) || []).filter((g) => sonMismaFamiliaProducto(linea.articulo, g.articulo));
+        let g = candidatas[0];
+        if (!g) {
+          const key = `${entrada.numeroPartida}|${linea.articuloId}|sin-compra`;
+          if (!grupos.has(key)) {
+            g = { numeroPartida: entrada.numeroPartida, articulo: linea.articulo, fecha: null, proveedorNombre: '(sin compra con esa partida)', comprados: 0, vendidos: 0, traspasos: 0 };
+            grupos.set(key, g);
+            anadirAPorPartida(g);
+          } else {
+            g = grupos.get(key);
+          }
+        }
+        if (tipo === 'T') g.traspasos += entrada.kilos; else g.vendidos += entrada.kilos;
+      }
+    }
+  }
+
+  const [pedidoLineas, traspasoLineas, partidasCerradas] = await Promise.all([
+    prisma.pedidoLinea.findMany({ include: { articulo: true, partidas: true } }),
+    prisma.traspasoLinea.findMany({ include: { articulo: true, partidas: true } }),
+    prisma.partida.findMany({ where: { cerradaManual: true }, select: { numeroPartida: true } }),
+  ]);
+  anotar(pedidoLineas, 'V');
+  anotar(traspasoLineas, 'T');
+  const numerosCerrados = new Set(partidasCerradas.map((p) => p.numeroPartida));
+
+  const q = String(filtros.producto || '').trim().toLowerCase();
+  const pq = String(filtros.partida || '').trim();
+  const desde = filtros.desde ? new Date(filtros.desde) : null;
+  const hasta = filtros.hasta ? new Date(filtros.hasta) : null;
+
+  const resultado = [];
+  for (const g of grupos.values()) {
+    if (q && !(String(g.articulo.codigo).toLowerCase().includes(q) || String(g.articulo.descripcion).toLowerCase().includes(q))) continue;
+    if (pq && !String(g.numeroPartida).includes(pq)) continue;
+    if (desde && g.fecha && new Date(g.fecha) < desde) continue;
+    if (hasta && g.fecha && new Date(g.fecha) > hasta) continue;
+    const pendienteBruto = g.comprados - g.vendidos - g.traspasos;
+    const pendiente = pendienteBruto > 0.005 ? pendienteBruto : 0;
+    const vendidoDeMas = pendienteBruto < -0.005 ? -pendienteBruto : 0;
+    if (filtros.soloPendiente && pendiente === 0 && vendidoDeMas === 0) continue;
+    if (filtros.soloExceso && vendidoDeMas === 0) continue;
+    resultado.push({
+      numeroPartida: g.numeroPartida,
+      fecha: g.fecha,
+      proveedorNombre: g.proveedorNombre,
+      articuloCodigo: g.articulo.codigo,
+      articuloDescripcion: g.articulo.descripcion,
+      comprados: g.comprados,
+      vendidos: g.vendidos,
+      traspasos: g.traspasos,
+      pendiente,
+      vendidoDeMas,
+      cerrada: numerosCerrados.has(g.numeroPartida),
+    });
+  }
+  resultado.sort((a, b) => a.articuloDescripcion.localeCompare(b.articuloDescripcion)
+    || String(a.fecha || '').localeCompare(String(b.fecha || ''))
+    || (a.numeroPartida - b.numeroPartida));
+  return resultado;
+}
+
 module.exports = {
   MARGEN_MINIMO_PARTIDA,
   sonMismaFamiliaProducto,
@@ -221,4 +332,5 @@ module.exports = {
   elegirPartidaParaVenta,
   elegirPartidaParaTraspaso,
   costeRealActual,
+  calcularKilosPorPartida,
 };

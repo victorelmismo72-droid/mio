@@ -7,11 +7,42 @@
 // (compra.anulada=true), nunca se borra la fila - para no perder nunca el
 // historial de que una compra existio y que paso con ella.
 const express = require('express');
+const ExcelJS = require('exceljs');
 const { prisma } = require('../db');
 const { registrarEscritura } = require('../logEscritura');
 const { conIdempotencia } = require('../idempotencia');
 const { resolverPartidaParaCompra, listarPartidasDelDia, asegurarRegistroPartida, asegurarSecuenciaPorDelante } = require('../asignacionPartida');
 const { calcularLineaCompra, sumarTotalesCompra } = require('../calculoCompra');
+
+// Filtro compartido por el histórico (pantalla) y la exportación a Excel -
+// puerto directo de obtenerComprasFiltradas()/lineaPasaFiltroCompras() del
+// HTML real (filtro a nivel de compra: partida/alb.proveedor/proveedor/
+// fecha; a nivel de línea: producto/control).
+function filasCompraFiltradas(compras, filtros) {
+  const partida = String(filtros.partida || '').trim();
+  const albProveedor = String(filtros.albProveedor || '').trim().toLowerCase();
+  const proveedor = String(filtros.proveedor || '').trim().toLowerCase();
+  const producto = String(filtros.producto || '').trim().toLowerCase();
+  const desde = filtros.desde ? new Date(filtros.desde) : null;
+  const hasta = filtros.hasta ? new Date(filtros.hasta) : null;
+  const control = filtros.control || '';
+
+  const filas = [];
+  for (const c of compras) {
+    if (partida && !String(c.numeroPartida).includes(partida)) continue;
+    if (albProveedor && !String(c.albaranProveedor || '').toLowerCase().includes(albProveedor)) continue;
+    if (proveedor && !(String(c.proveedor?.codigo || '').toLowerCase().includes(proveedor) || String(c.proveedorNombreSnapshot || '').toLowerCase().includes(proveedor))) continue;
+    if (desde && new Date(c.fecha) < desde) continue;
+    if (hasta && new Date(c.fecha) > hasta) continue;
+    for (const l of c.lineas) {
+      if (producto && !(String(l.articulo?.codigo || '').toLowerCase().includes(producto) || String(l.articulo?.descripcion || '').toLowerCase().includes(producto))) continue;
+      if (control === 'si' && !l.control) continue;
+      if (control === 'no' && l.control) continue;
+      filas.push({ compra: c, linea: l });
+    }
+  }
+  return filas;
+}
 
 const router = express.Router();
 
@@ -34,10 +65,53 @@ function calcularLineasYTotales(lineasCrudas, proveedor) {
 
 router.get('/', async (req, res) => {
   const compras = await prisma.compra.findMany({
-    include: { lineas: true, proveedor: true },
+    include: { lineas: { include: { articulo: true } }, proveedor: true },
     orderBy: { id: 'asc' },
   });
   res.json(compras);
+});
+
+// Exportación a Excel del histórico filtrado (equivalente a
+// exportarExcelCompras() del HTML real) - mismas columnas exactas. Se usa
+// exceljs, no SheetJS/"xlsx" (ver backend/README.md, nota de seguridad).
+// IMPORTANTE: va ANTES de "/:id" (ver la nota de más arriba sobre el fallo
+// real de orden de rutas del 12/09/2026).
+router.get('/exportar-excel', async (req, res) => {
+  try {
+    const compras = await prisma.compra.findMany({
+      where: { anulada: false },
+      include: { lineas: { include: { articulo: true } }, proveedor: true },
+    });
+    const filas = filasCompraFiltradas(compras, req.query);
+    filas.sort((a, b) => {
+      const porFecha = (new Date(b.compra.fecha) - new Date(a.compra.fecha)) || (b.compra.numeroPartida - a.compra.numeroPartida);
+      if (req.query.orden === 'partida-desc') return (b.compra.numeroPartida - a.compra.numeroPartida) || porFecha;
+      if (req.query.orden === 'partida-asc') return (a.compra.numeroPartida - b.compra.numeroPartida) || porFecha;
+      if (req.query.orden === 'importe-desc') return (Number(b.linea.totalFactura) - Number(a.linea.totalFactura)) || porFecha;
+      if (req.query.orden === 'importe-asc') return (Number(a.linea.totalFactura) - Number(b.linea.totalFactura)) || porFecha;
+      return porFecha;
+    });
+
+    const libro = new ExcelJS.Workbook();
+    const hoja = libro.addWorksheet('COMPRAS');
+    hoja.addRow(['PARTIDA', 'FECHA', 'ALB PROV', 'COD PROV', 'PROVEEDOR', 'COD PROD', 'DESCRIPCION', 'CAJAS', 'KILOS', 'EUR/KG', 'BASE IMP ZARAGOZA', 'BASE IMP ZGZ + IVA', '2% OP', 'BASE IMP REAL', 'IVA 10%', 'TOTAL FACT', 'CONTROL']).font = { bold: true };
+    for (const { compra: c, linea: l } of filas) {
+      hoja.addRow([
+        c.numeroPartida, c.fecha.toISOString().slice(0, 10), c.albaranProveedor || '', c.proveedor?.codigo || '', c.proveedorNombreSnapshot || '',
+        l.articulo?.codigo || '', l.articulo?.descripcion || '', Number(l.cajas) || 0, Number(l.kilos) || 0, Number(l.precioKg) || 0,
+        Number(l.baseZgz) || 0, Number(l.baseZgzConIva) || 0, Number(l.op2Importe) || 0, Number(l.baseReal) || 0, Number(l.ivaImporte) || 0, Number(l.totalFactura) || 0,
+        l.control ? 'S' : '',
+      ]);
+    }
+    hoja.columns.forEach((col) => { col.width = 14; });
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="Compras_${new Date().toISOString().slice(0, 10)}.xlsx"`);
+    await libro.xlsx.write(res);
+    res.end();
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
 });
 
 // IMPORTANTE: esta ruta especifica ("partidas-del-dia") tiene que declararse

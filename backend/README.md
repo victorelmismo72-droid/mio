@@ -165,6 +165,28 @@ descuido.
   IVA equivocados. Probado el 12/09/2026 con un proveedor de cada
   combinación (subasta/no subasta, Nacional/Intracomunitario): el cálculo
   coincide con la fórmula esperada en todos los casos.
+  - `GET /compras/exportar-excel?partida=&albProveedor=&proveedor=&producto=&desde=&hasta=&control=&orden=` —
+    **nuevo el 24/11/2026**, mismos filtros que la pantalla
+    `compras-historico.html` (ver Fase 0 punto 15, `03_FRONTEND_MARINAFISK.md`
+    punto 5): genera el `.xlsx` **en el servidor con `exceljs`** (nunca en el
+    navegador — ver nota de seguridad más abajo), con las mismas columnas que
+    el listado impreso del HTML real (incluyendo COD PROV/COD PROD). El
+    filtrado/orden de las filas lo hace `filasCompraFiltradas`
+    (`src/routes/compras.js`), que replica `obtenerComprasFiltradas` del HTML
+    real.
+- `GET /listados/kilos-por-partida?producto=&partida=&desde=&hasta=&soloPendiente=&soloExceso=`
+  — **nuevo el 24/11/2026** (informe "KILOS POR PARTIDA", encontrado leyendo
+  el HTML real, no documentado en ningún resumen anterior — ver Fase 0 punto
+  15): agrupa por partida+artículo (código exacto, no familia) y devuelve, por
+  grupo, kg comprados/vendidos/traspasos, `pendiente` (comprados − vendidos −
+  traspasos) y `vendidoDeMas` (vendidos por encima de lo comprado), con
+  umbral de 0,5% para evitar ruido de redondeo. Las líneas de venta/traspaso
+  sin ninguna compra con esa partida (mismo código o misma familia) aparecen
+  como grupo `"(sin compra con esa partida)"` en vez de perderse en silencio.
+  Todo el cálculo vive en `calcularKilosPorPartida` (`src/margenPartida.js`);
+  la pantalla `kilos-por-partida.html` solo pinta la respuesta.
+  - `GET /listados/kilos-por-partida/excel?...` — mismos filtros, `.xlsx`
+    generado en el servidor con `exceljs`.
 - `/partidas` — crear y leer, más `POST /partidas/:id/cerrar` para el cierre
   manual y `POST /partidas/ajustar-siguiente-numero` (equivalente al botón
   "🔢 Próxima partida" del HTML — para sincronizar la numeración con el

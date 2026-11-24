@@ -85,10 +85,30 @@ Tercera pantalla construida (`public/traspasos.html`/`traspasos.js`), mismo patr
 
 ---
 
-## 5. Pendiente
+## 5. Histórico de Compras + Kilos por partida — implementado y probado el 24/11/2026
 
-- El resto de pantallas (Repartos, Listas de precio, histórico/corrección de Compras, Existencias, partidas y márgenes) — ninguna construida todavía.
-- **Histórico/listado de Compras** (`RESUMEN_COMPLETO_para_Code_18-11-2026_5.md`, 20/11/2026): cuando se construya, debe incluir filtro por partida/alb. proveedor/proveedor/producto/fecha/control, listado imprimible en A4 apaisado con formato compacto (fuente pequeña, una línea por compra, sin partir fecha/producto/importes) e incluyendo códigos de proveedor y producto (para cargar en el programa de Zaragoza), exportación a Excel con los mismos filtros, y un selector de orden (fecha/partida/importe, ascendente o descendente) que afecte tanto al listado impreso como al Excel.
+Quinta y sexta pantallas construidas (`public/compras-historico.html`/`.js` y `public/kilos-por-partida.html`/`.js`), usando el HTML real como referencia exacta de columnas y filtros (`obtenerComprasFiltradas`/`filtrarCompras`/`datosKilosPorPartida`).
+
+- **Histórico de Compras**: filtros por partida, alb. proveedor, proveedor (código o nombre), producto (código o descripción), fecha desde/hasta y control (todos/comprobados/sin comprobar), más un selector de orden (fecha/partida/importe, ascendente o descendente) — el filtrado y el orden se hacen en el propio navegador sobre todas las compras ya traídas, igual que en el HTML real. Bandas por día (solo cuando el orden es por fecha, igual que el HTML). Edición en sitio de Nº partida y Alb. proveedor (a nivel de compra) y Cajas/Kilos/€-Kg/Control (a nivel de línea) — reutiliza los endpoints `PUT /compras/:id` y `PUT /compras/:id/lineas/:lineaId` ya construidos en la ronda de "compras editables" (ver Fase 0 punto 15); botón Anular por compra. Una compra anulada se pinta atenuada y sin inputs editables. **Pendiente deliberado en esta primera versión** (no construido todavía, ver Fase 0/HTML real): cambiar el proveedor o el artículo de una línea desde esta pantalla — las ediciones más frecuentes (partida, alb. proveedor, cajas/kilos/precio, control, anular) sí están cubiertas.
+- **Kilos por partida**: filtros por producto, partida, fecha de compra desde/hasta, "solo con pendiente o exceso" y "solo VENDIDO DE MÁS". Todo el cálculo lo hace el servidor (`calcularKilosPorPartida` en `backend/src/margenPartida.js`) — la pantalla solo pinta la respuesta.
+- **Exportación a Excel** en ambas pantallas: a diferencia del resto de la lógica (que se filtra en el navegador, igual que el HTML real), la generación del fichero la hace el servidor con `exceljs` (nunca SheetJS/"xlsx" en el navegador, ver la nota de seguridad en `backend/README.md`) — `GET /compras/exportar-excel` y `GET /listados/kilos-por-partida/excel`, mismos filtros que la pantalla, mismas columnas que el HTML real.
+- **Deliberadamente no construido todavía**: el listado imprimible en A4 apaisado (formato compacto, códigos de proveedor/producto) — vive en el mismo bloque ya documentado como pendiente de "Fase 4/interfaz" (impresión en general, ver más abajo), no es específico de esta pantalla.
+
+**Probado end-to-end con Playwright (navegador real) el 24/11/2026:**
+- Filtro por producto reduciendo correctamente el nº de líneas y los totales.
+- Edición en sitio de Kilos (guardado real, recálculo de Base/IVA/Total correcto) y de Control (checkbox, con el filtro "solo comprobados" reflejando el cambio).
+- Anular una compra (verificado llamando a la función y con un `.click()` nativo del DOM — el `page.click()` sintético de Playwright no dispara de forma fiable un `confirm()` nativo del navegador, limitación conocida de la herramienta de prueba, no de la aplicación).
+- Informe de Kilos por partida mostrando exactamente "20,00 comprados / 30,00 vendidos / 10,00 VENDIDO DE MÁS" para una partida de prueba con sobreventa conocida, y el filtro "solo VENDIDO DE MÁS" aislándola correctamente.
+- Export a Excel de ambas pantallas devolviendo un fichero `.xlsx` válido (`Content-Type` correcto).
+- El servidor no se cae en ningún momento de la prueba.
+
+---
+
+## 6. Pendiente
+
+- El resto de pantallas (Repartos, Listas de precio, Existencias, partidas y márgenes) — ninguna construida todavía.
+- **Listado imprimible de Compras** en A4 apaisado con formato compacto (fuente pequeña, una línea por compra, códigos de proveedor y producto) — deliberadamente no construido en esta ronda (ver punto 5), vive junto al resto de impresión pendiente (Fase 4/interfaz, más abajo).
+- **Cambiar proveedor o artículo de una línea** desde el histórico de Compras — deliberadamente no construido en esta ronda (ver punto 5).
 - **Existencias**: módulo nuevo completo (stock por fecha/artículo con cantidad, peso, precio, nota, marca de vendido y venta parcial), no modelado todavía en el esquema — ver Fase 0 punto 15.
 - Las funcionalidades de impresión de `CORRECCIONES_02-09-2026_para_Code_7.md` (Hoja Transfrío también en Traspasos, Hoja CMR condicional por agencia, catálogo de modelos de impresión, impresión en lote con copias dentro del PDF y apertura de pestañas solo por clic directo, y —nuevo, punto 12— imprimir desde la propia fila del listado con botones **separados** por documento cuando se imprimen en impresoras físicas distintas, nunca combinados en un único PDF/botón — ver `FASE_0_reglas_de_negocio_MARINAFISK.md` punto 13) — Víctor las llama "Fase 4 (interfaz)" en ese documento, pero `FASE_4_facturacion_MARINAFISK.md` es solo facturación; viven en este documento de frontend, no en Fase 4.
 - **[x] El patrón de autosuma con "+"/"-" ya usado en Kilos de Compras** (`evaluarExpresionKilos`) — hecho en Pedidos el 22/11/2026 y en Traspasos el 24/11/2026 (ver puntos 3-4, `evaluarExpresionPeso`); sigue pendiente en Repartos cuando se construya esa pantalla — confirmado como requisito general en `CORRECCIONES_02-09-2026_para_Code_7.md` punto 13.
