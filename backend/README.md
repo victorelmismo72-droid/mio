@@ -294,8 +294,28 @@ descuido.
     que comprobar, solo antigüedad (FIFO) y si la partida cubre el peso.
   - `palets` (documento electrónico de control, ver `Pedido.palets` más
     abajo) — también en `Traspaso`.
-- `/repartos` — CRUD completo (sin actualizar todavía a los criterios de
-  Fase 2 — pendiente cuando se construya esa pantalla).
+- `/repartos` — **reescrito el 24/11/2026** al construir la pantalla
+  (hasta entonces sin actualizar a los criterios de Fase 2 — mismo hueco
+  real que tuvo `/traspasos` hasta el mismo día: solo guardaba tal cual lo
+  que mandaba el cliente HTTP, sin número real ni validación):
+  - `Reparto.numero` por secuencia real (`repartos_numero_seq`), mismo
+    patrón que Pedido/Traspaso.
+  - **No lleva precio ni importe** (diferencia real frente a Pedidos/
+    Traspasos, confirmada leyendo `grabarReparto()` del HTML real): un
+    reparto a supermercado no se factura desde aquí, es puramente
+    logístico/trazabilidad — por eso no hay ningún cálculo de IVA/base/
+    total económico en esta ruta.
+  - Cada línea (`RepartoLinea`) admite `lote`/`barco`/`subzona`/
+    `artePesca` (trazabilidad para la futura etiqueta Scanfisk — su
+    generación en sí queda pendiente, ver `03_FRONTEND_MARINAFISK.md`
+    punto 8) y `pesoEtiqueta` opcional (en blanco = "VER CAJA" en la
+    etiqueta). `cantidad` (cajas), `peso` (kg) y `pesoEtiqueta` admiten la
+    misma suma que Kilos en Compras (`evaluarExpresionKilos`).
+  - **Validez de una línea**: `articuloId` Y `cajas>0` — a diferencia de
+    Pedidos/Traspasos/Compras/Existencias, el peso (kg) NO es obligatorio
+    (igual que `grabarReparto()` del HTML real).
+  - `palets` (documento electrónico de control, ver `Pedido.palets` más
+    abajo) — también en `Reparto`, quedaba pendiente hasta esta pantalla.
 - **PALETS** (documento electrónico de control obligatorio desde el
   5/10/2026, confirmado el 24/11/2026 leyendo el HTML real): `Pedido.palets`
   y `Traspaso.palets` (`Int`, por defecto 0 = "PALET VARIADO" al imprimir).

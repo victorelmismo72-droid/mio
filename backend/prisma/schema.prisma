@@ -393,12 +393,20 @@ model TraspasoLineaPartida {
 
 model Reparto {
   id                 Int      @id @default(autoincrement())
-  numero             Int      @unique
+  // Mismo hueco real que tuvieron Pedido.numero/Traspaso.numero hasta el
+  // 22-24/11/2026 (ver esos modelos mas arriba): sin un DEFAULT de verdad,
+  // ninguna pantalla podia grabar nada si se dejaba en blanco. Corregido
+  // igual, con su propia secuencia de Postgres.
+  numero             Int      @unique @default(dbgenerated("nextval('repartos_numero_seq')"))
   fecha              DateTime @db.Date
   destinatarioNombre String?  @map("destinatario_nombre")
   destinatarioCiudad String?  @map("destinatario_ciudad")
   conductor          String?
-  totalCajas         Int?     @map("total_cajas")
+  // PALETS (documento electronico de control obligatorio desde el
+  // 5/10/2026, ver Pedido.palets/Traspaso.palets mas arriba) - quedaba
+  // pendiente aqui hasta construir esta pantalla (Fase 0 punto 15).
+  palets             Int      @default(0)
+  totalCajas         Decimal? @db.Decimal(10, 2) @map("total_cajas")
   totalKg            Decimal  @db.Decimal(10, 2) @map("total_kg")
   puestoOrigen       String   @map("puesto_origen")
   creadoEn           DateTime @default(now()) @map("creado_en")
@@ -411,11 +419,29 @@ model Reparto {
 model RepartoLinea {
   id         Int      @id @default(autoincrement())
   repartoId  Int      @map("reparto_id")
-  reparto    Reparto  @relation(fields: [repartoId], references: [id])
+  reparto    Reparto  @relation(fields: [repartoId], references: [id], onDelete: Cascade)
   articuloId Int      @map("articulo_id")
   articulo   Articulo @relation(fields: [articuloId], references: [id])
+  // "cantidad" = cajas (igual que en Pedidos/Traspasos); admite la misma
+  // suma que el resto del programa (ej. "12+13.5" en el HTML real -
+  // resolverSumaSiProcedeEnEnter se aplica tambien a Cajas/Kg/Peso
+  // etiqueta en esta pantalla, no solo a Kilos como en Compras).
   cantidad   Decimal? @db.Decimal(10, 2)
   peso       Decimal  @db.Decimal(10, 2)
+  // Trazabilidad por linea (etiqueta Scanfisk del HTML real - la
+  // generacion de la etiqueta en si queda pendiente, ver
+  // 03_FRONTEND_MARINAFISK.md): lote se teclea siempre a mano (texto
+  // libre, no necesariamente el numero de partida); barco/subzona/
+  // artePesca se autorrellenan del articulo elegido (Articulo.barco/
+  // subzona/artePesca) la primera vez, pero siguen editables por linea -
+  // una misma referencia puede repartirse entre varios barcos/lotes.
+  lote         String?
+  barco        String?
+  subzona      String?
+  artePesca    String?  @map("arte_pesca")
+  // En blanco = la etiqueta imprime "VER CAJA" en vez de un peso exacto
+  // (ver HTML real) - por eso es opcional, a diferencia de "peso".
+  pesoEtiqueta Decimal? @db.Decimal(10, 2) @map("peso_etiqueta")
 
   @@map("reparto_lineas")
 }

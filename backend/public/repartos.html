@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MARINAFISK — Reparto a supermercados</title>
+<link rel="stylesheet" href="estilos.css">
+<style>
+  .wrap-ancho { max-width: 1500px; }
+  table.rep-historial { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 10px; }
+  table.rep-historial th { text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: 0.02em; color: var(--gris-texto); padding: 5px 6px; border-bottom: 2px solid var(--gris-borde); white-space: nowrap; }
+  table.rep-historial td { padding: 4px 6px; border-bottom: 1px solid #eee; white-space: nowrap; }
+  table.rep-historial td.num { text-align: right; font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+
+<div class="barra">
+  <h1>🐟 MARINAFISK — Reparto a supermercados</h1>
+  <nav class="nav-pantallas">
+    <a href="compras-historico.html">Histórico</a>
+    <a href="kilos-por-partida.html">Kilos/Partida</a>
+    <a href="compras.html">Compras</a>
+    <a href="pedidos.html">Pedidos</a>
+    <a href="traspasos.html">Traspasos</a>
+    <a href="existencias.html">Existencias</a>
+    <a href="repartos.html" class="activa">Repartos</a>
+  </nav>
+  <button class="puesto" id="btn-puesto"></button>
+</div>
+
+<div class="wrap wrap-ancho">
+
+  <div class="card">
+    <div class="card-header">
+      <span>Registrar reparto a supermercado</span>
+      <span class="numero-pedido" id="rp-numero-chip">Nº <strong>automático</strong></span>
+    </div>
+    <div class="card-body">
+      <div class="fila-campos">
+        <div class="fg" style="flex:0 1 120px;">
+          <label for="rp-numero-in" title="Déjalo en blanco para que el número correlativo lo asigne el servidor.">Nº reparto</label>
+          <input type="number" id="rp-numero-in" placeholder="auto">
+        </div>
+        <div class="fg" style="flex:0 1 160px;">
+          <label for="rp-fecha">Fecha</label>
+          <input type="date" id="rp-fecha">
+        </div>
+        <div class="fg" style="flex:0 1 220px;">
+          <label for="rp-destinatario">Destinatario</label>
+          <select id="rp-destinatario">
+            <option value="ALCAMPO ZARAGOZA">ALCAMPO ZARAGOZA</option>
+            <option value="ALCAMPO MADRID">ALCAMPO MADRID</option>
+            <option value="ALCAMPO VILLANUBLA">ALCAMPO VILLANUBLA</option>
+            <option value="ALCAMPO BARCELONA">ALCAMPO BARCELONA</option>
+            <option value="ALCAMPO MIRANDA">ALCAMPO MIRANDA</option>
+            <option value="ALCAMPO VIGO">ALCAMPO VIGO</option>
+            <option value="ALCAMPO ASTURIAS">ALCAMPO ASTURIAS</option>
+            <option value="ECOMORA">ECOMORA</option>
+            <option value="AHORRAMAS">AHORRAMAS</option>
+            <option value="TORIODIS LEON">TORIODIS LEON</option>
+            <option value="MARINA FISK CORUÑA">MARINA FISK CORUÑA</option>
+            <option value="OTRO">OTRO (escribir)</option>
+          </select>
+        </div>
+        <div class="fg" id="rp-destinatario-otro-fg" style="flex:1 1 200px; display:none;">
+          <label for="rp-destinatario-otro">Destinatario (texto libre)</label>
+          <input type="text" id="rp-destinatario-otro" placeholder="Nombre del destinatario">
+        </div>
+        <div class="fg" style="flex:0 1 200px;">
+          <label for="rp-conductor">Conductor</label>
+          <input type="text" id="rp-conductor" placeholder="Nombre del conductor">
+        </div>
+        <div class="fg" style="flex:0 1 110px;">
+          <label for="rp-palets" title="Documento electrónico de control, obligatorio desde el 5/10/2026. 0 = PALET VARIADO. Se vuelve a confirmar al grabar.">🚛 Palets</label>
+          <input type="number" id="rp-palets" min="0" step="1" value="0" class="input-palets">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <span>Líneas</span>
+      <button class="btn btn-secundario btn-mini" id="btn-add-linea" type="button">+ Añadir línea</button>
+    </div>
+    <div class="card-body" style="overflow-x:auto;">
+      <table class="lineas">
+        <thead>
+          <tr>
+            <th class="col-producto">Artículo</th>
+            <th>Lote</th>
+            <th>Barco</th>
+            <th>Subzona</th>
+            <th>Arte de pesca</th>
+            <th class="col-estrecha">Cajas</th>
+            <th class="col-estrecha">Kg aprox</th>
+            <th class="col-estrecha" title="Déjalo en blanco para que la etiqueta ponga VER CAJA; pon un número para que imprima ese peso exacto.">Peso etiqueta</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="rp-lineas"></tbody>
+      </table>
+      <div class="pie-totales">
+        <span>Cajas: <b id="rp-tot-cajas">0</b></span>
+        <span>Kg: <b id="rp-tot-kg" class="total-grande">0,00</b></span>
+      </div>
+    </div>
+  </div>
+
+  <div id="rp-aviso" class="aviso"></div>
+
+  <div style="margin-top:16px; display:flex; justify-content:flex-end;">
+    <button class="btn btn-exito" id="btn-grabar" style="font-size:15px; padding:10px 22px;">💾 Grabar reparto</button>
+  </div>
+
+  <div class="card" style="margin-top:20px;">
+    <div class="card-header">Historial de repartos</div>
+    <div class="card-body">
+      <div class="fila-campos">
+        <div class="fg" style="flex:0 1 150px;"><label for="rp-his-desde">Desde</label><input type="date" id="rp-his-desde"></div>
+        <div class="fg" style="flex:0 1 150px;"><label for="rp-his-hasta">Hasta</label><input type="date" id="rp-his-hasta"></div>
+        <div class="fg" style="flex:1 1 200px;"><label for="rp-his-dest">Destinatario</label><input type="text" id="rp-his-dest" placeholder="Buscar..."></div>
+      </div>
+      <table class="rep-historial">
+        <thead>
+          <tr><th>Nº</th><th>Fecha</th><th>Destinatario</th><th>Conductor</th><th class="num">Líneas</th><th class="num">Cajas</th><th class="num">Kg</th><th></th></tr>
+        </thead>
+        <tbody id="rp-his-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<script src="api.js"></script>
+<script src="repartos.js"></script>
+</body>
+</html>

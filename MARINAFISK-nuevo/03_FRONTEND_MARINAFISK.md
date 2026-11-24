@@ -131,13 +131,40 @@ Séptima pantalla construida (`public/existencias.html`/`existencias.js`), módu
 - Validaciones del servidor: borrar un día sin existencias da un error claro (no un 500); editar kilos a 0 desde el listado se rechaza con el mismo mensaje que el HTML real.
 - El servidor no se cae en ningún momento de la prueba.
 
-## 7. Pendiente
+## 7. Pantalla de Reparto a supermercados — implementada y probada el 24/11/2026
 
-- El resto de pantallas (Repartos, Listas de precio, partidas y márgenes) — ninguna construida todavía.
+Octava pantalla construida (`public/repartos.html`/`repartos.js`), reescribiendo también la ruta `/repartos` (hasta entonces sin actualizar a los criterios de Fase 2 — mismo hueco real que tenía `/traspasos` hasta hoy, ver Fase 0 punto 15).
+
+- **No lleva precio ni importe** (diferencia real frente a Pedidos/Traspasos, confirmada leyendo `grabarReparto()` del HTML real): un reparto a supermercado (Alcampo, Ecomora, Ahorramas...) no se factura desde esta pantalla — es puramente logístico/trazabilidad.
+- **Campos de cabecera**: Nº de reparto (opcional, secuencia real `repartos_numero_seq`, mismo patrón que Pedido/Traspaso), fecha, destinatario (desplegable cerrado con las cadenas reales — ALCAMPO ZARAGOZA/MADRID/VILLANUBLA/BARCELONA/MIRANDA/VIGO/ASTURIAS, ECOMORA, AHORRAMAS, TORIODIS LEON, MARINA FISK CORUÑA — más "OTRO" en texto libre), conductor, Palets (documento electrónico de control, mismo `pedirPalets()` compartido — quedaba pendiente en `Reparto` hasta construir esta pantalla, ver Fase 0 punto 15).
+- **Líneas de trazabilidad** (para la futura etiqueta Scanfisk, ver "Pendiente" más abajo): Artículo (autocompletar, obligatorio del catálogo — a diferencia de Existencias, aquí NO se admite texto libre, igual que `elegirArtReparto()` del HTML real), Lote (siempre tecleado a mano, no es una FK a partidas), Barco/Subzona/Arte de pesca (se autorrellenan de `Articulo.barco/subzona/artePesca` al elegir el artículo, pero siguen editables por línea — una misma referencia puede repartirse entre varios barcos/lotes mezclados, placeholder "VARIOS BARCOS"), Cajas, Kg aprox y Peso de etiqueta (en blanco = la etiqueta futura pondría "VER CAJA"). Cajas/Kg/Peso de etiqueta admiten la misma suma que Kilos en Compras.
+- **Validez de una línea**: artículo elegido Y cajas>0 — a diferencia de Pedidos/Traspasos/Compras/Existencias, el peso (kg) NO es obligatorio para que cuente (igual que el HTML real).
+- **Destinatario dividido en nombre+ciudad** (`dividirDestinatario()`, puerto directo del HTML real): "ALCAMPO ZARAGOZA" se separa en nombre="ALCAMPO"/ciudad="ZARAGOZA"; el resto de destinatarios (sin prefijo de cadena reconocido) se guardan enteros en "nombre" con "ciudad" vacía — evita el bug real que tuvo el HTML (`ECOMORA` doblándose en `ECOMORA ECOMORA ECOMORA...` al reabrir/regrabar repetidamente, corregido allí el 15/09/2026 y replicado aquí ya corregido desde el principio).
+- **Historial** (debajo, en la misma pantalla): filtros por fecha desde/hasta y destinatario (texto), con botón Anular (borrado real — `ON DELETE CASCADE` se lleva las líneas).
+- **Grabar**: protegido con `idempotencyKey` y botón deshabilitado durante el guardado, igual que el resto de pantallas.
+
+**Deliberadamente no construido en esta ronda** (ver "Pendiente" más abajo): cargar un reparto ya grabado para modificarlo (el HTML real lo permite reabriendo por número y regrabando encima); la generación de etiquetas Scanfisk/PDF de ficha de envío/hoja de ruta, y su envío por WhatsApp o email — todo eso vive en el HTML real en `MarinaFiskEtiquetas` y funciones `generarPdf...`/`enviarPdfCompletoDeReparto`, con QR y réplica vectorial de la etiqueta física; es una pieza grande de impresión que encaja con el resto de impresión pendiente (Fase 4/interfaz).
+
+**Probado end-to-end con Playwright (navegador real) el 24/11/2026:**
+- Autocompletar de artículo con autorrelleno de barco/subzona/arte de pesca al elegirlo (editable después).
+- Cajas con expresión (`10+5` → 15) y Kg sumados correctamente en el pie y en la base de datos tras grabar.
+- Línea con Peso de etiqueta puesto y línea sin él (debe quedar `null`, no `0`) — ambas correctas tras grabar.
+- Aviso de Palets con el modal propio (no `window.prompt`), valor confirmado grabado de verdad.
+- Reparto grabado con número automático, total de cajas/kg correcto, destinatario dividido correctamente (ECOMORA sin prefijo reconocido → nombre completo, ciudad vacía).
+- Validación: grabar sin ninguna línea con cajas da un aviso claro, sin tocar el servidor.
+- Número manual duplicado rechazado con mensaje claro; número automático posterior no choca con uno manual ya usado.
+- Protección de doble clic (misma clave de idempotencia reenviada no duplica el reparto).
+- Anular borra el reparto de verdad (confirmado también que sus líneas desaparecen con él).
+- El servidor no se cae en ningún momento de la prueba.
+
+## 8. Pendiente
+
+- El resto de pantallas (Listas de precio, partidas y márgenes) — ninguna construida todavía.
 - **Listado imprimible de Compras** en A4 apaisado con formato compacto (fuente pequeña, una línea por compra, códigos de proveedor y producto) — deliberadamente no construido en esta ronda (ver punto 5), vive junto al resto de impresión pendiente (Fase 4/interfaz, más abajo).
 - **Cambiar proveedor o artículo de una línea** desde el histórico de Compras — deliberadamente no construido en esta ronda (ver punto 5).
+- **Reparto a supermercados**: cargar un reparto ya grabado para modificarlo desde el historial, y toda la generación de etiquetas Scanfisk/PDF/envío por WhatsApp o email — deliberadamente no construido en esta ronda (ver punto 7).
 - Las funcionalidades de impresión de `CORRECCIONES_02-09-2026_para_Code_7.md` (Hoja Transfrío también en Traspasos, Hoja CMR condicional por agencia, catálogo de modelos de impresión, impresión en lote con copias dentro del PDF y apertura de pestañas solo por clic directo, y —nuevo, punto 12— imprimir desde la propia fila del listado con botones **separados** por documento cuando se imprimen en impresoras físicas distintas, nunca combinados en un único PDF/botón — ver `FASE_0_reglas_de_negocio_MARINAFISK.md` punto 13) — Víctor las llama "Fase 4 (interfaz)" en ese documento, pero `FASE_4_facturacion_MARINAFISK.md` es solo facturación; viven en este documento de frontend, no en Fase 4.
-- **[x] El patrón de autosuma con "+"/"-" ya usado en Kilos de Compras** (`evaluarExpresionKilos`) — hecho en Pedidos el 22/11/2026, en Traspasos el 24/11/2026 (ver puntos 3-4, `evaluarExpresionPeso`) y en Existencias el 24/11/2026 (ver punto 6); sigue pendiente en Repartos cuando se construya esa pantalla — confirmado como requisito general en `CORRECCIONES_02-09-2026_para_Code_7.md` punto 13.
+- **[x] El patrón de autosuma con "+"/"-" ya usado en Kilos de Compras** (`evaluarExpresionKilos`) — hecho en Pedidos el 22/11/2026, en Traspasos y Existencias el 24/11/2026 (ver puntos 3-4 y 6) y en Repartos el 24/11/2026 (ver punto 7, Cajas/Kg/Peso de etiqueta) — confirmado como requisito general en `CORRECCIONES_02-09-2026_para_Code_7.md` punto 13.
 - Comparación de agilidad frente al Excel/HTML actual con Víctor usando la pantalla real (Fase 2 punto 7) — ya se puede hacer para Compras.
 - Sin login/roles todavía — cualquiera que abra la URL puede grabar; no se ha pedido y el HTML actual tampoco lo tiene, pero señalado aquí por si hiciera falta más adelante.
 
