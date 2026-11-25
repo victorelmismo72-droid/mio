@@ -103,6 +103,15 @@ function textoPartidas(l) {
   return reparto.map((p) => `${p.numeroPartida} (${fmt(p.kilos)}kg)`).join(' + ');
 }
 
+// Versión corta para la celda cuando hay reparto entre varias partidas —
+// ver el mismo comentario en pedidos.js ("PARTIDAS DOBLES MÁS COMPACTAS").
+function textoPartidasCorto(l) {
+  const reparto = repartoAjustado(l);
+  if (!reparto.length) return null;
+  if (reparto.length === 1) return String(reparto[0].numeroPartida);
+  return reparto.map((p) => String(p.numeroPartida)).join('+');
+}
+
 function pintarCeldaPartida(i) {
   const btn = document.getElementById(`tpart_${i}`);
   if (!btn) return;
@@ -110,18 +119,22 @@ function pintarCeldaPartida(i) {
   const texto = textoPartidas(l);
   if (!l.articuloId) {
     btn.textContent = '—';
+    btn.title = '';
     btn.className = 'partida-celda';
     btn.disabled = true;
   } else if (texto) {
-    btn.textContent = texto;
+    btn.textContent = textoPartidasCorto(l);
+    btn.title = texto;
     btn.className = 'partida-celda asignada';
     btn.disabled = false;
   } else if (l.sinPartidaForzada) {
     btn.textContent = '— sin partida —';
+    btn.title = '';
     btn.className = 'partida-celda';
     btn.disabled = false;
   } else {
     btn.textContent = 'elegir…';
+    btn.title = '';
     btn.className = 'partida-celda pendiente';
     btn.disabled = false;
   }

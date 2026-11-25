@@ -147,13 +147,22 @@ table.lineas input { min-width: 0; }
 table.lineas .col-producto { min-width: 220px; }
 table.lineas .col-estrecha { width: 70px; }
 table.lineas .col-check { width: 36px; text-align: center; }
-table.lineas .col-partida { width: 150px; }
+/* 130px, igual que el HTML real ("PARTIDAS DOBLES MAS COMPACTAS",
+   25/11/2026) - con el texto completo de un reparto entre varias
+   partidas, la columna se podia ensanchar y descolocar el resto de la
+   tabla; ahora se recorta con ellipsis y el texto completo va en el
+   title (tooltip) de .partida-celda. */
+table.lineas .col-partida { width: 130px; max-width: 130px; overflow: hidden; }
 
 /* Celda de partida (Pedidos/Traspasos): clicable, abre el popup de
    eleccion manual - ver abrirPopupPartida en pedidos.js. */
 .partida-celda {
   display: block;
   width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   text-align: left;
   background: none;
   border: 1px dashed var(--gris-borde);
