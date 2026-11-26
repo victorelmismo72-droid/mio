@@ -105,17 +105,20 @@ async function kilosVendidosDePartida(articulo, numeroPartida) {
 // equivale a localStorage['partidas_cerradas_manual'] de hoy). Ordenado
 // por fecha ascendente (la mas antigua primero, FIFO) - igual que el HTML.
 //
-// "incluirAgotadas" (25/11/2026, "MERMA DEL CONGRIO EN LISTADO DE
-// PARTIDAS" del HTML real): por defecto, igual que antes, solo devuelve
-// partidas con kilos libres de verdad - lo que siguen usando la
+// "incluirTodas" (25-26/11/2026, "MERMA DEL CONGRIO EN LISTADO DE
+// PARTIDAS" + "ELEGIR PARTIDA AUNQUE SE PASE DE KILOS" del HTML real): por
+// defecto, igual que siempre, solo devuelve partidas con kilos libres de
+// verdad y nunca las cerradas a mano - lo que siguen usando la
 // autoasignacion silenciosa (elegirPartidaParaVenta/elegirPartidaParaTraspaso
-// mas abajo) y costeRealActual, que nunca deben elegir solas una partida ya
-// agotada. Cuando es true (solo lo pide el popup manual de eleccion, ver
-// GET /partidas/disponibles), tambien incluye las partidas sin kilos libres
-// (o incluso en negativo si ya se vendio de mas), marcadas con
-// `agotada:true` - Victor puede elegirlas igual a mano cuando la
-// elaboracion da mas kilos de los que entraron en la compra.
-async function obtenerPartidasDisponibles(articuloId, reservas, incluirAgotadas) {
+// mas abajo) y costeRealActual, que nunca deben elegir solas una partida
+// agotada o cerrada. Cuando es true (solo lo pide el popup manual de
+// eleccion, ver GET /partidas/disponibles), tambien incluye las partidas
+// sin kilos libres (o incluso en negativo si ya se vendio de mas, marcadas
+// `agotada:true`) Y las cerradas a mano (`cerrada:true`) - Victor puede
+// elegir una agotada a mano (la elaboracion puede dar mas kilos que la
+// compra), pero una cerrada solo se muestra, nunca se puede elegir (ver
+// el popup en pedidos.js/traspasos.js).
+async function obtenerPartidasDisponibles(articuloId, reservas, incluirTodas) {
   const articulo = await prisma.articulo.findUnique({ where: { id: Number(articuloId) } });
   if (!articulo) throw new Error(`No existe ningún artículo con id ${articuloId}.`);
 
@@ -148,12 +151,13 @@ async function obtenerPartidasDisponibles(articuloId, reservas, incluirAgotadas)
   const resultado = [];
   for (const [numeroPartida, acc] of porPartida) {
     const partidaCanonica = await prisma.partida.findUnique({ where: { numeroPartida } });
-    if (partidaCanonica?.cerradaManual) continue;
+    const cerrada = !!partidaCanonica?.cerradaManual;
+    if (cerrada && !incluirTodas) continue;
 
     const kilosVendidos = await kilosVendidosDePartida(articulo, numeroPartida);
     const kilosReservados = (reservas && reservas.get(numeroPartida)) || 0;
     const kilosDisponibles = acc.kilosComprados - kilosVendidos - kilosReservados;
-    if (kilosDisponibles > 0.01 || incluirAgotadas) {
+    if (kilosDisponibles > 0.01 || incluirTodas) {
       resultado.push({
         numeroPartida,
         fecha: acc.fecha,
@@ -162,6 +166,7 @@ async function obtenerPartidasDisponibles(articuloId, reservas, incluirAgotadas)
         kilosComprados: acc.kilosComprados,
         kilosDisponibles,
         agotada: kilosDisponibles <= 0.01,
+        cerrada,
       });
     }
   }

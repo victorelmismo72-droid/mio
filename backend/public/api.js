@@ -125,3 +125,19 @@ function ocultarAviso(id) {
   el.className = 'aviso';
   el.textContent = '';
 }
+
+// Aviso flotante no bloqueante (ej. "partida X: te pasaste Y kg") — puerto
+// directo de avisoPartida() del HTML real (26/11/2026, "ELEGIR PARTIDA
+// AUNQUE SE PASE DE KILOS"): se cierra solo a los 6s, no exige ninguna
+// acción, y no interrumpe lo que se esté haciendo (a diferencia de
+// mostrarAviso, que ocupa una caja fija en la pantalla).
+function avisoFlotante(mensaje) {
+  const existente = document.getElementById('aviso-flotante');
+  if (existente) existente.remove();
+  const d = document.createElement('div');
+  d.id = 'aviso-flotante';
+  d.style.cssText = 'position:fixed;left:50%;bottom:28px;transform:translateX(-50%);z-index:100000;background:#b45309;color:#fff;padding:12px 22px;border-radius:10px;font-size:15px;font-weight:700;box-shadow:0 6px 20px rgba(0,0,0,.35);pointer-events:none;max-width:90vw;text-align:center;';
+  d.textContent = mensaje;
+  document.body.appendChild(d);
+  setTimeout(() => { if (d.parentNode) d.remove(); }, 6000);
+}

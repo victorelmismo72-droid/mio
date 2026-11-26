@@ -221,6 +221,7 @@ table.lineas .col-partida { width: 130px; max-width: 130px; overflow: hidden; }
    final, por si la elaboracion da mas kilos de los comprados): se puede
    elegir igual, pero se distingue en gris/cursiva. */
 .popup-partida .pp-fila.agotada { color: #888; font-style: italic; }
+.popup-partida .pp-fila.cerrada { cursor: not-allowed; }
 .popup-partida .pp-nota-agotada { padding: 6px 12px; font-size: 11px; color: var(--gris-texto); border-top: 1px solid #eee; background: var(--gris-fondo); }
 
 .btn {

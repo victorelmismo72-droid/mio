@@ -262,15 +262,17 @@ function pintarCeldaPartida(i) {
 // ===== Popup de elección de partida (equivale a abrirPopupPartida del HTML real) =====
 
 // Deja las partidas con kilos libres en su orden de siempre (la más
-// antigua primero, FIFO) y, detrás, las agotadas - de la más reciente a
-// la más antigua, igual que el HTML real (25/11/2026): una partida
-// agotada es el último recurso, así que entre varias agotadas se prefiere
-// la más reciente (es más probable que siga siendo "la partida de hoy").
-function ordenarConAgotadasAlFinal(disponibles) {
-  const libres = disponibles.filter((p) => !p.agotada);
-  const agotadas = disponibles.filter((p) => p.agotada)
-    .sort((a, b) => (new Date(b.fecha) - new Date(a.fecha)) || (b.numeroPartida - a.numeroPartida));
-  return [...libres, ...agotadas];
+// antigua primero, FIFO), detrás las agotadas y al final las cerradas a
+// mano (25-26/11/2026, "ELEGIR PARTIDA AUNQUE SE PASE DE KILOS") - dentro
+// de cada grupo, de la más reciente a la más antigua (es más probable que
+// sea "la partida de hoy"). Las cerradas se MUESTRAN pero nunca se pueden
+// elegir (ver mostrarPasoPopupPartida).
+function ordenarPartidasParaPopup(disponibles) {
+  const orden = (a, b) => (new Date(b.fecha) - new Date(a.fecha)) || (b.numeroPartida - a.numeroPartida);
+  const libres = disponibles.filter((p) => !p.agotada && !p.cerrada);
+  const agotadas = disponibles.filter((p) => p.agotada && !p.cerrada).sort(orden);
+  const cerradas = disponibles.filter((p) => p.cerrada).sort(orden);
+  return [...libres, ...agotadas, ...cerradas];
 }
 
 let popupPartidaActual = null; // { el, indiceActivo, filas, resolver }
@@ -285,28 +287,34 @@ function cerrarPopupPartida() {
 
 // Muestra UN paso del desplegable (una sola partida a elegir) anclado bajo
 // `anchorEl`, con los kilos libres ya descontando lo reservado por otras
-// líneas de este pedido. Devuelve una promesa que resuelve con el
-// numeroPartida elegido, con `null` si se elige explícitamente "sin
-// partida", o con `undefined` si se cancela (Esc / clic fuera) sin elegir
-// nada.
+// líneas de este pedido. Devuelve una promesa que resuelve con:
+//   - `{ vacia: true }` si se elige la fila vacía ("— sin partida —" en el
+//     primer paso, o "— dejar el resto en la última —" en un paso FALTAN -
+//     el significado es distinto, lo decide el llamante).
+//   - `{ numeroPartida, dividir }` si se elige una partida — `dividir` es
+//     true si se pulsó Mayús+Intro/Mayús+clic (26/11/2026: por defecto ya
+//     NO se reparte sola entre varias partidas, se puede forzar a mano).
+//   - `undefined` si se cancela (Esc / clic fuera) sin elegir nada.
+// Elegir una partida CERRADA no resuelve nada (solo avisa) - el popup
+// sigue abierto para elegir otra cosa.
 function mostrarPasoPopupPartida({ anchorEl, disponibles, pesoFaltante, titulo, numerosYaUsados }) {
   return new Promise((resolve) => {
     cerrarPopupPartida();
+    const esFaltan = titulo.startsWith('FALTAN');
 
-    // Las agotadas (25/11/2026) se mantienen en la lista aunque no tengan
-    // kilos libres de verdad (kilosReales no se calcula sobre ellas - no
-    // tiene sentido "reservar" kilos que no existen) - se pueden elegir
-    // igual, al final, por si la elaboración da más kilos de los comprados.
+    // Las agotadas/cerradas (25-26/11/2026) se mantienen en la lista aunque
+    // no tengan kilos libres de verdad - no tiene sentido "reservar" kilos
+    // que no existen o que no se pueden usar.
     const candidatas = disponibles
       .filter((p) => !(numerosYaUsados || []).includes(p.numeroPartida))
       .map((p) => {
-        if (p.agotada) return { ...p, kilosReales: p.kilosDisponibles };
+        if (p.agotada || p.cerrada) return { ...p, kilosReales: p.kilosDisponibles };
         const reservadoOtras = kilosReservadosPorOtrasLineas(p.numeroPartida, window.__pdLineaActual);
         return { ...p, kilosReales: Math.max(0, p.kilosDisponibles - reservadoOtras) };
       })
-      .filter((p) => p.agotada || p.kilosReales > 0.01);
+      .filter((p) => p.agotada || p.cerrada || p.kilosReales > 0.01);
 
-    const conMargen = candidatas.filter((p) => !p.agotada && p.margen != null && p.margen >= MARGEN_MINIMO_PARTIDA);
+    const conMargen = candidatas.filter((p) => !p.agotada && !p.cerrada && p.margen != null && p.margen >= MARGEN_MINIMO_PARTIDA);
     let indiceDefecto = 0;
     const cubrenTodo = conMargen.findIndex((p) => p.kilosReales >= pesoFaltante);
     if (cubrenTodo !== -1) {
@@ -319,19 +327,20 @@ function mostrarPasoPopupPartida({ anchorEl, disponibles, pesoFaltante, titulo, 
     const el = document.createElement('div');
     el.className = 'popup-partida';
     el.innerHTML = `
-      <div class="pp-titulo${titulo.startsWith('FALTAN') ? ' faltan' : ''}">${titulo}</div>
+      <div class="pp-titulo${esFaltan ? ' faltan' : ''}">${titulo}</div>
       <div class="pp-lista">
-        <div class="pp-fila sin-partida" data-accion="sin-partida">— sin partida —</div>
+        <div class="pp-fila sin-partida" data-accion="sin-partida">— ${esFaltan ? 'dejar el resto en la última' : 'sin partida'} —</div>
         ${candidatas.map((p, idx) => `
-          <div class="pp-fila${idx === indiceDefecto ? ' activa' : ''}${p.agotada ? ' agotada' : ''}" data-idx="${idx}">
-            <span class="pp-num">${p.numeroPartida}</span>
+          <div class="pp-fila${idx === indiceDefecto ? ' activa' : ''}${p.agotada || p.cerrada ? ' agotada' : ''}${p.cerrada ? ' cerrada' : ''}" data-idx="${idx}">
+            <span class="pp-num">${p.numeroPartida}${p.cerrada ? ' 🔒' : ''}</span>
             <span>${new Date(p.fecha).toLocaleDateString('es-ES')}</span>
             <span title="${p.proveedorNombre}">${p.proveedorNombre}</span>
             <span class="pp-kg">${fmt(p.coste)} €/kg</span>
-            <span class="pp-kg">${p.agotada ? `agotada${p.kilosDisponibles < -0.5 ? ` (${fmt(-p.kilosDisponibles)} de más)` : ''}` : `${fmt(p.kilosReales)} kg`}</span>
+            <span class="pp-kg">${p.cerrada ? 'cerrada' : p.agotada ? `agotada${p.kilosDisponibles < -0.5 ? ` (${fmt(-p.kilosDisponibles)} de más)` : ''}` : `${fmt(p.kilosReales)} kg`}</span>
             <span class="pp-margen">${p.margen != null && p.margen >= MARGEN_MINIMO_PARTIDA ? '✅' : '⚠️'}</span>
           </div>`).join('') || '<div class="pp-vacio">Este producto no tiene ninguna partida comprada.</div>'}
-        ${candidatas.some((p) => p.agotada) ? '<div class="pp-nota-agotada">En gris = partida agotada (ya se vendieron todos sus kilos). Se puede elegir igual: se anotan los kg de más.</div>' : ''}
+        ${candidatas.some((p) => p.agotada || p.cerrada) ? '<div class="pp-nota-agotada">En gris = agotada (se puede elegir igual: se anotan los kg de más) · 🔒 cerrada = solo se muestra, NO se puede usar.</div>' : ''}
+        ${!esFaltan && pesoFaltante > 0 ? `<div class="pp-nota-agotada">⚠️ en «Quedan kg» = no llega a los ${fmt(pesoFaltante)} kg de la línea: <b>Intro</b> la usa igualmente (se avisa de los kg de más) · <b>Mayús+Intro</b> = completar el resto con otra partida.</div>` : ''}
       </div>`;
     document.body.appendChild(el);
 
@@ -345,17 +354,17 @@ function mostrarPasoPopupPartida({ anchorEl, disponibles, pesoFaltante, titulo, 
     const marcarActiva = () => filas.forEach((f, idx) => f.classList.toggle('activa', idx === activo));
     marcarActiva();
 
-    const elegir = (numeroPartida) => {
+    const elegir = (idx, dividir) => {
+      if (idx == null) { cerrarPopupPartida(); resolve({ vacia: true }); return; }
+      const p = candidatas[idx];
+      if (p.cerrada) { avisoFlotante(`🔒 La partida ${p.numeroPartida} está cerrada: se muestra pero no se puede usar.`); return; }
       cerrarPopupPartida();
-      resolve(numeroPartida);
+      resolve({ numeroPartida: p.numeroPartida, dividir: !!dividir });
     };
 
     el.querySelector('[data-accion="sin-partida"]').addEventListener('mousedown', (e) => { e.preventDefault(); elegir(null); });
     filas.forEach((f) => {
-      f.addEventListener('mousedown', (e) => {
-        e.preventDefault();
-        elegir(candidatas[Number(f.dataset.idx)].numeroPartida);
-      });
+      f.addEventListener('mousedown', (e) => { e.preventDefault(); elegir(Number(f.dataset.idx), e.shiftKey); });
     });
 
     // stopPropagation es imprescindible aqui: el popup no roba el foco del
@@ -368,7 +377,7 @@ function mostrarPasoPopupPartida({ anchorEl, disponibles, pesoFaltante, titulo, 
     const onKeydown = (e) => {
       if (e.key === 'ArrowDown') { e.preventDefault(); e.stopPropagation(); if (filas.length) { activo = Math.min(activo + 1, filas.length - 1); marcarActiva(); } }
       else if (e.key === 'ArrowUp') { e.preventDefault(); e.stopPropagation(); if (filas.length) { activo = Math.max(activo - 1, 0); marcarActiva(); } }
-      else if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); if (filas.length) elegir(candidatas[activo].numeroPartida); else elegir(null); }
+      else if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); if (filas.length) elegir(activo, e.shiftKey); else elegir(null); }
       else if (e.key === 'Escape' || e.key === 'Tab') { e.preventDefault(); e.stopPropagation(); cerrarPopupPartida(); resolve(undefined); }
     };
     const onMousedownFuera = (e) => {
@@ -381,10 +390,14 @@ function mostrarPasoPopupPartida({ anchorEl, disponibles, pesoFaltante, titulo, 
 }
 
 // Flujo completo para la línea `i`: abre el primer desplegable con el peso
-// entero de la línea; si la partida elegida no llega a cubrirlo, encadena
-// un desplegable "FALTAN X kg" con el resto, hasta cubrirlo o hasta que se
-// cancele (en cuyo caso el resto se queda en la última partida elegida,
-// igual que el HTML real - repartoAjustado() se encarga de recalcularlo).
+// entero de la línea. Desde el 26/11/2026 ("ELEGIR PARTIDA AUNQUE SE PASE
+// DE KILOS"), elegir una partida con Intro/clic le asigna TODO el peso que
+// falta, aunque no le quede esa cantidad libre (se avisa con un aviso
+// flotante, no bloqueante) — repartir entre varias partidas ya NO es automático,
+// hay que pedirlo a propósito con Mayús+Intro/Mayús+clic, que abre el
+// siguiente paso "FALTAN X kg" con el resto (igual que el comportamiento
+// antiguo, ahora opt-in). Cancelar (Esc/clic fuera) deja lo ya elegido tal
+// cual - repartoAjustado() se encarga de recalcular los kilos de la última.
 async function iniciarEleccionPartida(i) {
   const l = lineas[i];
   const anchorEl = document.getElementById(`ppart_${i}`) || document.getElementById(`pr_${i}`);
@@ -400,8 +413,8 @@ async function iniciarEleccionPartida(i) {
   let disponibles;
   try {
     const precio = Number(l.precioKg) || 0;
-    const resp = await apiGet(`/partidas/disponibles?articuloId=${l.articuloId}&precioVenta=${precio}&incluirAgotadas=true`);
-    disponibles = ordenarConAgotadasAlFinal(resp.disponibles || []);
+    const resp = await apiGet(`/partidas/disponibles?articuloId=${l.articuloId}&precioVenta=${precio}&incluirTodas=true`);
+    disponibles = ordenarPartidasParaPopup(resp.disponibles || []);
   } catch (err) {
     mostrarAviso('pd-aviso', '⚠️ No se han podido consultar las partidas disponibles: ' + err.message, 'error');
     return;
@@ -412,27 +425,45 @@ async function iniciarEleccionPartida(i) {
   let primeraVuelta = true;
   while (pesoFaltante > 0.01) {
     const titulo = primeraVuelta ? `Elegir partida (${fmt(peso)} kg)` : `FALTAN ${fmt(pesoFaltante)} kg — elegir otra partida`;
-    const elegido = await mostrarPasoPopupPartida({ anchorEl, disponibles, pesoFaltante, titulo, numerosYaUsados });
-    primeraVuelta = false;
-    if (elegido === undefined) break; // cancelado - lo ya elegido se queda tal cual
-    if (elegido === null) { l.partidas = []; l.sinPartidaForzada = true; break; } // "sin partida" explícito
-    const partida = disponibles.find((p) => p.numeroPartida === elegido);
-    // Partida agotada elegida a mano (25/11/2026, ver obtenerPartidasDisponibles):
-    // se le asigna TODO lo que falte y se cierra el reparto aquí mismo - no
-    // tiene sentido seguir repartiendo por "kilos libres" de algo que ya no
-    // tiene (la elaboración puede dar más kilos que la compra).
-    if (partida?.agotada) {
-      l.partidas.push({ numeroPartida: elegido, kilos: pesoFaltante });
-      numerosYaUsados.push(elegido);
-      pesoFaltante = 0;
+    const resultado = await mostrarPasoPopupPartida({ anchorEl, disponibles, pesoFaltante, titulo, numerosYaUsados });
+    if (resultado === undefined) break; // cancelado (Esc/clic fuera) - lo ya elegido se queda tal cual
+    if (resultado.vacia) {
+      // En el primer paso, "— sin partida —" fuerza explícitamente que no
+      // se autoasigne nada. En un paso FALTAN, "— dejar el resto en la
+      // última —" NO es lo mismo: solo deja de pedir más partidas,
+      // conservando lo ya repartido en los pasos anteriores.
+      if (primeraVuelta) { l.partidas = []; l.sinPartidaForzada = true; }
       break;
     }
-    const reservadoOtras = kilosReservadosPorOtrasLineas(elegido, i);
-    const kilosReales = partida ? Math.max(0, partida.kilosDisponibles - reservadoOtras) : 0;
-    const kilosAsignados = Math.min(kilosReales, pesoFaltante);
-    l.partidas.push({ numeroPartida: elegido, kilos: kilosAsignados });
+    primeraVuelta = false;
+    const { numeroPartida: elegido, dividir } = resultado;
+    const partida = disponibles.find((p) => p.numeroPartida === elegido);
+    // Mayús+Intro/Mayús+clic (26/11/2026): repartir de verdad entre varias
+    // partidas es ahora una acción a propósito, no automática - solo tiene
+    // sentido si la partida elegida no cubre lo que falta y no está agotada.
+    if (dividir && partida && !partida.agotada) {
+      const reservadoOtras = kilosReservadosPorOtrasLineas(elegido, i);
+      const kilosReales = Math.max(0, partida.kilosDisponibles - reservadoOtras);
+      if (pesoFaltante > 0.01 && kilosReales < pesoFaltante - 0.005) {
+        const kg = Math.floor(kilosReales * 100) / 100;
+        l.partidas.push({ numeroPartida: elegido, kilos: kg });
+        numerosYaUsados.push(elegido);
+        pesoFaltante = Math.max(0, pesoFaltante - kg);
+        continue; // sigue el bucle: abre el siguiente paso "FALTAN X kg"
+      }
+    }
+    // Intro/clic normal (26/11/2026, "ELEGIR PARTIDA AUNQUE SE PASE DE
+    // KILOS"): TODO lo que falta va a esta partida, aunque se pase de los
+    // kilos que le quedan - ya no se reparte sola entre varias. Si se pasa,
+    // solo se avisa (no bloquea).
+    const kilosLibres = partida ? Math.max(0, partida.kilosDisponibles) : 0;
+    const sobra = pesoFaltante - kilosLibres;
+    l.partidas.push({ numeroPartida: elegido, kilos: pesoFaltante });
     numerosYaUsados.push(elegido);
-    pesoFaltante = Math.max(0, pesoFaltante - kilosAsignados);
+    if (pesoFaltante > 0.01 && sobra > 0.01) {
+      avisoFlotante(`⚠️ Partida ${elegido}: quedaban ${fmt(kilosLibres)} kg y llevas ${fmt(pesoFaltante)} kg → ${fmt(sobra)} kg de más.`);
+    }
+    pesoFaltante = 0;
   }
 
   pintarCeldaPartida(i);

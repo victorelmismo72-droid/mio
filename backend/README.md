@@ -210,16 +210,30 @@ descuido.
   mismo día), solo se tenía en cuenta la primera encontrada en vez de sumar
   los kilos de todas con coste medio ponderado. Ambos corregidos y probados
   con datos reales (ver Fase 2 punto 4).
-  **Partidas agotadas elegibles — añadido el 25/11/2026** (mismo cambio del
-  HTML real que trae la merma del congrio): `obtenerPartidasDisponibles`
-  acepta un tercer parámetro `incluirAgotadas` (por defecto `false` — la
-  autoasignación silenciosa y `costeRealActual` nunca deben elegir solas
-  una partida sin kilos); `GET /partidas/disponibles?incluirAgotadas=true`
-  lo pide siempre, para el popup manual de Pedidos/Traspasos, que ahora
-  también lista las partidas sin kilos libres (`agotada:true`, con
-  `kilosDisponibles` incluso negativo si ya se vendió de más) al final de
-  la lista — se pueden elegir igual (la elaboración puede dar más kilos
-  que la compra), asignando directamente todo lo que falte de la línea.
+  **Partidas agotadas y cerradas elegibles/visibles en el popup — añadido
+  el 25-26/11/2026** (HTML real: merma del congrio, y "ELEGIR PARTIDA
+  AUNQUE SE PASE DE KILOS"): `obtenerPartidasDisponibles` acepta un tercer
+  parámetro `incluirTodas` (antes `incluirAgotadas` — renombrado el
+  26/11/2026 porque ahora también gobierna las cerradas, ver más abajo;
+  por defecto `false` — la autoasignación silenciosa y `costeRealActual`
+  nunca deben elegir solas una partida sin kilos o cerrada a mano);
+  `GET /partidas/disponibles?incluirTodas=true` lo pide siempre, para el
+  popup manual de Pedidos/Traspasos:
+  - Lista también las partidas sin kilos libres (`agotada:true`, con
+    `kilosDisponibles` incluso negativo si ya se vendió de más) — se
+    pueden elegir igual (la elaboración puede dar más kilos que la
+    compra).
+  - Lista también las cerradas a mano (`cerrada:true`, antes excluidas
+    siempre) — se muestran (al final de todas, después de las agotadas)
+    pero **nunca se pueden elegir**; el frontend las deja solo como
+    referencia visual (gris/cursiva, 🔒), un intento de elegirlas solo
+    lanza un aviso.
+  - **Cambio de comportamiento del popup (26/11/2026):** Intro/clic normal
+    sobre una partida ya NO reparte sola la línea entre varias si no
+    cubre el peso — le asigna TODO lo que falta (avisando si se pasa de
+    kilos, aviso flotante no bloqueante — `avisoFlotante` en
+    `public/api.js`). Repartir de verdad entre varias partidas sigue
+    existiendo pero es ahora explícito: Mayús+Intro/Mayús+clic.
 - `/pedidos` — CRUD completo. `POST /pedidos` y `PUT /pedidos/:id` calculan
   varias cosas en el servidor en vez de aceptarlas ya calculadas del
   cliente (mismo motivo que en compras — Fase 0 punto 2):
