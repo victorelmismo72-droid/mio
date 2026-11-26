@@ -142,6 +142,17 @@ function pintarCeldaPartida(i) {
 
 // ===== Popup de elección de partida (igual que Pedidos, sin margen) =====
 
+// Ver el mismo comentario en pedidos.js: deja las partidas con kilos
+// libres en su orden de siempre y, detrás, las agotadas (de la más
+// reciente a la más antigua) - se pueden elegir igual, por si la
+// elaboración da más kilos que la compra (25/11/2026).
+function ordenarConAgotadasAlFinal(disponibles) {
+  const libres = disponibles.filter((p) => !p.agotada);
+  const agotadas = disponibles.filter((p) => p.agotada)
+    .sort((a, b) => (new Date(b.fecha) - new Date(a.fecha)) || (b.numeroPartida - a.numeroPartida));
+  return [...libres, ...agotadas];
+}
+
 let popupPartidaActual = null;
 
 function cerrarPopupPartida() {
@@ -159,13 +170,14 @@ function mostrarPasoPopupPartida({ anchorEl, disponibles, pesoFaltante, titulo, 
     const candidatas = disponibles
       .filter((p) => !(numerosYaUsados || []).includes(p.numeroPartida))
       .map((p) => {
+        if (p.agotada) return { ...p, kilosReales: p.kilosDisponibles };
         const reservadoOtras = kilosReservadosPorOtrasLineas(p.numeroPartida, indiceLinea);
         return { ...p, kilosReales: Math.max(0, p.kilosDisponibles - reservadoOtras) };
       })
-      .filter((p) => p.kilosReales > 0.01);
+      .filter((p) => p.agotada || p.kilosReales > 0.01);
 
     let indiceDefecto = 0;
-    const cubrenTodo = candidatas.findIndex((p) => p.kilosReales >= pesoFaltante);
+    const cubrenTodo = candidatas.findIndex((p) => !p.agotada && p.kilosReales >= pesoFaltante);
     if (cubrenTodo !== -1) indiceDefecto = cubrenTodo;
 
     const el = document.createElement('div');
@@ -175,13 +187,14 @@ function mostrarPasoPopupPartida({ anchorEl, disponibles, pesoFaltante, titulo, 
       <div class="pp-lista">
         <div class="pp-fila sin-partida" data-accion="sin-partida">— sin partida —</div>
         ${candidatas.map((p, idx) => `
-          <div class="pp-fila${idx === indiceDefecto ? ' activa' : ''}" data-idx="${idx}" style="grid-template-columns:70px 70px 1fr 70px 70px;">
+          <div class="pp-fila${idx === indiceDefecto ? ' activa' : ''}${p.agotada ? ' agotada' : ''}" data-idx="${idx}" style="grid-template-columns:70px 70px 1fr 70px 70px;">
             <span class="pp-num">${p.numeroPartida}</span>
             <span>${new Date(p.fecha).toLocaleDateString('es-ES')}</span>
             <span title="${p.proveedorNombre}">${p.proveedorNombre}</span>
             <span class="pp-kg">${fmt(p.coste)} €/kg</span>
-            <span class="pp-kg">${fmt(p.kilosReales)} kg</span>
-          </div>`).join('') || '<div class="pp-vacio">No hay más partidas disponibles de este producto.</div>'}
+            <span class="pp-kg">${p.agotada ? `agotada${p.kilosDisponibles < -0.5 ? ` (${fmt(-p.kilosDisponibles)} de más)` : ''}` : `${fmt(p.kilosReales)} kg`}</span>
+          </div>`).join('') || '<div class="pp-vacio">Este producto no tiene ninguna partida comprada.</div>'}
+        ${candidatas.some((p) => p.agotada) ? '<div class="pp-nota-agotada">En gris = partida agotada (ya se vendieron todos sus kilos). Se puede elegir igual: se anotan los kg de más.</div>' : ''}
       </div>`;
     document.body.appendChild(el);
 
@@ -228,8 +241,8 @@ async function iniciarEleccionPartida(i) {
 
   let disponibles;
   try {
-    const resp = await apiGet(`/partidas/disponibles?articuloId=${l.articuloId}`);
-    disponibles = resp.disponibles || [];
+    const resp = await apiGet(`/partidas/disponibles?articuloId=${l.articuloId}&incluirAgotadas=true`);
+    disponibles = ordenarConAgotadasAlFinal(resp.disponibles || []);
   } catch (err) {
     mostrarAviso('tp-aviso', '⚠️ No se han podido consultar las partidas disponibles: ' + err.message, 'error');
     return;
@@ -245,6 +258,12 @@ async function iniciarEleccionPartida(i) {
     if (elegido === undefined) break;
     if (elegido === null) { l.partidas = []; l.sinPartidaForzada = true; break; }
     const partida = disponibles.find((p) => p.numeroPartida === elegido);
+    if (partida?.agotada) {
+      l.partidas.push({ numeroPartida: elegido, kilos: pesoFaltante });
+      numerosYaUsados.push(elegido);
+      pesoFaltante = 0;
+      break;
+    }
     const reservadoOtras = kilosReservadosPorOtrasLineas(elegido, i);
     const kilosReales = partida ? Math.max(0, partida.kilosDisponibles - reservadoOtras) : 0;
     const kilosAsignados = Math.min(kilosReales, pesoFaltante);

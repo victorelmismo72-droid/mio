@@ -187,6 +187,14 @@ descuido.
   la pantalla `kilos-por-partida.html` solo pinta la respuesta.
   - `GET /listados/kilos-por-partida/excel?...` — mismos filtros, `.xlsx`
     generado en el servidor con `exceljs`.
+  - **Merma — añadido el 25/11/2026** ("MERMA DEL CONGRIO EN LISTADO DE
+    PARTIDAS" del HTML real): `MERMAS_LISTADO`/`mermaDeProducto` en
+    `margenPartida.js` — lista cerrada de productos con merma conocida por
+    patrón de descripción/código (por ahora solo congrio, −10% por la
+    tripa). `pendiente = comprados − merma − vendidos − traspasos`. Cada
+    grupo devuelve también `mermaKg`/`mermaPct`/`mermaMotivo`. **No
+    afecta** a ninguna venta, traspaso ni a `obtenerPartidasDisponibles` —
+    solo a la estimación de este informe de lectura.
 - `/partidas` — crear y leer, más `POST /partidas/:id/cerrar` para el cierre
   manual y `POST /partidas/ajustar-siguiente-numero` (equivalente al botón
   "🔢 Próxima partida" del HTML — para sincronizar la numeración con el
@@ -202,6 +210,16 @@ descuido.
   mismo día), solo se tenía en cuenta la primera encontrada en vez de sumar
   los kilos de todas con coste medio ponderado. Ambos corregidos y probados
   con datos reales (ver Fase 2 punto 4).
+  **Partidas agotadas elegibles — añadido el 25/11/2026** (mismo cambio del
+  HTML real que trae la merma del congrio): `obtenerPartidasDisponibles`
+  acepta un tercer parámetro `incluirAgotadas` (por defecto `false` — la
+  autoasignación silenciosa y `costeRealActual` nunca deben elegir solas
+  una partida sin kilos); `GET /partidas/disponibles?incluirAgotadas=true`
+  lo pide siempre, para el popup manual de Pedidos/Traspasos, que ahora
+  también lista las partidas sin kilos libres (`agotada:true`, con
+  `kilosDisponibles` incluso negativo si ya se vendió de más) al final de
+  la lista — se pueden elegir igual (la elaboración puede dar más kilos
+  que la compra), asignando directamente todo lo que falte de la línea.
 - `/pedidos` — CRUD completo. `POST /pedidos` y `PUT /pedidos/:id` calculan
   varias cosas en el servidor en vez de aceptarlas ya calculadas del
   cliente (mismo motivo que en compras — Fase 0 punto 2):

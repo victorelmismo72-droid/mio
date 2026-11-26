@@ -261,6 +261,18 @@ function pintarCeldaPartida(i) {
 
 // ===== Popup de elección de partida (equivale a abrirPopupPartida del HTML real) =====
 
+// Deja las partidas con kilos libres en su orden de siempre (la más
+// antigua primero, FIFO) y, detrás, las agotadas - de la más reciente a
+// la más antigua, igual que el HTML real (25/11/2026): una partida
+// agotada es el último recurso, así que entre varias agotadas se prefiere
+// la más reciente (es más probable que siga siendo "la partida de hoy").
+function ordenarConAgotadasAlFinal(disponibles) {
+  const libres = disponibles.filter((p) => !p.agotada);
+  const agotadas = disponibles.filter((p) => p.agotada)
+    .sort((a, b) => (new Date(b.fecha) - new Date(a.fecha)) || (b.numeroPartida - a.numeroPartida));
+  return [...libres, ...agotadas];
+}
+
 let popupPartidaActual = null; // { el, indiceActivo, filas, resolver }
 
 function cerrarPopupPartida() {
@@ -281,15 +293,20 @@ function mostrarPasoPopupPartida({ anchorEl, disponibles, pesoFaltante, titulo, 
   return new Promise((resolve) => {
     cerrarPopupPartida();
 
+    // Las agotadas (25/11/2026) se mantienen en la lista aunque no tengan
+    // kilos libres de verdad (kilosReales no se calcula sobre ellas - no
+    // tiene sentido "reservar" kilos que no existen) - se pueden elegir
+    // igual, al final, por si la elaboración da más kilos de los comprados.
     const candidatas = disponibles
       .filter((p) => !(numerosYaUsados || []).includes(p.numeroPartida))
       .map((p) => {
+        if (p.agotada) return { ...p, kilosReales: p.kilosDisponibles };
         const reservadoOtras = kilosReservadosPorOtrasLineas(p.numeroPartida, window.__pdLineaActual);
         return { ...p, kilosReales: Math.max(0, p.kilosDisponibles - reservadoOtras) };
       })
-      .filter((p) => p.kilosReales > 0.01);
+      .filter((p) => p.agotada || p.kilosReales > 0.01);
 
-    const conMargen = candidatas.filter((p) => p.margen != null && p.margen >= MARGEN_MINIMO_PARTIDA);
+    const conMargen = candidatas.filter((p) => !p.agotada && p.margen != null && p.margen >= MARGEN_MINIMO_PARTIDA);
     let indiceDefecto = 0;
     const cubrenTodo = conMargen.findIndex((p) => p.kilosReales >= pesoFaltante);
     if (cubrenTodo !== -1) {
@@ -306,14 +323,15 @@ function mostrarPasoPopupPartida({ anchorEl, disponibles, pesoFaltante, titulo, 
       <div class="pp-lista">
         <div class="pp-fila sin-partida" data-accion="sin-partida">— sin partida —</div>
         ${candidatas.map((p, idx) => `
-          <div class="pp-fila${idx === indiceDefecto ? ' activa' : ''}" data-idx="${idx}">
+          <div class="pp-fila${idx === indiceDefecto ? ' activa' : ''}${p.agotada ? ' agotada' : ''}" data-idx="${idx}">
             <span class="pp-num">${p.numeroPartida}</span>
             <span>${new Date(p.fecha).toLocaleDateString('es-ES')}</span>
             <span title="${p.proveedorNombre}">${p.proveedorNombre}</span>
             <span class="pp-kg">${fmt(p.coste)} €/kg</span>
-            <span class="pp-kg">${fmt(p.kilosReales)} kg</span>
+            <span class="pp-kg">${p.agotada ? `agotada${p.kilosDisponibles < -0.5 ? ` (${fmt(-p.kilosDisponibles)} de más)` : ''}` : `${fmt(p.kilosReales)} kg`}</span>
             <span class="pp-margen">${p.margen != null && p.margen >= MARGEN_MINIMO_PARTIDA ? '✅' : '⚠️'}</span>
-          </div>`).join('') || '<div class="pp-vacio">No hay más partidas disponibles de este producto.</div>'}
+          </div>`).join('') || '<div class="pp-vacio">Este producto no tiene ninguna partida comprada.</div>'}
+        ${candidatas.some((p) => p.agotada) ? '<div class="pp-nota-agotada">En gris = partida agotada (ya se vendieron todos sus kilos). Se puede elegir igual: se anotan los kg de más.</div>' : ''}
       </div>`;
     document.body.appendChild(el);
 
@@ -382,8 +400,8 @@ async function iniciarEleccionPartida(i) {
   let disponibles;
   try {
     const precio = Number(l.precioKg) || 0;
-    const resp = await apiGet(`/partidas/disponibles?articuloId=${l.articuloId}&precioVenta=${precio}`);
-    disponibles = resp.disponibles || [];
+    const resp = await apiGet(`/partidas/disponibles?articuloId=${l.articuloId}&precioVenta=${precio}&incluirAgotadas=true`);
+    disponibles = ordenarConAgotadasAlFinal(resp.disponibles || []);
   } catch (err) {
     mostrarAviso('pd-aviso', '⚠️ No se han podido consultar las partidas disponibles: ' + err.message, 'error');
     return;
@@ -399,6 +417,16 @@ async function iniciarEleccionPartida(i) {
     if (elegido === undefined) break; // cancelado - lo ya elegido se queda tal cual
     if (elegido === null) { l.partidas = []; l.sinPartidaForzada = true; break; } // "sin partida" explícito
     const partida = disponibles.find((p) => p.numeroPartida === elegido);
+    // Partida agotada elegida a mano (25/11/2026, ver obtenerPartidasDisponibles):
+    // se le asigna TODO lo que falte y se cierra el reparto aquí mismo - no
+    // tiene sentido seguir repartiendo por "kilos libres" de algo que ya no
+    // tiene (la elaboración puede dar más kilos que la compra).
+    if (partida?.agotada) {
+      l.partidas.push({ numeroPartida: elegido, kilos: pesoFaltante });
+      numerosYaUsados.push(elegido);
+      pesoFaltante = 0;
+      break;
+    }
     const reservadoOtras = kilosReservadosPorOtrasLineas(elegido, i);
     const kilosReales = partida ? Math.max(0, partida.kilosDisponibles - reservadoOtras) : 0;
     const kilosAsignados = Math.min(kilosReales, pesoFaltante);

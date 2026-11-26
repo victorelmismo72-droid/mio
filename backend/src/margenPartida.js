@@ -104,7 +104,18 @@ async function kilosVendidosDePartida(articulo, numeroPartida) {
 // Excluye las partidas cerradas manualmente (ver Partida.cerradaManual,
 // equivale a localStorage['partidas_cerradas_manual'] de hoy). Ordenado
 // por fecha ascendente (la mas antigua primero, FIFO) - igual que el HTML.
-async function obtenerPartidasDisponibles(articuloId, reservas) {
+//
+// "incluirAgotadas" (25/11/2026, "MERMA DEL CONGRIO EN LISTADO DE
+// PARTIDAS" del HTML real): por defecto, igual que antes, solo devuelve
+// partidas con kilos libres de verdad - lo que siguen usando la
+// autoasignacion silenciosa (elegirPartidaParaVenta/elegirPartidaParaTraspaso
+// mas abajo) y costeRealActual, que nunca deben elegir solas una partida ya
+// agotada. Cuando es true (solo lo pide el popup manual de eleccion, ver
+// GET /partidas/disponibles), tambien incluye las partidas sin kilos libres
+// (o incluso en negativo si ya se vendio de mas), marcadas con
+// `agotada:true` - Victor puede elegirlas igual a mano cuando la
+// elaboracion da mas kilos de los que entraron en la compra.
+async function obtenerPartidasDisponibles(articuloId, reservas, incluirAgotadas) {
   const articulo = await prisma.articulo.findUnique({ where: { id: Number(articuloId) } });
   if (!articulo) throw new Error(`No existe ningún artículo con id ${articuloId}.`);
 
@@ -142,7 +153,7 @@ async function obtenerPartidasDisponibles(articuloId, reservas) {
     const kilosVendidos = await kilosVendidosDePartida(articulo, numeroPartida);
     const kilosReservados = (reservas && reservas.get(numeroPartida)) || 0;
     const kilosDisponibles = acc.kilosComprados - kilosVendidos - kilosReservados;
-    if (kilosDisponibles > 0.01) {
+    if (kilosDisponibles > 0.01 || incluirAgotadas) {
       resultado.push({
         numeroPartida,
         fecha: acc.fecha,
@@ -150,6 +161,7 @@ async function obtenerPartidasDisponibles(articuloId, reservas) {
         coste: acc.kilosComprados > 0 ? acc.baseTotal / acc.kilosComprados : 0,
         kilosComprados: acc.kilosComprados,
         kilosDisponibles,
+        agotada: kilosDisponibles <= 0.01,
       });
     }
   }
@@ -210,6 +222,21 @@ async function costeRealActual(articuloId) {
   if (kilosTotal <= 0) return null;
   const baseTotal = disponibles.reduce((s, p) => s + p.kilosDisponibles * p.coste, 0);
   return baseTotal / kilosTotal;
+}
+
+// Merma estimada SOLO para este informe (25/11/2026, "MERMA DEL CONGRIO EN
+// LISTADO DE PARTIDAS" del HTML real) - no afecta a ninguna venta, traspaso
+// ni a la disponibilidad real de una partida (obtenerPartidasDisponibles),
+// solo a la cifra de "pendiente de vender" de este listado: el congrio
+// pierde ~10% de su peso en la tripa antes de poder venderse, así que
+// contar el 100% de lo comprado como "pendiente" sobreestima lo que
+// realmente queda. Lista cerrada a proposito (como las agencias de
+// transporte) - si Victor pide otro producto con merma conocida, se añade
+// aqui.
+const MERMAS_LISTADO = [{ patron: /congrio/i, pct: 10, motivo: 'tripa' }];
+function mermaDeProducto(articulo) {
+  const texto = `${articulo?.descripcion || ''} ${articulo?.codigo || ''}`;
+  return MERMAS_LISTADO.find((m) => m.patron.test(texto)) || null;
 }
 
 // Informe "KILOS POR PARTIDA" (ver Fase 2 punto 4, actualizacion
@@ -298,7 +325,9 @@ async function calcularKilosPorPartida(filtros = {}) {
     if (pq && !String(g.numeroPartida).includes(pq)) continue;
     if (desde && g.fecha && new Date(g.fecha) < desde) continue;
     if (hasta && g.fecha && new Date(g.fecha) > hasta) continue;
-    const pendienteBruto = g.comprados - g.vendidos - g.traspasos;
+    const merma = mermaDeProducto(g.articulo);
+    const mermaKg = merma ? (g.comprados * merma.pct) / 100 : 0;
+    const pendienteBruto = g.comprados - mermaKg - g.vendidos - g.traspasos;
     const pendiente = pendienteBruto > 0.005 ? pendienteBruto : 0;
     const vendidoDeMas = pendienteBruto < -0.005 ? -pendienteBruto : 0;
     if (filtros.soloPendiente && pendiente === 0 && vendidoDeMas === 0) continue;
@@ -310,6 +339,9 @@ async function calcularKilosPorPartida(filtros = {}) {
       articuloCodigo: g.articulo.codigo,
       articuloDescripcion: g.articulo.descripcion,
       comprados: g.comprados,
+      mermaKg,
+      mermaPct: merma ? merma.pct : 0,
+      mermaMotivo: merma ? merma.motivo : '',
       vendidos: g.vendidos,
       traspasos: g.traspasos,
       pendiente,

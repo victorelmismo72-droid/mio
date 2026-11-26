@@ -14,6 +14,7 @@
   table.kpp td.pendiente { color: var(--verde); font-weight: 700; }
   table.kpp td.exceso { color: var(--rojo); font-weight: 700; }
   table.kpp tfoot td { background: var(--azul-claro); font-weight: 800; }
+  .merma-nota { font-size: 10px; color: #b45309; font-weight: 400; }
 </style>
 </head>
 <body>
@@ -49,7 +50,7 @@
           <label style="display:flex; align-items:center; gap:6px; font-weight:600; cursor:pointer;"><input type="checkbox" id="f-soloexceso"> Solo VENDIDO DE MÁS</label>
         </div>
       </div>
-      <p style="font-size:12px; color:var(--gris-texto); margin:10px 0 0;">PENDIENTE = comprados − vendidos − traspasos (kilos aún por vender). VENDIDO DE MÁS = kilos vendidos por encima de lo comprado en esa partida. Mermas y partidas cerradas a mano (🔒) no se descuentan.</p>
+      <p style="font-size:12px; color:var(--gris-texto); margin:10px 0 0;">PENDIENTE = comprados − merma − vendidos − traspasos (kilos aún por vender). Merma: congrio −10% (tripa); el resto sin merma. VENDIDO DE MÁS = kilos que se vendieron por encima de lo comprado en esa partida. Las partidas cerradas a mano (🔒) no se descuentan.</p>
     </div>
   </div>
 

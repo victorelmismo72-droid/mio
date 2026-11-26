@@ -25,10 +25,10 @@ const router = express.Router();
 // 12/09/2026 (si fuera despues, Express intentaria leer "disponibles" como
 // si fuera el id).
 router.get('/disponibles', async (req, res) => {
-  const { articuloId, precioVenta } = req.query;
+  const { articuloId, precioVenta, incluirAgotadas } = req.query;
   if (!articuloId) return res.status(400).json({ error: 'Falta el parámetro "articuloId".' });
   try {
-    const disponibles = await obtenerPartidasDisponibles(Number(articuloId));
+    const disponibles = await obtenerPartidasDisponibles(Number(articuloId), undefined, incluirAgotadas === 'true');
     const precio = precioVenta != null ? Number(precioVenta) : null;
     const conMargen = disponibles.map((p) => ({
       ...p,

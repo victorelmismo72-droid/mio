@@ -58,7 +58,7 @@ function render(filas) {
         <td title="${g.proveedorNombre}">${g.proveedorNombre}</td>
         <td>${g.articuloCodigo}</td>
         <td>${g.articuloDescripcion}</td>
-        <td class="num">${fmt(g.comprados)}</td>
+        <td class="num">${fmt(g.comprados)}${g.mermaKg ? `<div class="merma-nota">− ${fmt(g.mermaKg)} ${g.mermaMotivo} ${g.mermaPct}%</div>` : ''}</td>
         <td class="num">${fmt(g.vendidos)}</td>
         <td class="num">${fmt(g.traspasos)}</td>
         <td class="num pendiente">${g.pendiente ? fmt(g.pendiente) : ''}</td>

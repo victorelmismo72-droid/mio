@@ -36,11 +36,11 @@ router.get('/kilos-por-partida/excel', async (req, res) => {
     const filas = await calcularKilosPorPartida(filtrosKilosPartida(req.query));
     const libro = new ExcelJS.Workbook();
     const hoja = libro.addWorksheet('Kilos por partida');
-    hoja.addRow(['PARTIDA', 'FECHA COMPRA', 'PROVEEDOR', 'COD PROD', 'PRODUCTO', 'KG COMPRADOS', 'KG VENDIDOS', 'KG TRASPASOS', 'PENDIENTE DE VENDER', 'VENDIDO DE MÁS', 'CERRADA']).font = { bold: true };
+    hoja.addRow(['PARTIDA', 'FECHA COMPRA', 'PROVEEDOR', 'COD PROD', 'PRODUCTO', 'KG COMPRADOS', 'MERMA KG', 'MERMA %', 'KG VENDIDOS', 'KG TRASPASOS', 'PENDIENTE DE VENDER', 'VENDIDO DE MÁS', 'CERRADA']).font = { bold: true };
     for (const g of filas) {
       hoja.addRow([
         g.numeroPartida, g.fecha ? g.fecha.toISOString().slice(0, 10) : '', g.proveedorNombre, g.articuloCodigo, g.articuloDescripcion,
-        g.comprados, g.vendidos, g.traspasos, g.pendiente || 0, g.vendidoDeMas || 0, g.cerrada ? 'SI' : '',
+        g.comprados, g.mermaKg || 0, g.mermaPct || '', g.vendidos, g.traspasos, g.pendiente || 0, g.vendidoDeMas || 0, g.cerrada ? 'SI' : '',
       ]);
     }
     hoja.columns.forEach((col) => { col.width = 16; });
