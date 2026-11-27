@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MARINAFISK — Histórico de Compras</title>
+<link rel="stylesheet" href="estilos.css">
+<style>
+  .wrap-ancho { max-width: 1500px; }
+  table.historico { width: 100%; border-collapse: collapse; font-size: 12px; }
+  table.historico th { text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: 0.02em; color: var(--gris-texto); padding: 5px 6px; border-bottom: 2px solid var(--gris-borde); white-space: nowrap; position: sticky; top: 0; background: #fff; }
+  table.historico td { padding: 3px 6px; border-bottom: 1px solid #eee; white-space: nowrap; vertical-align: middle; }
+  table.historico td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  table.historico tr.banda-dia td { background: #e8eef3; font-weight: 700; color: var(--azul); padding: 4px 6px; }
+  table.historico tr.anulada td { opacity: 0.5; text-decoration: line-through; }
+  table.historico input { font-size: 12px; padding: 2px 4px; width: 100%; min-width: 0; }
+  table.historico .col-mini { width: 56px; }
+  table.historico .col-partida { width: 80px; }
+  table.historico .col-alb { width: 95px; }
+  .tabla-scroll { max-height: 70vh; overflow: auto; border: 1px solid var(--gris-borde); border-radius: 6px; }
+</style>
+</head>
+<body>
+
+<div class="barra">
+  <h1>🐟 MARINAFISK — Histórico de Compras</h1>
+  <nav class="nav-pantallas">
+    <a href="compras-historico.html" class="activa">Histórico</a>
+    <a href="kilos-por-partida.html">Kilos/Partida</a>
+    <a href="compras.html">Compras</a>
+    <a href="pedidos.html">Pedidos</a>
+    <a href="traspasos.html">Traspasos</a>
+    <a href="existencias.html">Existencias</a>
+    <a href="repartos.html">Repartos</a>
+  </nav>
+  <button class="puesto" id="btn-puesto"></button>
+</div>
+
+<div class="wrap wrap-ancho">
+
+  <div class="card">
+    <div class="card-header">Filtros</div>
+    <div class="card-body">
+      <div class="fila-campos">
+        <div class="fg" style="flex:0 1 110px;"><label for="f-partida">Partida</label><input type="text" id="f-partida" placeholder="nº"></div>
+        <div class="fg" style="flex:0 1 130px;"><label for="f-albprov">Alb. proveedor</label><input type="text" id="f-albprov"></div>
+        <div class="fg" style="flex:0 1 160px;"><label for="f-proveedor">Proveedor</label><input type="text" id="f-proveedor" placeholder="código o nombre"></div>
+        <div class="fg" style="flex:1 1 180px;"><label for="f-producto">Producto</label><input type="text" id="f-producto" placeholder="código o descripción"></div>
+        <div class="fg" style="flex:0 1 150px;"><label for="f-desde">Desde</label><input type="date" id="f-desde"></div>
+        <div class="fg" style="flex:0 1 150px;"><label for="f-hasta">Hasta</label><input type="date" id="f-hasta"></div>
+        <div class="fg" style="flex:0 1 150px;">
+          <label for="f-control">Control</label>
+          <select id="f-control">
+            <option value="">Todos</option>
+            <option value="si">Solo comprobados</option>
+            <option value="no">Solo sin comprobar</option>
+          </select>
+        </div>
+        <div class="fg" style="flex:0 1 170px;">
+          <label for="f-orden">Ordenar por</label>
+          <select id="f-orden">
+            <option value="fecha">Fecha (reciente primero)</option>
+            <option value="partida-desc">Partida (mayor→menor)</option>
+            <option value="partida-asc">Partida (menor→mayor)</option>
+            <option value="importe-desc">Importe (mayor→menor)</option>
+            <option value="importe-asc">Importe (menor→mayor)</option>
+          </select>
+        </div>
+        <div class="fg" style="flex:0 1 auto; justify-content:flex-end;">
+          <label>&nbsp;</label>
+          <button class="btn btn-secundario btn-mini" id="btn-limpiar" type="button">Limpiar filtros</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <span id="cp-resumen">—</span>
+      <div style="display:flex; gap:8px;">
+        <button class="btn btn-secundario btn-mini" id="btn-excel" type="button">📊 Excel</button>
+      </div>
+    </div>
+    <div class="card-body" style="overflow-x:auto;">
+      <div class="tabla-scroll">
+        <table class="historico">
+          <thead>
+            <tr>
+              <th class="col-partida">Partida</th>
+              <th>Fecha</th>
+              <th class="col-alb">Alb. Prov</th>
+              <th>Cod. Prov</th>
+              <th>Proveedor</th>
+              <th>Producto</th>
+              <th class="col-mini">Cajas</th>
+              <th>Kilos</th>
+              <th class="col-mini">€/Kg</th>
+              <th class="num">Base Zgz</th>
+              <th class="num">2% OP</th>
+              <th class="num">Base real</th>
+              <th class="num">IVA</th>
+              <th class="num">Total</th>
+              <th>Control</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="cp-body"></tbody>
+        </table>
+      </div>
+      <div class="pie-totales">
+        <span>Líneas: <b id="cp-tot-lineas">0</b></span>
+        <span>Kilos: <b id="cp-tot-kilos">0,00</b></span>
+        <span>Base real: <b id="cp-tot-base">0,00</b> €</span>
+        <span>IVA: <b id="cp-tot-iva">0,00</b> €</span>
+        <span>Total: <b id="cp-tot-total" class="total-grande">0,00</b> €</span>
+      </div>
+    </div>
+  </div>
+
+  <div id="cp-aviso" class="aviso"></div>
+
+</div>
+
+<script src="api.js"></script>
+<script src="compras-historico.js"></script>
+</body>
+</html>

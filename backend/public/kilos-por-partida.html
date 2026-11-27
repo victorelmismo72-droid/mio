@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MARINAFISK — Kilos por partida</title>
+<link rel="stylesheet" href="estilos.css">
+<style>
+  .wrap-ancho { max-width: 1400px; }
+  table.kpp { width: 100%; border-collapse: collapse; font-size: 12px; }
+  table.kpp th { text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: 0.02em; color: #fff; background: var(--azul); padding: 6px; white-space: nowrap; }
+  table.kpp td { padding: 4px 6px; border-bottom: 1px solid #eee; white-space: nowrap; }
+  table.kpp td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  table.kpp td.pendiente { color: var(--verde); font-weight: 700; }
+  table.kpp td.exceso { color: var(--rojo); font-weight: 700; }
+  table.kpp tfoot td { background: var(--azul-claro); font-weight: 800; }
+  .merma-nota { font-size: 10px; color: #b45309; font-weight: 400; }
+</style>
+</head>
+<body>
+
+<div class="barra">
+  <h1>🐟 MARINAFISK — Kilos vendidos y pendientes por partida</h1>
+  <nav class="nav-pantallas">
+    <a href="compras-historico.html">Histórico</a>
+    <a href="kilos-por-partida.html" class="activa">Kilos/Partida</a>
+    <a href="compras.html">Compras</a>
+    <a href="pedidos.html">Pedidos</a>
+    <a href="traspasos.html">Traspasos</a>
+    <a href="existencias.html">Existencias</a>
+    <a href="repartos.html">Repartos</a>
+  </nav>
+  <button class="puesto" id="btn-puesto"></button>
+</div>
+
+<div class="wrap wrap-ancho">
+
+  <div class="card">
+    <div class="card-header">Filtros</div>
+    <div class="card-body">
+      <div class="fila-campos">
+        <div class="fg" style="flex:1 1 200px;"><label for="f-producto">Producto</label><input type="text" id="f-producto" placeholder="código o nombre"></div>
+        <div class="fg" style="flex:0 1 110px;"><label for="f-partida">Partida</label><input type="text" id="f-partida" placeholder="nº"></div>
+        <div class="fg" style="flex:0 1 160px;"><label for="f-desde">Compradas desde</label><input type="date" id="f-desde"></div>
+        <div class="fg" style="flex:0 1 160px;"><label for="f-hasta">Hasta</label><input type="date" id="f-hasta"></div>
+        <div class="fg" style="flex:0 1 auto; justify-content:center;">
+          <label style="display:flex; align-items:center; gap:6px; font-weight:600; cursor:pointer;"><input type="checkbox" id="f-solopend"> Solo con pendiente o exceso</label>
+        </div>
+        <div class="fg" style="flex:0 1 auto; justify-content:center;">
+          <label style="display:flex; align-items:center; gap:6px; font-weight:600; cursor:pointer;"><input type="checkbox" id="f-soloexceso"> Solo VENDIDO DE MÁS</label>
+        </div>
+      </div>
+      <p style="font-size:12px; color:var(--gris-texto); margin:10px 0 0;">PENDIENTE = comprados − merma − vendidos − traspasos (kilos aún por vender). Merma: congrio −10% (tripa); el resto sin merma. VENDIDO DE MÁS = kilos que se vendieron por encima de lo comprado en esa partida. Las partidas cerradas a mano (🔒) no se descuentan.</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <span id="kpp-resumen">—</span>
+      <button class="btn btn-secundario btn-mini" id="btn-excel" type="button">📊 Excel</button>
+    </div>
+    <div class="card-body" style="overflow-x:auto;">
+      <table class="kpp">
+        <thead>
+          <tr>
+            <th>Partida</th>
+            <th>Fecha</th>
+            <th>Proveedor</th>
+            <th>Cód.</th>
+            <th>Producto</th>
+            <th class="num">Comprados</th>
+            <th class="num">Vendidos</th>
+            <th class="num">Traspasos</th>
+            <th class="num">Pendiente de vender</th>
+            <th class="num">Vendido de más</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="kpp-body"></tbody>
+        <tfoot>
+          <tr>
+            <td colspan="5">TOTALES</td>
+            <td class="num" id="kpp-tot-comprados">0,00</td>
+            <td class="num" id="kpp-tot-vendidos">0,00</td>
+            <td class="num" id="kpp-tot-traspasos">0,00</td>
+            <td class="num" id="kpp-tot-pendiente">0,00</td>
+            <td class="num" id="kpp-tot-exceso">0,00</td>
+            <td></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  </div>
+
+  <div id="kpp-aviso" class="aviso"></div>
+
+</div>
+
+<script src="api.js"></script>
+<script src="kilos-por-partida.js"></script>
+</body>
+</html>

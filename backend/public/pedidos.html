@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MARINAFISK — Pedidos</title>
+<link rel="stylesheet" href="estilos.css">
+</head>
+<body>
+
+<div class="barra">
+  <h1>🐟 MARINAFISK — Nuevo pedido</h1>
+  <nav class="nav-pantallas">
+    <a href="compras-historico.html">Histórico</a>
+    <a href="kilos-por-partida.html">Kilos/Partida</a>
+    <a href="compras.html">Compras</a>
+    <a href="pedidos.html" class="activa">Pedidos</a>
+    <a href="traspasos.html">Traspasos</a>
+    <a href="existencias.html">Existencias</a>
+    <a href="repartos.html">Repartos</a>
+  </nav>
+  <button class="puesto" id="btn-puesto"></button>
+</div>
+
+<div class="wrap">
+
+  <div class="card">
+    <div class="card-header">
+      <span>Datos del pedido</span>
+      <span class="numero-pedido" id="pd-numero-chip">Nº <strong>automático</strong></span>
+    </div>
+    <div class="card-body">
+      <div class="fila-campos">
+        <div class="fg" style="flex:0 1 120px;">
+          <label for="pd-numero-in" title="Déjalo en blanco para que el número correlativo lo asigne el servidor. Tecléalo solo si necesitas encajar con un albarán ya impreso.">Nº albarán</label>
+          <input type="number" id="pd-numero-in" placeholder="auto">
+        </div>
+        <div class="fg">
+          <label for="pd-fecha">Fecha</label>
+          <input type="date" id="pd-fecha">
+        </div>
+        <div class="fg autocompletar" style="flex:2 1 260px;">
+          <label for="pd-cli-buscar">Cliente</label>
+          <input type="text" id="pd-cli-buscar" placeholder="Código o nombre..." autocomplete="off">
+          <div class="sugerencias" id="pd-cli-sugerencias"></div>
+        </div>
+        <div class="fg" style="flex:1 1 150px;">
+          <label for="pd-agencia">Agencia transporte</label>
+          <select id="pd-agencia">
+            <option value="">— sin asignar —</option>
+          </select>
+        </div>
+        <div class="fg" style="flex:1 1 150px;">
+          <label for="pd-formapago">Forma de pago</label>
+          <input type="text" id="pd-formapago" placeholder="opcional">
+        </div>
+        <div class="fg" style="flex:0 1 110px;">
+          <label for="pd-palets" title="Documento electrónico de control, obligatorio desde el 5/10/2026. 0 = PALET VARIADO. Se vuelve a confirmar al grabar.">🚛 Palets</label>
+          <input type="number" id="pd-palets" min="0" step="1" value="0" class="input-palets">
+        </div>
+      </div>
+
+      <div class="cliente-info" id="pd-cliente-info" style="display:none;">
+        <span class="badge-iva" id="pd-cliente-iva">—</span>
+        <span id="pd-cliente-dir">—</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <span>Líneas</span>
+      <button class="btn btn-secundario btn-mini" id="btn-add-linea" type="button">+ Añadir línea</button>
+    </div>
+    <div class="card-body" style="overflow-x:auto;">
+      <table class="lineas">
+        <thead>
+          <tr>
+            <th class="col-producto">Producto</th>
+            <th class="col-estrecha">Cajas</th>
+            <th class="col-estrecha" title="Número de piezas (unidades sueltas). Opcional.">Piezas</th>
+            <th>Peso (kg)</th>
+            <th class="col-estrecha">€/Kg</th>
+            <th class="col-estrecha">Dto %</th>
+            <th class="col-partida">Partida</th>
+            <th class="num">Total línea</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="pd-lineas"></tbody>
+      </table>
+      <div class="pie-totales">
+        <span>Peso: <b id="pd-tot-peso">0,00</b> kg</span>
+        <span>Base imponible: <b id="pd-tot-base">0,00</b> €</span>
+        <span id="pd-tot-iva-etiqueta">IVA (10%): <b id="pd-tot-iva">0,00</b> €</span>
+        <span>Total pedido: <b id="pd-tot-total" class="total-grande">0,00</b> €</span>
+      </div>
+    </div>
+  </div>
+
+  <div id="pd-aviso" class="aviso"></div>
+
+  <div style="margin-top:16px; display:flex; justify-content:flex-end;">
+    <button class="btn btn-exito" id="btn-grabar" style="font-size:15px; padding:10px 22px;">💾 Grabar pedido</button>
+  </div>
+
+</div>
+
+<script src="api.js"></script>
+<script src="pedidos.js"></script>
+</body>
+</html>

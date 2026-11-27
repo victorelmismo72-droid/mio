@@ -1,0 +1,600 @@
+// Esquema de base de datos - Fase 1 de MARINAFISK.
+//
+// Alcance de esta fase (ver FASE_1_base_de_datos_backend_MARINAFISK.md):
+// solo tablas y acceso a datos, SIN logica de negocio (eso es la Fase 2) y
+// SIN facturas/pagos todavia (eso es la Fase 4, que depende de que esta fase
+// y la Fase 2 esten terminadas). El detalle de cada tabla esta explicado en
+// MARINAFISK-nuevo/02_ESQUEMA_BASE_DATOS_PROPUESTO.md - este fichero es la
+// version tecnica (Prisma) de ese borrador ya aprobado por Victor.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------
+// Clientes / Proveedores / Articulos (catalogos maestros)
+// ---------------------------------------------------------------------
+
+enum TipoIvaCliente {
+  NORMAL
+  INTRACOMUNITARIO
+  RECARGO_EQUIVALENCIA
+}
+
+model Cliente {
+  id              Int            @id @default(autoincrement())
+  codigo          String         @unique
+  nombre          String
+  cif             String?
+  direccion       String?
+  cp              String?
+  poblacion       String?
+  provincia       String?
+  telefono        String?
+  email           String?
+  formaPago       String?        @map("forma_pago")
+  agencia         String?
+  tipoIva         TipoIvaCliente @map("tipo_iva")
+  formatoEtiqueta String?        @map("formato_etiqueta")
+  creadoEn        DateTime       @default(now()) @map("creado_en")
+  modificadoEn    DateTime       @updatedAt @map("modificado_en")
+
+  pedidos Pedido[]
+
+  @@map("clientes")
+}
+
+enum TipoIvaProveedor {
+  NACIONAL
+  INTRACOMUNITARIO
+}
+
+model Proveedor {
+  id           Int              @id @default(autoincrement())
+  codigo       String           @unique
+  nombre       String
+  esSubastaOp  Boolean          @default(false) @map("es_subasta_op")
+  tipoIva      TipoIvaProveedor @map("tipo_iva")
+  notas        String?
+  creadoEn     DateTime         @default(now()) @map("creado_en")
+  modificadoEn DateTime         @updatedAt @map("modificado_en")
+
+  compras  Compra[]
+  partidas Partida[]
+
+  @@map("proveedores")
+}
+
+model Articulo {
+  id                 Int      @id @default(autoincrement())
+  codigo             String   @unique
+  descripcion        String
+  tipo               String?
+  pvp1               Decimal? @db.Decimal(10, 2)
+  pvp2               Decimal? @db.Decimal(10, 2)
+  ivaPct             Decimal  @default(10) @db.Decimal(5, 2) @map("iva_pct")
+  familiaPrefijo     String?  @map("familia_prefijo")
+  primeraPalabraDesc String?  @map("primera_palabra_desc")
+  cientifico         String?
+  zonaFao            String?  @map("zona_fao")
+  subzona            String?
+  artePesca          String?  @map("arte_pesca")
+  barco              String?
+  pesoEtiqueta       String?  @map("peso_etiqueta")
+  calibre            String?
+  modoPresentacion   String?  @map("modo_presentacion")
+  formaObtencion     String?  @map("forma_obtencion")
+  nombreFrances      String?  @map("nombre_frances")
+  nombreItaliano     String?  @map("nombre_italiano")
+  creadoEn           DateTime @default(now()) @map("creado_en")
+  modificadoEn       DateTime @updatedAt @map("modificado_en")
+
+  compraLineas      CompraLinea[]
+  pedidoLineas      PedidoLinea[]
+  traspasoLineas    TraspasoLinea[]
+  repartoLineas     RepartoLinea[]
+  listaPrecioLineas ListaPrecioLinea[]
+  existenciaLineas  ExistenciaLinea[]
+
+  @@map("articulos")
+}
+
+// ---------------------------------------------------------------------
+// Compras - editable (corregido el 22/11/2026, ver Fase 0 punto 15 y
+// RESUMEN_COMPLETO_para_Code_18-11-2026_1..5.md): el HTML real en
+// produccion permite editar una compra ya grabada (partida, alb.
+// proveedor, proveedor, y cajas/kilos/precio/articulo/control por linea) y
+// anularla - decision de Victor (22/11/2026), abandonando la garantia de
+// "dato sagrado" que Fase 1 habia dado por cerrada. Sigue sin haber DELETE
+// real (una compra nunca desaparece de la base de datos): "anular" es un
+// estado (anulada=true), no un borrado - ver routes/compras.js.
+// ---------------------------------------------------------------------
+
+// numeroPartida NO es unique aqui: leyendo grabarCompra() en el HTML actual,
+// varias compras (albaranes) del MISMO proveedor en el MISMO dia comparten
+// el mismo numero de partida - la partida agrupa compras, no es 1:1 con una.
+// Ver 02_ESQUEMA_BASE_DATOS_PROPUESTO.md, tabla `compras`, para el detalle
+// de esta correccion (05/09/2026) sobre la primera version de este esquema.
+model Compra {
+  id                      Int      @id @default(autoincrement())
+  numeroPartida           Int      @map("numero_partida")
+  fecha                   DateTime @db.Date
+  albaranProveedor        String?  @map("albaran_proveedor")
+  proveedorId             Int      @map("proveedor_id")
+  proveedor               Proveedor @relation(fields: [proveedorId], references: [id])
+  proveedorNombreSnapshot String   @map("proveedor_nombre_snapshot")
+  totalKilos              Decimal  @db.Decimal(10, 2) @map("total_kilos")
+  totalBaseZgz            Decimal  @db.Decimal(10, 2) @map("total_base_zgz")
+  totalBaseReal           Decimal  @db.Decimal(10, 2) @map("total_base_real")
+  totalIva                Decimal  @db.Decimal(10, 2) @map("total_iva")
+  totalFactura            Decimal  @db.Decimal(10, 2) @map("total_factura")
+  puestoOrigen            String   @map("puesto_origen")
+  // Anulacion = "borrado" en la practica (equivale a anularCompra() del
+  // HTML), pero sin DELETE real: la fila se queda, con el motivo y quien la
+  // anulo, para no perder el historial de que existio.
+  anulada                 Boolean   @default(false)
+  anuladaEn               DateTime? @map("anulada_en")
+  anuladaPor              String?   @map("anulada_por")
+  creadoEn                DateTime @default(now()) @map("creado_en")
+  modificadoEn            DateTime @updatedAt @map("modificado_en")
+
+  lineas CompraLinea[]
+
+  @@index([numeroPartida])
+  @@map("compras")
+}
+
+model CompraLinea {
+  id             Int      @id @default(autoincrement())
+  compraId       Int      @map("compra_id")
+  compra         Compra   @relation(fields: [compraId], references: [id])
+  articuloId     Int      @map("articulo_id")
+  articulo       Articulo @relation(fields: [articuloId], references: [id])
+  cajas          Int?
+  kilos          Decimal  @db.Decimal(10, 2)
+  precioKg       Decimal  @db.Decimal(10, 4) @map("precio_kg")
+  baseZgz        Decimal  @db.Decimal(10, 2) @map("base_zgz")
+  baseZgzConIva  Decimal  @default(0) @db.Decimal(10, 2) @map("base_zgz_con_iva")
+  op2Importe     Decimal  @default(0) @db.Decimal(10, 2) @map("op2_importe")
+  baseReal       Decimal  @db.Decimal(10, 2) @map("base_real")
+  ivaImporte     Decimal  @db.Decimal(10, 2) @map("iva_importe")
+  totalFactura   Decimal  @db.Decimal(10, 2) @map("total_factura")
+  control        Boolean  @default(false)
+  creadoEn       DateTime @default(now()) @map("creado_en")
+
+  @@map("compra_lineas")
+}
+
+// partidas: registro CANONICO de que numeros de partida existen (no es 1:1
+// con una compra - ver nota en el modelo Compra - varias filas de `compras`
+// referencian el mismo numero_partida). kilos_disponibles NO se guarda como
+// columna (se calcula en Fase 2 sumando todas las compras de ese
+// numero_partida); aqui se guarda el estado real de cierre manual (equivale
+// a `localStorage['partidas_cerradas_manual']` de hoy) y la asignacion
+// automatica del numero.
+//
+// Regla de negocio (confirmada por Victor, 12/09/2026): por defecto hay UNA
+// SOLA partida "principal" por dia+proveedor (esPrincipal=true) - es la que
+// se reutiliza automaticamente en cada compra nueva de ese proveedor ese
+// dia, igual que en el Excel. En casos raros (necesidad de produccion) se
+// puede forzar una partida NUEVA distinta para ese mismo dia+proveedor
+// (esPrincipal=false) - nunca se sugiere sola, solo se usa si se elige
+// explicitamente cada vez. El indice unico parcial de mas abajo (anadido a
+// mano en la migracion, Prisma no soporta indices parciales en el schema)
+// garantiza a nivel de base de datos que nunca haya dos principales para el
+// mismo dia+proveedor, incluso si dos puestos graban a la vez.
+model Partida {
+  id            Int       @id @default(autoincrement())
+  numeroPartida Int       @unique @default(dbgenerated("nextval('partidas_numero_partida_seq')")) @map("numero_partida")
+  fecha         DateTime  @db.Date
+  proveedorId   Int       @map("proveedor_id")
+  proveedor     Proveedor @relation(fields: [proveedorId], references: [id])
+  esPrincipal   Boolean   @default(true) @map("es_principal")
+  cerradaManual Boolean   @default(false) @map("cerrada_manual")
+  cerradaEn     DateTime? @map("cerrada_en")
+  cerradaPor    String?   @map("cerrada_por")
+  creadoEn      DateTime  @default(now()) @map("creado_en")
+
+  // Indice unico parcial real: UNIQUE(fecha, proveedor_id) WHERE es_principal
+  // - se añade a mano en la migracion (ver migration.sql), Prisma no lo
+  // expresa en el schema. Este @@index normal es solo para acelerar las
+  // consultas, NO es la garantia de unicidad.
+  @@index([fecha, proveedorId])
+  @@map("partidas")
+}
+
+// ---------------------------------------------------------------------
+// Pedidos (albaranes de venta)
+// ---------------------------------------------------------------------
+
+model Pedido {
+  id              Int      @id @default(autoincrement())
+  // Numero de albaran de venta (Fase 4, pantalla de Pedidos, 22/11/2026):
+  // igual que numeroPartida en Partida, se genera con una secuencia real de
+  // la base de datos (pedidos_numero_seq) para que dos puestos grabando a
+  // la vez nunca puedan repetir el mismo numero (ver Fase 0 punto 74: 667
+  // numeros duplicados en un incidente real de 5 minutos con el contador
+  // antiguo en memoria). Victor puede seguir tecleando un numero a mano si
+  // lo necesita (ej. para encajar con un albaran ya impreso) - el unique
+  // de mas abajo lo protege igual, y la secuencia nunca retrocede.
+  numero          Int      @unique @default(dbgenerated("nextval('pedidos_numero_seq')"))
+  fecha           DateTime @db.Date
+  clienteId       Int      @map("cliente_id")
+  cliente         Cliente  @relation(fields: [clienteId], references: [id])
+  // "Foto" de los datos del cliente en el momento del pedido (el HTML actual
+  // guarda clienteNombre/clienteCif/clienteDir/clientePob/clienteTel en cada
+  // pedido, ademas del codigo) - si el cliente cambia despues, el albaran ya
+  // impreso no debe cambiar retroactivamente.
+  clienteNombreSnapshot String  @map("cliente_nombre_snapshot")
+  clienteCifSnapshot    String? @map("cliente_cif_snapshot")
+  clienteDirSnapshot    String? @map("cliente_dir_snapshot")
+  clientePobSnapshot    String? @map("cliente_pob_snapshot")
+  clienteTelSnapshot    String? @map("cliente_tel_snapshot")
+  agencia         String?
+  formaPago       String?  @map("forma_pago")
+  tipoIvaAplicado String   @map("tipo_iva_aplicado")
+  baseImponible   Decimal  @db.Decimal(10, 2) @map("base_imponible")
+  iva             Decimal  @db.Decimal(10, 2)
+  total           Decimal  @db.Decimal(10, 2)
+  // Documento electronico de control obligatorio desde el 5/10/2026 (real,
+  // confirmado leyendo el HTML vigente el 24/11/2026): numero de palets que
+  // lleva el pedido. 0 = "PALET VARIADO" al imprimir. Comun a Pedido,
+  // Traspaso y Reparto (ver esos modelos mas abajo).
+  palets          Int      @default(0)
+  puestoOrigen    String   @map("puesto_origen")
+  creadoEn        DateTime @default(now()) @map("creado_en")
+  modificadoEn    DateTime @updatedAt @map("modificado_en")
+
+  lineas PedidoLinea[]
+
+  @@map("pedidos")
+}
+
+model PedidoLinea {
+  id                 Int      @id @default(autoincrement())
+  pedidoId           Int      @map("pedido_id")
+  pedido             Pedido   @relation(fields: [pedidoId], references: [id])
+  articuloId         Int      @map("articulo_id")
+  articulo           Articulo @relation(fields: [articuloId], references: [id])
+  descripcionEditada String?  @map("descripcion_editada")
+  cantidad           Decimal? @db.Decimal(10, 2)
+  // "piezas" = numero de ejemplares sueltos (pescado grande que se cuenta
+  // por pieza, no por caja) - campo DISTINTO de `cantidad` (cajas/bultos),
+  // confirmado leyendo el HTML vigente el 24/11/2026 (columna PIEZAS propia
+  // en Pedidos y Traspasos, con su propio total e impresion en el PDF).
+  piezas             Int?
+  peso               Decimal  @db.Decimal(10, 2)
+  precio             Decimal  @db.Decimal(10, 4)
+  descuento          Decimal  @default(0) @db.Decimal(5, 2)
+  ivaPct             Decimal  @db.Decimal(5, 2) @map("iva_pct")
+  total              Decimal  @db.Decimal(10, 2)
+  // Numero de partida asignado a esta linea (vacio/null = pendiente de
+  // asignar, reemplaza a la "pantalla de excepciones" actual: es un filtro
+  // sobre esta misma tabla). NO es una FK a `partidas` - esa tabla solo
+  // guarda cierres manuales, no existe una fila por cada numero de partida.
+  // Si la linea esta repartida entre varias partidas (ver `partidas` mas
+  // abajo, 24/11/2026), este campo sigue siendo la PRIMERA, por
+  // compatibilidad con cualquier sitio que solo mire este campo (ej.
+  // listados antiguos) - la fuente de verdad del reparto completo es la
+  // relacion `partidas`.
+  partidaNumero      Int?     @map("partida_numero")
+
+  // Reparto de esta linea entre MAS de una partida (ver Fase 2 punto 4,
+  // actualizacion 24/11/2026 - RESUMEN_COMPLETO_para_Code_18-11-2026_8.md):
+  // el caso normal (una sola partida) NO crea ninguna fila aqui, solo usa
+  // `partidaNumero` + `peso` tal cual (ver repartoPartidas() en
+  // margenPartida.js) - esta relacion solo se rellena cuando de verdad hace
+  // falta mas de una partida para cubrir el peso de la linea.
+  partidas PedidoLineaPartida[]
+
+  @@map("pedido_lineas")
+}
+
+// Una fila por cada partida que aporta kilos a una PedidoLinea repartida
+// entre varias (ver el comentario de arriba). Los kilos de la ULTIMA fila
+// (por `orden`) nunca son la fuente de verdad: se recalculan siempre como
+// "lo que falte hasta el peso de la linea" (ver repartoPartidas() en
+// margenPartida.js), para que un cambio de peso despues no deje un reparto
+// obsoleto - el valor aqui guardado para la ultima fila es solo el ultimo
+// calculo conocido, informativo.
+model PedidoLineaPartida {
+  id            Int         @id @default(autoincrement())
+  pedidoLineaId Int         @map("pedido_linea_id")
+  pedidoLinea   PedidoLinea @relation(fields: [pedidoLineaId], references: [id], onDelete: Cascade)
+  orden         Int
+  numeroPartida Int         @map("numero_partida")
+  kilos         Decimal     @db.Decimal(10, 2)
+
+  @@map("pedido_linea_partidas")
+}
+
+// ---------------------------------------------------------------------
+// Traspasos internos y Repartos
+// ---------------------------------------------------------------------
+
+model Traspaso {
+  id           Int      @id @default(autoincrement())
+  // Igual que Pedido.numero (22/11/2026): secuencia real de la base de
+  // datos, el mismo gap real que tenia Pedido.numero antes de esa fecha -
+  // nada lo rellenaba.
+  numero       Int      @unique @default(dbgenerated("nextval('traspasos_numero_seq')"))
+  fecha        DateTime @db.Date
+  totalKg      Decimal  @db.Decimal(10, 2) @map("total_kg")
+  // "base"/"total" (corregido el 24/11/2026 tras leer el HTML real vigente
+  // ese dia: la suposicion anterior, "valorar a coste", era incorrecta).
+  // Un traspaso a Zaragoza no es una venta (Fase 0 punto 3/9), pero SI
+  // lleva un "precio" por linea - un valor ESTIMADO, no fiscal (asi lo
+  // rotula el propio PDF: "Valor estimado (no fiscal)"), tecleado por
+  // Victor (con el PVP1 del articulo como valor de partida, igual que en
+  // Pedidos) y no derivado de ninguna partida. "total" = "base" (sin IVA,
+  // no es una factura). Ver TraspasoLinea.precio mas abajo.
+  base         Decimal  @db.Decimal(10, 2)
+  total        Decimal  @db.Decimal(10, 2)
+  // Documento electronico de control (ver Pedido.palets) - comun tambien a
+  // Traspasos.
+  palets       Int      @default(0)
+  puestoOrigen String   @map("puesto_origen")
+  creadoEn     DateTime @default(now()) @map("creado_en")
+
+  lineas TraspasoLinea[]
+
+  @@map("traspasos")
+}
+
+model TraspasoLinea {
+  id         Int      @id @default(autoincrement())
+  traspasoId Int      @map("traspaso_id")
+  traspaso   Traspaso @relation(fields: [traspasoId], references: [id])
+  articuloId Int      @map("articulo_id")
+  articulo   Articulo @relation(fields: [articuloId], references: [id])
+  // "cantidad" = cajas/bultos (igual que en Pedidos); "piezas" es un
+  // concepto DISTINTO (numero de ejemplares sueltos, ej. pescado grande
+  // que se cuenta por pieza) - ver Fase 0 punto 15, columna nueva
+  // confirmada el 18-11/23-11/2026 (RESUMEN_COMPLETO_para_Code_18-11-2026_
+  // 1..9.md) que no existia en nuestro esquema. Ambas opcionales,
+  // independientes entre si.
+  cantidad   Decimal? @db.Decimal(10, 2)
+  piezas     Int?
+  peso       Decimal  @db.Decimal(10, 2)
+  // Valor estimado por kg (no fiscal, ver el comentario en Traspaso de mas
+  // arriba) - total de la linea = peso * precio, sin IVA ni descuento.
+  precio     Decimal  @default(0) @db.Decimal(10, 4)
+  total      Decimal  @default(0) @db.Decimal(10, 2)
+  // Corregido el 12/09/2026 (desajuste real, se llamaba "partidaId"): esto es
+  // el NUMERO de partida, igual que PedidoLinea.partidaNumero - no una FK a
+  // la tabla `partidas` (esa tabla no tiene una fila por cada numero, ver el
+  // comentario del modelo Partida mas arriba). Un traspaso a Zaragoza
+  // consume kilos de una partida exactamente igual que un pedido, por eso
+  // Fase 2 (margen) suma ambos al calcular kilos disponibles.
+  // Igual que en PedidoLinea (24/11/2026): sigue siendo la PRIMERA partida
+  // si la linea esta repartida entre varias (ver `partidas` mas abajo).
+  partidaNumero Int?   @map("partida_numero")
+  partidas      TraspasoLineaPartida[]
+
+  @@map("traspaso_lineas")
+}
+
+// Equivalente a PedidoLineaPartida (ver el comentario de ese modelo).
+model TraspasoLineaPartida {
+  id              Int           @id @default(autoincrement())
+  traspasoLineaId Int           @map("traspaso_linea_id")
+  traspasoLinea   TraspasoLinea @relation(fields: [traspasoLineaId], references: [id], onDelete: Cascade)
+  orden           Int
+  numeroPartida   Int           @map("numero_partida")
+  kilos           Decimal       @db.Decimal(10, 2)
+
+  @@map("traspaso_linea_partidas")
+}
+
+model Reparto {
+  id                 Int      @id @default(autoincrement())
+  // Mismo hueco real que tuvieron Pedido.numero/Traspaso.numero hasta el
+  // 22-24/11/2026 (ver esos modelos mas arriba): sin un DEFAULT de verdad,
+  // ninguna pantalla podia grabar nada si se dejaba en blanco. Corregido
+  // igual, con su propia secuencia de Postgres.
+  numero             Int      @unique @default(dbgenerated("nextval('repartos_numero_seq')"))
+  fecha              DateTime @db.Date
+  destinatarioNombre String?  @map("destinatario_nombre")
+  destinatarioCiudad String?  @map("destinatario_ciudad")
+  conductor          String?
+  // PALETS (documento electronico de control obligatorio desde el
+  // 5/10/2026, ver Pedido.palets/Traspaso.palets mas arriba) - quedaba
+  // pendiente aqui hasta construir esta pantalla (Fase 0 punto 15).
+  palets             Int      @default(0)
+  totalCajas         Decimal? @db.Decimal(10, 2) @map("total_cajas")
+  totalKg            Decimal  @db.Decimal(10, 2) @map("total_kg")
+  puestoOrigen       String   @map("puesto_origen")
+  creadoEn           DateTime @default(now()) @map("creado_en")
+
+  lineas RepartoLinea[]
+
+  @@map("repartos")
+}
+
+model RepartoLinea {
+  id         Int      @id @default(autoincrement())
+  repartoId  Int      @map("reparto_id")
+  reparto    Reparto  @relation(fields: [repartoId], references: [id], onDelete: Cascade)
+  articuloId Int      @map("articulo_id")
+  articulo   Articulo @relation(fields: [articuloId], references: [id])
+  // "cantidad" = cajas (igual que en Pedidos/Traspasos); admite la misma
+  // suma que el resto del programa (ej. "12+13.5" en el HTML real -
+  // resolverSumaSiProcedeEnEnter se aplica tambien a Cajas/Kg/Peso
+  // etiqueta en esta pantalla, no solo a Kilos como en Compras).
+  cantidad   Decimal? @db.Decimal(10, 2)
+  peso       Decimal  @db.Decimal(10, 2)
+  // Trazabilidad por linea (etiqueta Scanfisk del HTML real - la
+  // generacion de la etiqueta en si queda pendiente, ver
+  // 03_FRONTEND_MARINAFISK.md): lote se teclea siempre a mano (texto
+  // libre, no necesariamente el numero de partida); barco/subzona/
+  // artePesca se autorrellenan del articulo elegido (Articulo.barco/
+  // subzona/artePesca) la primera vez, pero siguen editables por linea -
+  // una misma referencia puede repartirse entre varios barcos/lotes.
+  lote         String?
+  barco        String?
+  subzona      String?
+  artePesca    String?  @map("arte_pesca")
+  // En blanco = la etiqueta imprime "VER CAJA" en vez de un peso exacto
+  // (ver HTML real) - por eso es opcional, a diferencia de "peso".
+  pesoEtiqueta Decimal? @db.Decimal(10, 2) @map("peso_etiqueta")
+
+  @@map("reparto_lineas")
+}
+
+// ---------------------------------------------------------------------
+// Listas de precio (Pescaderias / Mayoristas) - independientes entre si
+// ---------------------------------------------------------------------
+
+enum TipoListaPrecio {
+  MAYORISTA
+  PESCADERIA
+}
+
+enum ModoListaPrecio {
+  AUTO
+  MANUAL
+}
+
+model ListaPrecio {
+  id       Int             @id @default(autoincrement())
+  tipo     TipoListaPrecio
+  fecha    DateTime        @db.Date
+  modo     ModoListaPrecio
+  creadoEn DateTime        @default(now()) @map("creado_en")
+
+  lineas ListaPrecioLinea[]
+
+  @@unique([tipo, fecha])
+  @@map("listas_precio")
+}
+
+// Corregido el 13/09/2026 (desajuste real, ver Fase 2 punto 5): en el modo
+// manual del HTML actual, cada fila es un producto escrito LIBREMENTE
+// (agregarFilaManualPrecio: solo texto, sin ningún selector de catálogo) -
+// no siempre corresponde a un articulo del maestro. articuloId pasa a ser
+// opcional y se añade descripcionLibre para ese caso; una fila debe traer
+// uno de los dos (comprobado en la app Y con un CHECK en la base de datos,
+// añadido a mano en la migración - ver migration.sql).
+// coste y existencias son la "version interna" (Fase 0 punto 9 / Fase 2
+// punto 5): coste de referencia (solo para uso interno, nunca en la imagen
+// de cliente) y existencias en texto libre ("AGOTADO", "POCAS"...) además
+// de un número exacto, igual que en partidas.
+model ListaPrecioLinea {
+  id               Int         @id @default(autoincrement())
+  listaPrecioId    Int         @map("lista_precio_id")
+  listaPrecio      ListaPrecio @relation(fields: [listaPrecioId], references: [id])
+  articuloId       Int?        @map("articulo_id")
+  articulo         Articulo?   @relation(fields: [articuloId], references: [id])
+  descripcionLibre String?     @map("descripcion_libre")
+  precio           Decimal     @db.Decimal(10, 2)
+  coste            Decimal?    @db.Decimal(10, 2)
+  existencias      String?
+
+  @@map("lista_precio_lineas")
+}
+
+// ---------------------------------------------------------------------
+// Log basico de escrituras (Fase 1 punto 3: util para depurar
+// problemas de sincronizacion mas adelante, en la Fase 3).
+// ---------------------------------------------------------------------
+
+model LogEscritura {
+  id           Int      @id @default(autoincrement())
+  tabla        String
+  operacion    String
+  registroId   Int?     @map("registro_id")
+  puestoOrigen String?  @map("puesto_origen")
+  creadoEn     DateTime @default(now()) @map("creado_en")
+
+  @@map("log_escrituras")
+}
+
+// ---------------------------------------------------------------------
+// Proteccion contra doble grabacion por clic repetido (CORRECCIONES_02-09-2026
+// punto 1; ver FASE_0 punto 11.3 y FASE_1 criterios de cierre) - A NIVEL DE
+// SERVIDOR, no solo deshabilitando el boton en pantalla como hace hoy el
+// HTML. El cliente debe generar una clave unica por intento de guardado (ej.
+// un UUID generado al pulsar "Grabar") y reenviar la MISMA clave si reintenta
+// ese mismo clic - nunca una clave nueva para el mismo intento.
+model ClaveIdempotencia {
+  id           Int       @id @default(autoincrement())
+  clave        String    @unique
+  ruta         String
+  estado       String    // EN_PROCESO | COMPLETADA
+  statusHttp   Int?
+  respuesta    Json?
+  creadoEn     DateTime  @default(now()) @map("creado_en")
+  completadoEn DateTime? @map("completado_en")
+
+  @@map("claves_idempotencia")
+}
+
+// ---------------------------------------------------------------------
+// Copia de seguridad automatica antes de cada importacion masiva de Excel
+// (mismo mecanismo que el HTML actual guarda como `compras_backup_previo`
+// en localStorage antes de reimportar el Excel de COMPRAS). No sustituye a
+// un backup real de la base de datos - es solo la foto de "que compras
+// afecto esta importacion" por si hay que revertir algo a mano.
+// ---------------------------------------------------------------------
+
+model ImportacionBackup {
+  id         Int      @id @default(autoincrement())
+  tipo       String   // ej. "compras_excel"
+  contenido  Json     // snapshot de los registros afectados ANTES de la importacion
+  creadoEn   DateTime @default(now()) @map("creado_en")
+
+  @@map("importaciones_backup")
+}
+
+// ---------------------------------------------------------------------
+// EXISTENCIAS EN CAMARA - modulo nuevo, descubierto el 24/11/2026 leyendo
+// el HTML real (CARGA_DE_ALBARANES_MARINAFISK_2026-11-24_UNAFILA.html,
+// funcion abrirExistencias y las que empiezan por "ex"), no documentado en
+// ningun resumen anterior ni contemplado en Fase 0-2. Lo que queda en la
+// camara, dia a dia: no es ni una compra ni una venta, es un apunte manual
+// de stock fisico (bultos/kg/precio/nota) con marca de "vendido" cuando se
+// agota del todo (sigue en las estadisticas, pero deja de salir en el
+// listado). Una fila por dia (fecha unica); las lineas son filas reales
+// (con su propio id editable), no un indice dentro de un array JSON como
+// en el HTML real - asi la edicion en el listado nunca se desincroniza si
+// cambia el orden.
+model Existencia {
+  id       Int      @id @default(autoincrement())
+  fecha    DateTime @unique @db.Date
+  lineas   ExistenciaLinea[]
+  creadoEn DateTime @default(now()) @map("creado_en")
+
+  @@map("existencias")
+}
+
+model ExistenciaLinea {
+  id           Int        @id @default(autoincrement())
+  existenciaId Int        @map("existencia_id")
+  existencia   Existencia @relation(fields: [existenciaId], references: [id], onDelete: Cascade)
+  // Posicion dentro del dia (se conserva el orden tecleado, incluidas las
+  // filas en blanco que separan grupos - "separador").
+  orden        Int
+  separador    Boolean    @default(false)
+  // El articulo se resuelve por codigo igual que en Pedidos/Traspasos; si
+  // lo tecleado no es un codigo conocido del catalogo, se guarda tal cual
+  // en "descripcionLibre" (el HTML real admite texto suelto en Existencias,
+  // a diferencia de Pedidos/Traspasos/Compras que exigen catalogo).
+  articuloId       Int?     @map("articulo_id")
+  articulo         Articulo? @relation(fields: [articuloId], references: [id])
+  descripcionLibre String?  @map("descripcion_libre")
+  cantidad         Decimal? @db.Decimal(10, 2) // bultos
+  peso             Decimal? @db.Decimal(10, 2) // kg
+  precio           Decimal? @db.Decimal(10, 2) // EUR/kg
+  nota             String?
+  // Vendido del todo: deja de salir en el listado normal (se puede volver
+  // a ver con el filtro "con vendidos"/"solo vendidos") pero sigue
+  // contando en las estadisticas - igual que el HTML real.
+  vendido          Boolean  @default(false)
+
+  @@map("existencia_lineas")
+}
